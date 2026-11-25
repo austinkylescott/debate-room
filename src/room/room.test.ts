@@ -7,7 +7,7 @@ const alexDevice: Actor = { token: "alex-device" };
 const samDevice: Actor = { token: "sam-device" };
 
 function newRoom(hostNickname = "Jordan"): RoomState {
-  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname }, 1_000);
+  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname });
   if ("rejection" in created) throw new Error(created.rejection.message);
   return created.state;
 }
@@ -39,7 +39,7 @@ describe("creating a Room", () => {
   });
 
   it("needs a Host nickname", () => {
-    const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "   " }, 1_000);
+    const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "   " });
     expect("rejection" in created && created.rejection.code).toBe("nickname-invalid");
   });
 });
@@ -148,7 +148,7 @@ describe("joining the Waiting Room", () => {
     ]);
   });
 
-  it("refuses to add the Host as a Participant", () => {
+  it("doesn't add the Host's device a second time as a Participant", () => {
     const result = apply(liveRoom(), join("Jordan 2"), hostDevice, 2_000);
     expect(result.rejection?.code).toBe("already-in-room");
     expect(nicknamesSeenBy(result.state, hostDevice)).toEqual(["Jordan"]);
@@ -178,9 +178,20 @@ describe("nickname uniqueness", () => {
 
 describe("reconnecting by token", () => {
   it("restores the same Participant when the device comes back", () => {
+    const joined = apply(liveRoom(), join("Alex"), alexDevice, 3_000);
+    const [event] = joined.recapEvents;
+    const joinedAs = event?.type === "person-joined" ? event.personId : undefined;
+    // A refresh is a fresh connection that presents the same device token.
+    expect(viewFor(joined.state, { token: "alex-device" }).you).toEqual({
+      role: "participant",
+      personId: joinedAs,
+      nickname: "Alex",
+    });
+  });
+
+  it("treats a different device as someone new", () => {
     const state = run(liveRoom(), [join("Alex"), alexDevice]);
-    // A refresh is a fresh connection with the same device token.
-    expect(viewFor(state, { token: alexDevice.token }).you).toEqual(viewFor(state, alexDevice).you);
+    expect(viewFor(state, { token: "alex-other-phone" }).you).toEqual({ role: "visitor" });
   });
 
   it("doesn't add a duplicate entry when the same device joins again", () => {
@@ -191,10 +202,11 @@ describe("reconnecting by token", () => {
     expect(nicknamesSeenBy(again.state, hostDevice)).toEqual(["Jordan", "Alex"]);
   });
 
-  it("keeps a Participant's device from becoming the Host", () => {
-    const state = run(liveRoom(), [join("Alex"), alexDevice]);
-    const result = apply(state, claimHost(), alexDevice, 3_000);
-    expect(result.rejection?.code).toBe("already-in-room");
-    expect(viewFor(result.state, alexDevice).you.role).toBe("participant");
+  it("lets the Host link take over a device that had joined as a Participant", () => {
+    // The Host joined through the invite link on their phone before using the Host link there.
+    const hostPhone: Actor = { token: "host-phone" };
+    const state = run(liveRoom(), [join("Jordan's phone"), hostPhone], [claimHost(), hostPhone]);
+    expect(viewFor(state, hostPhone).you.role).toBe("host");
+    expect(nicknamesSeenBy(state, hostDevice)).toEqual(["Jordan"]);
   });
 });

@@ -20,6 +20,7 @@ export type RejectionCode =
   | "nickname-invalid"
   | "nickname-taken"
   | "room-not-open"
+  | "room-ended"
   | "not-host"
   | "wrong-host-secret"
   | "already-in-room";
@@ -37,13 +38,11 @@ interface Participant {
   id: string;
   nickname: string;
   token: string;
-  joinedAt: number;
 }
 
 /** Internal state. Never sent to clients as-is: clients only see `viewFor`. */
 export interface RoomState {
   phase: Phase;
-  createdAt: number;
   hostSecret: string;
   hostNickname: string;
   /** Device tokens recognised as the Host (one per device the Host has used). */
@@ -77,16 +76,20 @@ export interface View {
   waitingRoom: { people: WaitingRoomPerson[] } | null;
 }
 
+/** What the Worker knows when a Host creates a Room. */
+export interface CreateRoomInput {
+  hostSecret: string;
+  hostNickname: string;
+}
+
 export function createRoom(
-  input: { hostSecret: string; hostNickname: string },
-  now: number,
+  input: CreateRoomInput,
 ): { state: RoomState } | { rejection: Rejection } {
   const nickname = normalizeNickname(input.hostNickname);
-  if (nickname === null) return { rejection: invalidNickname() };
+  if (nickname === null) return { rejection: INVALID_NICKNAME };
   return {
     state: {
       phase: "planning",
-      createdAt: now,
       hostSecret: input.hostSecret,
       hostNickname: nickname,
       hostTokens: [],
@@ -136,7 +139,7 @@ export function parseIntent(raw: unknown): Intent | null {
 }
 
 /** Trims and collapses whitespace. Returns null if the result is empty or too long. */
-export function normalizeNickname(raw: string): string | null {
+function normalizeNickname(raw: string): string | null {
   const nickname = raw.trim().replace(/\s+/g, " ");
   if (nickname.length === 0 || nickname.length > NICKNAME_MAX_LENGTH) return null;
   return nickname;
@@ -145,23 +148,28 @@ export function normalizeNickname(raw: string): string | null {
 function claimHost(state: RoomState, hostSecret: string, actor: Actor): ApplyResult {
   if (isHost(state, actor)) return unchanged(state);
   if (hostSecret !== state.hostSecret) {
-    return rejected(state, "wrong-host-secret", "That Host link isn't valid for this Room.");
+    return rejected(state, {
+      code: "wrong-host-secret",
+      message: "That Host link isn't valid for this Room.",
+    });
   }
-  if (findParticipant(state, actor)) {
-    return rejected(
-      state,
-      "already-in-room",
-      "This device already joined the Room as a Participant, so it can't become the Host.",
-    );
-  }
+  // The Host secret always grants the Host role. If the Host had already
+  // joined from this device as a Participant, that entry gives way: the Host
+  // is listed in the Waiting Room as the Host.
   return {
-    state: { ...state, hostTokens: [...state.hostTokens, actor.token] },
+    state: {
+      ...state,
+      hostTokens: [...state.hostTokens, actor.token],
+      participants: state.participants.filter((p) => p.token !== actor.token),
+    },
     recapEvents: [],
   };
 }
 
 function openRoom(state: RoomState, actor: Actor, now: number): ApplyResult {
-  if (!isHost(state, actor)) return rejected(state, "not-host", "Only the Host can open the Room.");
+  if (!isHost(state, actor)) {
+    return rejected(state, { code: "not-host", message: "Only the Host can open the Room." });
+  }
   if (state.phase !== "planning") return unchanged(state);
   return {
     state: { ...state, phase: "live" },
@@ -171,27 +179,34 @@ function openRoom(state: RoomState, actor: Actor, now: number): ApplyResult {
 
 function join(state: RoomState, rawNickname: string, actor: Actor, now: number): ApplyResult {
   if (isHost(state, actor)) {
-    return rejected(state, "already-in-room", "You're already in this Room as the Host.");
+    return rejected(state, {
+      code: "already-in-room",
+      message: "You're already in this Room as the Host.",
+    });
   }
   // Rejoining from the same device restores the same Participant.
   if (findParticipant(state, actor)) return unchanged(state);
-  if (state.phase !== "live") {
-    return rejected(state, "room-not-open", "This Room isn't open yet. Check back soon.");
+  if (state.phase === "planning") {
+    return rejected(state, {
+      code: "room-not-open",
+      message: "This Room isn't open yet. Check back soon.",
+    });
+  }
+  if (state.phase === "ended") {
+    return rejected(state, { code: "room-ended", message: "This Room has ended." });
   }
   const nickname = normalizeNickname(rawNickname);
-  if (nickname === null) return rejected(state, invalidNickname().code, invalidNickname().message);
+  if (nickname === null) return rejected(state, INVALID_NICKNAME);
   if (isNicknameTaken(state, nickname)) {
-    return rejected(
-      state,
-      "nickname-taken",
-      `Someone in this Room is already called "${nickname}". Pick another nickname.`,
-    );
+    return rejected(state, {
+      code: "nickname-taken",
+      message: `Someone in this Room is already called "${nickname}". Pick another nickname.`,
+    });
   }
   const participant: Participant = {
     id: `p${state.nextParticipantNumber}`,
     nickname,
     token: actor.token,
-    joinedAt: now,
   };
   return {
     state: {
@@ -236,17 +251,15 @@ function isNicknameTaken(state: RoomState, nickname: string): boolean {
   );
 }
 
-function invalidNickname(): Rejection {
-  return {
-    code: "nickname-invalid",
-    message: `Nicknames need 1 to ${NICKNAME_MAX_LENGTH} characters.`,
-  };
-}
+const INVALID_NICKNAME: Rejection = {
+  code: "nickname-invalid",
+  message: `Nicknames need 1 to ${NICKNAME_MAX_LENGTH} characters.`,
+};
 
 function unchanged(state: RoomState): ApplyResult {
   return { state, recapEvents: [] };
 }
 
-function rejected(state: RoomState, code: RejectionCode, message: string): ApplyResult {
-  return { state, recapEvents: [], rejection: { code, message } };
+function rejected(state: RoomState, rejection: Rejection): ApplyResult {
+  return { state, recapEvents: [], rejection };
 }

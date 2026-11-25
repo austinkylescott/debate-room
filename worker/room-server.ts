@@ -1,11 +1,12 @@
-// The Durable Object adapter for one Room (docs/adr/0002). It holds no game
-// logic: it maps connections to actors, persists state and the Recap, and sends
+// The Durable Object adapter for one Room (docs/adr/0002). It holds no Room
+// rules: it maps connections to actors, persists state and the Recap, and sends
 // each connection its own view. All Room rules live in src/room/room.ts.
 import { type Connection, type ConnectionContext, Server, type WSMessage } from "partyserver";
 import {
   type Actor,
   apply,
   createRoom,
+  type CreateRoomInput,
   parseIntent,
   type RecapEvent,
   type Rejection,
@@ -27,9 +28,9 @@ export class Room extends Server<Env> {
   }
 
   /** Called once by the Worker when a Host creates the Room. */
-  async create(input: { hostSecret: string; hostNickname: string }): Promise<Rejection | null> {
+  async create(input: CreateRoomInput): Promise<Rejection | null> {
     if (this.#state) throw new Error("Room already exists");
-    const created = createRoom(input, Date.now());
+    const created = createRoom(input);
     if ("rejection" in created) return created.rejection;
     await this.#save(created.state, []);
     return null;

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import CopyField from "../components/CopyField.vue";
+import NicknameField from "../components/NicknameField.vue";
 import { saveHostSecret } from "../lib/device";
 import { hostUrl, navigate, roomPath } from "../lib/route";
 import type { CreateRoomResponse } from "../room/protocol";
-import { NICKNAME_MAX_LENGTH } from "../room/room";
 
 const hostNickname = ref("");
 const creating = ref(false);
@@ -52,15 +52,7 @@ async function createRoom() {
     <h1>Debate Room</h1>
     <p class="lede">Stage a discussion night with your friends, alongside your own call.</p>
     <form class="stack" @submit.prevent="createRoom">
-      <label class="field">
-        <span>Your nickname</span>
-        <input
-          v-model="hostNickname"
-          autocomplete="nickname"
-          :maxlength="NICKNAME_MAX_LENGTH"
-          required
-        />
-      </label>
+      <NicknameField v-model="hostNickname" />
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <button class="primary" type="submit" :disabled="creating">
         {{ creating ? "Creating…" : "Create a Room" }}

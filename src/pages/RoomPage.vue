@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import InviteCard from "../components/InviteCard.vue";
+import NicknameField from "../components/NicknameField.vue";
 import WaitingRoomList from "../components/WaitingRoomList.vue";
 import { inviteUrl, navigate } from "../lib/route";
 import { useRoom } from "../lib/useRoom";
-import { NICKNAME_MAX_LENGTH } from "../room/room";
 
 const props = defineProps<{ roomId: string }>();
 const { view, rejection, status, send } = useRoom(props.roomId);
@@ -20,7 +20,7 @@ const participantCount = computed(
 <template>
   <section v-if="status === 'missing'" class="card">
     <h1>Room not found</h1>
-    <p>This invite link doesn't match a Room. It may have expired.</p>
+    <p>This invite link doesn't match a Room. Check the link and try again.</p>
     <p><a href="/" @click.prevent="navigate('/')">Create a Room</a></p>
   </section>
 
@@ -58,15 +58,7 @@ const participantCount = computed(
       <template v-else-if="view.phase === 'live'">
         <h1>Join the Room</h1>
         <form class="stack" @submit.prevent="send({ type: 'join', nickname })">
-          <label class="field">
-            <span>Your nickname</span>
-            <input
-              v-model="nickname"
-              autocomplete="nickname"
-              :maxlength="NICKNAME_MAX_LENGTH"
-              required
-            />
-          </label>
+          <NicknameField v-model="nickname" />
           <p v-if="rejection" class="error" role="alert">{{ rejection.message }}</p>
           <button class="primary" type="submit">Join</button>
         </form>
