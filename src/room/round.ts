@@ -199,8 +199,9 @@ export function leaveRound(current: CurrentRound, personId: string): RoundOutcom
 export function stageView(current: CurrentRound, viewerId: string, people: RoundPeople): StageView {
   const prompt = currentPrompt(current);
   const playing = current.spectrum.playing.includes(viewerId);
-  // Only a Host who isn't Playing sees positions before the reveal.
-  const seesHidden = viewerId === people.hostId && !current.hostPlaying;
+  // Only those not Playing this Prompt see positions before the reveal. Each
+  // Prompt starts fresh, so seeing this one gives a late joiner nothing for the next.
+  const seesHidden = !playing;
   return {
     roundId: current.roundId,
     format: current.format,

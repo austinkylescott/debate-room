@@ -134,13 +134,32 @@ describe("hidden positions before the reveal", () => {
     expect(stageOf(playing(), sam).spectrum.yours).toEqual({ position: 80, lockedPosition: null });
   });
 
-  it("hides positions from someone who joined mid-Prompt", () => {
+  it("shows someone who joined mid-Prompt, and isn't Playing it, where people stand", () => {
     const state = run(playing(), [{ type: "join", nickname: "Riley" }, riley]);
     const stage = stageOf(state, riley);
     expect(stage.playing).toBe(false);
-    expect(stage.spectrum.positionsVisible).toBe(false);
-    expect(stage.spectrum.people.every((p) => p.position === null)).toBe(true);
+    expect(stage.spectrum.positionsVisible).toBe(true);
+    expect(stage.spectrum.people.map((p) => [p.position, p.lockedPosition])).toEqual([
+      [10, 10],
+      [80, null],
+    ]);
     expect(stage.spectrum.yours).toBeNull();
+  });
+
+  it("hides the next Prompt's positions from them once they're Playing it", () => {
+    const state = run(
+      playing(),
+      [{ type: "join", nickname: "Riley" }, riley],
+      [reveal, host],
+      [advance, host],
+      [advance, host],
+      [lockIn(40), alex],
+    );
+    const spectrum = stageOf(state, riley).spectrum;
+    expect(spectrum.positionsVisible).toBe(false);
+    expect(spectrum.people.every((p) => p.position === null && p.lockedPosition === null)).toBe(
+      true,
+    );
   });
 
   it("shows no Stage to a visitor", () => {
