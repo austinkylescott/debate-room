@@ -445,3 +445,107 @@ h3 {
   font-weight: 600;
   margin-bottom: 12px;
 }
+
+/* The Stage: a Spectrum Round */
+.stage h1 {
+  margin-bottom: 16px;
+}
+
+.stage input[type="range"] {
+  width: 100%;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.track {
+  position: relative;
+  height: 64px;
+  margin: 8px 12px 0;
+}
+
+.track-line {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #e5484d, var(--border), #30a46c);
+}
+
+.marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  background: var(--accent);
+  color: var(--accent-text);
+  transition: left 0.15s ease-out;
+}
+
+.marker.hover {
+  background: var(--surface);
+  color: var(--accent);
+  border: 1px dashed var(--accent);
+}
+
+.notch-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 12px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.notch-labels span {
+  flex: 1;
+}
+
+.summary {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.summary th,
+.summary td {
+  padding: 4px 6px;
+  text-align: left;
+}
+
+.summary th[scope="row"] {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.summary td {
+  width: 40%;
+  white-space: nowrap;
+}
+
+.summary .bar {
+  display: inline-block;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 5px;
+  background: var(--muted);
+  vertical-align: middle;
+}
+
+.summary .bar.after {
+  background: var(--accent);
+}
+
+.host-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
