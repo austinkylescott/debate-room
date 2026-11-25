@@ -6,9 +6,11 @@ import LineupPreview from "../components/LineupPreview.vue";
 import NicknameField from "../components/NicknameField.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
 import PinField from "../components/PinField.vue";
+import SpectrumStage from "../components/SpectrumStage.vue";
 import WaitingRoomList from "../components/WaitingRoomList.vue";
 import { inviteUrl, navigate } from "../lib/route";
 import { useRoom } from "../lib/useRoom";
+import { FORMAT_NAMES } from "../room/lineup";
 import { DEFAULT_PARTICIPANT_LIMIT } from "../room/room";
 
 const props = defineProps<{ roomId: string }>();
@@ -18,12 +20,20 @@ const nickname = ref("");
 const pin = ref("");
 const hostFormOpen = ref(false);
 const limitDraft = ref(DEFAULT_PARTICIPANT_LIMIT);
+const hostPlaying = ref(false);
 
 const you = computed(() => view.value?.you);
 const personId = computed(() => (you.value && "personId" in you.value ? you.value.personId : ""));
 const isFull = computed(() => {
   const capacity = view.value?.capacity;
   return capacity !== undefined && capacity.joined >= capacity.limit;
+});
+const nextRound = computed(() => {
+  const id = view.value?.nextRoundId;
+  if (!id) return null;
+  const index = view.value?.lineup?.findIndex((r) => r.id === id) ?? -1;
+  const round = view.value?.lineup?.[index];
+  return round ? { round, number: index + 1 } : null;
 });
 // Visitors see refusals next to the form they just used; everyone else in a card.
 const rejectionInline = computed(
@@ -73,11 +83,39 @@ function claimHostWithPin() {
           Open the Room
         </button>
       </section>
-      <section v-else class="card">
-        <p class="eyebrow">Live</p>
-        <h1>Invite your friends</h1>
-        <InviteCard :url="inviteUrl(roomId)" />
-      </section>
+      <template v-else>
+        <SpectrumStage v-if="view.stage" :stage="view.stage" is-host @send="send" />
+        <section v-else-if="view.phase === 'live'" class="card">
+          <p class="eyebrow">Waiting Room</p>
+          <template v-if="nextRound">
+            <h1>Up next: Round {{ nextRound.number }}</h1>
+            <p>
+              {{ FORMAT_NAMES[nextRound.round.setup.format] }} ·
+              {{ nextRound.round.prompts.length }}
+              {{ nextRound.round.prompts.length === 1 ? "Prompt" : "Prompts" }}
+            </p>
+            <form class="stack" @submit.prevent="send({ type: 'start-round', hostPlaying })">
+              <label class="check">
+                <input v-model="hostPlaying" type="checkbox" />
+                I'm Playing this Round
+              </label>
+              <p class="muted small">
+                If you're not Playing, you'll see where people are leaning before the reveal.
+              </p>
+              <button class="primary" type="submit">Start the Round</button>
+            </form>
+          </template>
+          <template v-else>
+            <h1>No Rounds left to play</h1>
+            <p class="muted">Add a Round to the Lineup to keep going.</p>
+          </template>
+        </section>
+        <section class="card">
+          <p class="eyebrow">Live</p>
+          <h2>Invite your friends</h2>
+          <InviteCard :url="inviteUrl(roomId)" />
+        </section>
+      </template>
 
       <LineupEditor
         v-if="view.lineup"
@@ -97,6 +135,14 @@ function claimHostWithPin() {
         </form>
       </section>
     </template>
+
+    <!-- Participant: the Stage, while a Round is being played -->
+    <SpectrumStage
+      v-else-if="view.you.role === 'participant' && view.stage"
+      :stage="view.stage"
+      :is-host="false"
+      @send="send"
+    />
 
     <!-- Visitor: not in the Room yet -->
     <section v-else-if="view.you.role === 'visitor'" class="card">
@@ -156,7 +202,7 @@ function claimHostWithPin() {
         "
         @remove="(id) => send({ type: 'remove-person', personId: id })"
       />
-      <p v-if="view.you.role === 'participant'" class="muted">
+      <p v-if="view.you.role === 'participant' && !view.stage" class="muted">
         You're in. The Host will start the first Round soon.
       </p>
     </section>

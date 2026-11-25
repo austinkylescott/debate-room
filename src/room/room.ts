@@ -17,6 +17,24 @@ import {
   type PreviewRound,
   type Round,
 } from "./lineup";
+import {
+  advanceRound,
+  type CurrentRound,
+  leaveRound,
+  nextRound,
+  playRound,
+  revealPositions,
+  type RoundEvent,
+  type RoundIntent,
+  type RoundOutcome,
+  type RoundPeople,
+  type RoundRejectionCode,
+  stageView,
+  startRound,
+  type StageView,
+} from "./round";
+
+export type { StageView } from "./round";
 
 export type Phase = "planning" | "live" | "ended";
 
@@ -33,6 +51,12 @@ export type Intent =
   | { type: "join"; nickname: string }
   | { type: "rename-person"; personId: string; nickname: string }
   | { type: "remove-person"; personId: string }
+  /** Starts the next Round in the Lineup. */
+  | { type: "start-round"; hostPlaying: boolean }
+  | { type: "reveal-positions" }
+  /** Moves the Round on: to the Prompt's summary, the next Prompt or the Waiting Room. */
+  | { type: "advance" }
+  | RoundIntent
   | LineupIntent;
 
 export type RejectionCode =
@@ -51,6 +75,10 @@ export type RejectionCode =
   | "person-not-found"
   | "cant-remove-host"
   | "removed"
+  | "no-round-to-start"
+  | "round-in-progress"
+  | "no-round"
+  | RoundRejectionCode
   | LineupRejectionCode;
 
 export interface Rejection {
@@ -62,7 +90,8 @@ export type RecapEvent =
   | { at: number; type: "room-opened" }
   | { at: number; type: "person-joined"; personId: string; nickname: string }
   | { at: number; type: "person-renamed"; personId: string; from: string; to: string }
-  | { at: number; type: "person-removed"; personId: string; nickname: string };
+  | { at: number; type: "person-removed"; personId: string; nickname: string }
+  | ({ at: number } & RoundEvent);
 
 interface Participant {
   id: string;
@@ -90,6 +119,10 @@ export interface RoomState {
   participantLimit: number;
   nextParticipantNumber: number;
   lineup: Lineup;
+  /** The Round being played, or null while the Room is in the Waiting Room. */
+  round: CurrentRound | null;
+  /** Rounds of the Lineup already started, so "the next Round" skips them. */
+  playedRoundIds: string[];
 }
 
 export interface ApplyResult {
@@ -130,6 +163,10 @@ export interface View {
   lineup: Round[] | null;
   /** The Preview of the Lineup, for visitors while the Room is in Planning. Null for everyone else. */
   preview: PreviewRound[] | null;
+  /** The current Round, for people in the Room while one is being played. Null otherwise. */
+  stage: StageView | null;
+  /** The Round that "Start Round" would start, for the Host. Null for everyone else. */
+  nextRoundId: string | null;
 }
 
 /** What the Worker knows when a Host creates a Room. */
@@ -171,6 +208,8 @@ export function createRoom(
       participantLimit,
       nextParticipantNumber: 1,
       lineup: emptyLineup(),
+      round: null,
+      playedRoundIds: [],
     },
   };
 }
@@ -195,6 +234,17 @@ export function apply(state: RoomState, intent: Intent, actor: Actor, now: numbe
       return renamePerson(state, intent.personId, intent.nickname, actor, now);
     case "remove-person":
       return removePerson(state, intent.personId, actor, now);
+    case "start-round":
+      return beginRound(state, intent.hostPlaying, actor, now);
+    case "move-position":
+    case "lock-in":
+      return playCurrentRound(state, intent, actor, now);
+    case "reveal-positions":
+      return runCurrentRound(state, actor, "reveal the positions", now, revealPositions);
+    case "advance":
+      return runCurrentRound(state, actor, "move the Round on", now, (round) =>
+        advanceRound(round, roundPeople(state)),
+      );
   }
 }
 
@@ -209,6 +259,9 @@ export function viewFor(state: RoomState, viewer: Actor): View {
     lineup: you.role === "host" ? state.lineup.rounds : null,
     preview:
       state.phase === "planning" && you.role === "visitor" ? previewLineup(state.lineup) : null,
+    stage: inRoom && state.round ? stageView(state.round, you.personId, roundPeople(state)) : null,
+    nextRoundId:
+      you.role === "host" ? (nextRound(state.lineup, state.playedRoundIds)?.id ?? null) : null,
   };
 }
 
@@ -239,6 +292,18 @@ export function parseIntent(raw: unknown): Intent | null {
       return typeof value.personId === "string"
         ? { type: "remove-person", personId: value.personId }
         : null;
+    case "start-round":
+      return typeof value.hostPlaying === "boolean"
+        ? { type: "start-round", hostPlaying: value.hostPlaying }
+        : null;
+    case "reveal-positions":
+    case "advance":
+      return { type: value.type };
+    case "move-position":
+    case "lock-in":
+      return typeof value.position === "number"
+        ? { type: value.type, position: value.position }
+        : null;
     default:
       return parseLineupIntent(value);
   }
@@ -246,7 +311,12 @@ export function parseIntent(raw: unknown): Intent | null {
 
 /** Fills in what a Room stored by an earlier version of the app is missing. */
 export function upgradeState(stored: RoomState): RoomState {
-  return stored.lineup ? stored : { ...stored, lineup: emptyLineup() };
+  return {
+    ...stored,
+    lineup: stored.lineup ?? emptyLineup(),
+    round: stored.round ?? null,
+    playedRoundIds: stored.playedRoundIds ?? [],
+  };
 }
 
 /** Trims and collapses whitespace. Returns null if the result is empty or too long. */
@@ -420,7 +490,7 @@ function removePerson(state: RoomState, personId: string, actor: Actor, now: num
   }
   const participant = state.participants.find((p) => p.id === personId);
   if (!participant) return rejected(state, PERSON_NOT_FOUND);
-  return {
+  const removed: ApplyResult = {
     state: {
       ...state,
       participants: state.participants.filter((p) => p.id !== personId),
@@ -429,6 +499,9 @@ function removePerson(state: RoomState, personId: string, actor: Actor, now: num
     },
     recapEvents: [{ at: now, type: "person-removed", personId, nickname: participant.nickname }],
   };
+  if (!state.round) return removed;
+  const left = withRound(removed.state, leaveRound(state.round, personId), now);
+  return { state: left.state, recapEvents: [...removed.recapEvents, ...left.recapEvents] };
 }
 
 function changeLineup(state: RoomState, intent: LineupIntent, actor: Actor): ApplyResult {
@@ -438,6 +511,74 @@ function changeLineup(state: RoomState, intent: LineupIntent, actor: Actor): App
   const result = editLineup(state.lineup, intent, { personIds });
   if ("rejection" in result) return rejected(state, result.rejection);
   return { state: { ...state, lineup: result.lineup }, recapEvents: [] };
+}
+
+function beginRound(
+  state: RoomState,
+  hostPlaying: boolean,
+  actor: Actor,
+  now: number,
+): ApplyResult {
+  if (!isHost(state, actor)) return rejected(state, notHost("start a Round"));
+  if (state.phase !== "live") return rejected(state, ROOM_NOT_LIVE);
+  if (state.round) {
+    return rejected(state, {
+      code: "round-in-progress",
+      message: "A Round is already being played.",
+    });
+  }
+  const round = nextRound(state.lineup, state.playedRoundIds);
+  if (!round) {
+    return rejected(state, {
+      code: "no-round-to-start",
+      message: "Every Round in the Lineup has been played. Add a Round to play another.",
+    });
+  }
+  const started = startRound(round, hostPlaying, roundPeople(state));
+  if ("rejection" in started) return rejected(state, started.rejection);
+  return withRound({ ...state, playedRoundIds: [...state.playedRoundIds, round.id] }, started, now);
+}
+
+function playCurrentRound(
+  state: RoomState,
+  intent: RoundIntent,
+  actor: Actor,
+  now: number,
+): ApplyResult {
+  const you = identify(state, actor);
+  if (!("personId" in you)) return rejected(state, NOT_IN_ROOM);
+  if (!state.round) return rejected(state, NO_ROUND);
+  return withRound(state, playRound(state.round, intent, you.personId), now);
+}
+
+/** A Host control for the current Round. */
+function runCurrentRound(
+  state: RoomState,
+  actor: Actor,
+  action: string,
+  now: number,
+  control: (round: CurrentRound) => RoundOutcome,
+): ApplyResult {
+  if (!isHost(state, actor)) return rejected(state, notHost(action));
+  if (!state.round) return rejected(state, NO_ROUND);
+  return withRound(state, control(state.round), now);
+}
+
+function withRound(state: RoomState, outcome: RoundOutcome, now: number): ApplyResult {
+  if ("rejection" in outcome) return rejected(state, outcome.rejection);
+  return {
+    state: { ...state, round: outcome.round },
+    recapEvents: outcome.events.map((event) => ({ at: now, ...event })),
+  };
+}
+
+function roundPeople(state: RoomState): RoundPeople {
+  const people = waitingRoomPeople(state);
+  return {
+    hostId: HOST_PERSON_ID,
+    participantIds: state.participants.map((p) => p.id),
+    nicknames: new Map(people.map((p) => [p.id, p.nickname])),
+  };
 }
 
 function identify(state: RoomState, viewer: Actor): View["you"] {
@@ -493,6 +634,12 @@ function nicknameTaken(nickname: string): Rejection {
     message: `Someone in this Room is already called "${nickname}". Pick another nickname.`,
   };
 }
+
+const NO_ROUND: Rejection = { code: "no-round", message: "No Round is being played right now." };
+
+const NOT_IN_ROOM: Rejection = { code: "not-playing", message: "Join the Room to take part." };
+
+const ROOM_NOT_LIVE: Rejection = { code: "room-not-open", message: "The Room isn't open." };
 
 const ROOM_ENDED: Rejection = { code: "room-ended", message: "This Room has ended." };
 
