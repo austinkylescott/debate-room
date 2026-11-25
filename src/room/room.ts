@@ -86,6 +86,8 @@ export const NICKNAME_MAX_LENGTH = 20;
 /** Wrong PINs allowed before PIN entry locks for the whole Room. */
 export const PIN_MAX_FAILURES = 5;
 export const PIN_LOCKOUT_MS = 10 * 60_000;
+export const PIN_MIN_LENGTH = 4;
+export const PIN_MAX_LENGTH = 6;
 export const DEFAULT_PARTICIPANT_LIMIT = 15;
 export const MAX_PARTICIPANT_LIMIT = 50;
 
@@ -104,7 +106,7 @@ export interface View {
     /** The Host removed this device from the Room. */
     | { role: "removed" };
   /** How full the Room is. Shown to everyone, so visitors can see it's full. */
-  participants: { joined: number; limit: number };
+  capacity: { joined: number; limit: number };
   /** Everyone in the Room, for people who are in it. Null for visitors. */
   waitingRoom: { people: WaitingRoomPerson[] } | null;
 }
@@ -124,8 +126,13 @@ export function createRoom(
 ): { state: RoomState } | { rejection: Rejection } {
   const nickname = normalizeNickname(input.hostNickname);
   if (nickname === null) return { rejection: INVALID_NICKNAME };
-  if (!/^\d{4,6}$/.test(input.pin)) {
-    return { rejection: { code: "pin-invalid", message: "The Host PIN needs 4 to 6 digits." } };
+  if (!isValidPin(input.pin)) {
+    return {
+      rejection: {
+        code: "pin-invalid",
+        message: `The Host PIN needs ${PIN_MIN_LENGTH} to ${PIN_MAX_LENGTH} digits.`,
+      },
+    };
   }
   const participantLimit = input.participantLimit ?? DEFAULT_PARTICIPANT_LIMIT;
   if (!isValidLimit(participantLimit)) return { rejection: INVALID_LIMIT };
@@ -147,6 +154,9 @@ export function createRoom(
 }
 
 export function apply(state: RoomState, intent: Intent, actor: Actor, now: number): ApplyResult {
+  // A removed device can do nothing in the Room (not even guess the PIN),
+  // except present the Host link, which always grants the Host role.
+  if (isRemoved(state, actor) && intent.type !== "claim-host") return rejected(state, REMOVED);
   switch (intent.type) {
     case "claim-host":
       return claimHost(state, intent.hostSecret, actor);
@@ -171,7 +181,7 @@ export function viewFor(state: RoomState, viewer: Actor): View {
   return {
     phase: state.phase,
     you,
-    participants: { joined: state.participants.length, limit: state.participantLimit },
+    capacity: { joined: state.participants.length, limit: state.participantLimit },
     waitingRoom: inRoom ? { people: waitingRoomPeople(state) } : null,
   };
 }
@@ -277,9 +287,7 @@ function grantHost(state: RoomState, actor: Actor): ApplyResult {
 }
 
 function openRoom(state: RoomState, actor: Actor, now: number): ApplyResult {
-  if (!isHost(state, actor)) {
-    return rejected(state, { code: "not-host", message: "Only the Host can open the Room." });
-  }
+  if (!isHost(state, actor)) return rejected(state, notHost("open the Room"));
   if (state.phase !== "planning") return unchanged(state);
   return {
     state: { ...state, phase: "live" },
@@ -288,12 +296,7 @@ function openRoom(state: RoomState, actor: Actor, now: number): ApplyResult {
 }
 
 function setParticipantLimit(state: RoomState, limit: number, actor: Actor): ApplyResult {
-  if (!isHost(state, actor)) {
-    return rejected(state, {
-      code: "not-host",
-      message: "Only the Host can change the Participant limit.",
-    });
-  }
+  if (!isHost(state, actor)) return rejected(state, notHost("change the Participant limit"));
   if (!isValidLimit(limit)) return rejected(state, INVALID_LIMIT);
   const joined = state.participants.length;
   if (limit < joined) {
@@ -314,9 +317,6 @@ function join(state: RoomState, rawNickname: string, actor: Actor, now: number):
   }
   // Rejoining from the same device restores the same Participant.
   if (findParticipant(state, actor)) return unchanged(state);
-  if (isRemoved(state, actor)) {
-    return rejected(state, { code: "removed", message: "The Host removed you from this Room." });
-  }
   if (state.phase === "planning") {
     return rejected(state, {
       code: "room-not-open",
@@ -359,9 +359,7 @@ function renamePerson(
   actor: Actor,
   now: number,
 ): ApplyResult {
-  if (!isHost(state, actor)) {
-    return rejected(state, { code: "not-host", message: "Only the Host can rename people." });
-  }
+  if (!isHost(state, actor)) return rejected(state, notHost("rename people"));
   const from = nicknameOf(state, personId);
   if (from === undefined) return rejected(state, PERSON_NOT_FOUND);
   const nickname = normalizeNickname(rawNickname);
@@ -382,9 +380,7 @@ function renamePerson(
 }
 
 function removePerson(state: RoomState, personId: string, actor: Actor, now: number): ApplyResult {
-  if (!isHost(state, actor)) {
-    return rejected(state, { code: "not-host", message: "Only the Host can remove people." });
-  }
+  if (!isHost(state, actor)) return rejected(state, notHost("remove people"));
   if (personId === HOST_PERSON_ID) {
     return rejected(state, {
       code: "cant-remove-host",
@@ -426,6 +422,10 @@ function isHost(state: RoomState, actor: Actor): boolean {
   return state.hostTokens.includes(actor.token);
 }
 
+function notHost(action: string): Rejection {
+  return { code: "not-host", message: `Only the Host can ${action}.` };
+}
+
 function isRemoved(state: RoomState, actor: Actor): boolean {
   return state.removedTokens.includes(actor.token);
 }
@@ -453,6 +453,8 @@ function nicknameTaken(nickname: string): Rejection {
   };
 }
 
+const REMOVED: Rejection = { code: "removed", message: "The Host removed you from this Room." };
+
 const PERSON_NOT_FOUND: Rejection = {
   code: "person-not-found",
   message: "That person isn't in the Room any more.",
@@ -462,6 +464,10 @@ const INVALID_NICKNAME: Rejection = {
   code: "nickname-invalid",
   message: `Nicknames need 1 to ${NICKNAME_MAX_LENGTH} characters.`,
 };
+
+function isValidPin(pin: string): boolean {
+  return /^\d+$/.test(pin) && pin.length >= PIN_MIN_LENGTH && pin.length <= PIN_MAX_LENGTH;
+}
 
 function isValidLimit(limit: number): boolean {
   return Number.isInteger(limit) && limit >= 1 && limit <= MAX_PARTICIPANT_LIMIT;

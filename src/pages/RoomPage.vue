@@ -20,8 +20,8 @@ const limitDraft = ref(DEFAULT_PARTICIPANT_LIMIT);
 const you = computed(() => view.value?.you);
 const personId = computed(() => (you.value && "personId" in you.value ? you.value.personId : ""));
 const isFull = computed(() => {
-  const participants = view.value?.participants;
-  return participants !== undefined && participants.joined >= participants.limit;
+  const capacity = view.value?.capacity;
+  return capacity !== undefined && capacity.joined >= capacity.limit;
 });
 // Visitors see refusals next to the form they just used; everyone else in a card.
 const rejectionInline = computed(
@@ -29,7 +29,7 @@ const rejectionInline = computed(
 );
 
 watch(
-  () => view.value?.participants.limit,
+  () => view.value?.capacity.limit,
   (limit) => {
     if (limit !== undefined) limitDraft.value = limit;
   },
@@ -84,7 +84,7 @@ function claimHostWithPin() {
           @submit.prevent="send({ type: 'set-participant-limit', limit: limitDraft })"
         >
           <ParticipantLimitField v-model="limitDraft" />
-          <button type="submit" :disabled="limitDraft === view.participants.limit">Save</button>
+          <button type="submit" :disabled="limitDraft === view.capacity.limit">Save</button>
         </form>
       </section>
     </template>
@@ -107,7 +107,7 @@ function claimHostWithPin() {
       </template>
       <template v-else-if="view.phase === 'live'">
         <h1>Join the Room</h1>
-        <p class="muted">{{ view.participants.joined }} of {{ view.participants.limit }} joined</p>
+        <p class="muted">{{ view.capacity.joined }} of {{ view.capacity.limit }} joined</p>
         <p v-if="isFull" class="warning">This Room is full right now.</p>
         <form class="stack" @submit.prevent="send({ type: 'join', nickname })">
           <NicknameField v-model="nickname" />
@@ -119,7 +119,7 @@ function claimHostWithPin() {
         <h1>This Room has ended</h1>
       </template>
 
-      <p v-if="!hostFormOpen && view.phase !== 'ended'">
+      <p v-if="!hostFormOpen">
         <button type="button" class="link" @click="hostFormOpen = true">I'm the Host</button>
       </p>
     </section>
@@ -132,9 +132,7 @@ function claimHostWithPin() {
     <section v-if="view.waitingRoom" class="card">
       <h2>
         Waiting Room
-        <span class="count"
-          >{{ view.participants.joined }} of {{ view.participants.limit }} joined</span
-        >
+        <span class="count">{{ view.capacity.joined }} of {{ view.capacity.limit }} joined</span>
       </h2>
       <WaitingRoomList
         :people="view.waitingRoom.people"

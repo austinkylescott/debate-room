@@ -307,21 +307,21 @@ describe("Participant limit", () => {
 
   it("shows everyone, including visitors, how many have joined out of the limit", () => {
     const state = withParticipants(liveRoomWithLimit(4), 3);
-    expect(viewFor(state, samDevice).participants).toEqual({ joined: 3, limit: 4 });
-    expect(viewFor(state, hostDevice).participants).toEqual({ joined: 3, limit: 4 });
+    expect(viewFor(state, samDevice).capacity).toEqual({ joined: 3, limit: 4 });
+    expect(viewFor(state, hostDevice).capacity).toEqual({ joined: 3, limit: 4 });
   });
 
   it("lets the Host change the limit, and joins follow the new limit", () => {
     const state = run(withParticipants(liveRoom(), 2), [setLimit(3), hostDevice]);
     const third = run(state, [join("Alex"), alexDevice]);
     expect(apply(third, join("Sam"), samDevice, 9_000).rejection?.code).toBe("room-full");
-    expect(viewFor(third, hostDevice).participants).toEqual({ joined: 3, limit: 3 });
+    expect(viewFor(third, hostDevice).capacity).toEqual({ joined: 3, limit: 3 });
   });
 
   it("can be raised to 50 but no further", () => {
-    expect(
-      viewFor(run(liveRoom(), [setLimit(50), hostDevice]), hostDevice).participants.limit,
-    ).toBe(50);
+    expect(viewFor(run(liveRoom(), [setLimit(50), hostDevice]), hostDevice).capacity.limit).toBe(
+      50,
+    );
     expect(apply(liveRoom(), setLimit(51), hostDevice, 9_000).rejection?.code).toBe(
       "limit-invalid",
     );
@@ -433,6 +433,14 @@ describe("removing", () => {
     const result = apply(after, join("Alex again"), alexDevice, 9_000);
     expect(result.rejection?.code).toBe("removed");
     expect(nicknamesSeenBy(result.state, hostDevice)).toEqual(["Jordan", "Sam"]);
+  });
+
+  it("refuses anything else the removed device tries, such as guessing the PIN", () => {
+    const state = roomWithAlexAndSam();
+    const after = run(state, [remove(personIdOf(state, alexDevice)), hostDevice]);
+    const result = apply(after, claimHostWithPin("0000"), alexDevice, 9_000);
+    expect(result.rejection?.code).toBe("removed");
+    expect(result.state).toBe(after);
   });
 
   it("frees the place and the nickname for someone else", () => {

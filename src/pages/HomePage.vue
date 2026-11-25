@@ -7,7 +7,7 @@ import PinField from "../components/PinField.vue";
 import { saveHostSecret } from "../lib/device";
 import { hostUrl, navigate, roomPath } from "../lib/route";
 import type { CreateRoomRequest, CreateRoomResponse } from "../room/protocol";
-import { DEFAULT_PARTICIPANT_LIMIT } from "../room/room";
+import { DEFAULT_PARTICIPANT_LIMIT, PIN_MAX_LENGTH, PIN_MIN_LENGTH } from "../room/room";
 
 const hostNickname = ref("");
 const pin = ref("");
@@ -65,8 +65,8 @@ async function createRoom() {
       <NicknameField v-model="hostNickname" />
       <PinField v-model="pin" />
       <p class="muted">
-        4 to 6 digits. With your PIN you can take back Host control from the invite link on any
-        device.
+        {{ PIN_MIN_LENGTH }} to {{ PIN_MAX_LENGTH }} digits. With your PIN you can take back Host
+        control from the invite link on any device.
       </p>
       <ParticipantLimitField v-model="participantLimit" />
       <p v-if="error" class="error" role="alert">{{ error }}</p>
