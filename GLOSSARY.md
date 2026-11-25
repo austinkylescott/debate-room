@@ -12,6 +12,14 @@ _Avoid_: Admin, moderator, owner
 A person in a **Room** who takes part in its **Rounds**, identified only by a nickname they choose when joining. The **Host** sets how many a Room allows.
 _Avoid_: Player, user, guest, member
 
+**Co-Host**:
+A person the **Host** has given the controls for running **Rounds** (the **Floor**, reveals, advancing **Prompts**, editing the **Lineup**). Room-level controls stay with the Host. A Co-Host can step down, or the Host can revoke them.
+_Avoid_: Moderator, assistant host
+
+**Playing**:
+Taking part in the current **Round**. The **Host** and **Co-Hosts** choose this per Round. Only those not Playing see hidden positions before a reveal.
+_Avoid_: Active, in the game
+
 **Spectator**:
 A person in a **Room** who watches the **Stage** and may react, but never takes part in **Rounds**. A Spectator may switch to **Participant** between Rounds if there is room.
 _Avoid_: Audience, viewer, observer
@@ -71,6 +79,10 @@ _Avoid_: Mic, turn, spotlight
 The running log of what happened in a **Room** (who had the **Floor**, positions and moves, who stepped into the middle, chair takeovers and votes), visible while Live and kept after the Room has **Ended** until it expires. It holds no record of what was said.
 _Avoid_: Transcript, history, log
 
+**Reaction**:
+An emoji anyone in a **Room** sends, which floats across the **Stage**. Reactions are tallied by type over time in the **Recap**.
+_Avoid_: Emote
+
 **Format**:
 The set of rules that shapes a **Round**: Spectrum, Middle Ground or Surrounded.
 _Avoid_: Mode, game type
@@ -82,7 +94,7 @@ A theme that groups related **Packs**, such as "Technology" or "Relationships".
 _Avoid_: Category, subject
 
 **Pack**:
-A curated set of **Prompts** under one **Topic**. A **Featured Pack** ships with the app; a **Host** can also write custom **Prompts**.
+A curated set of **Prompts** under one **Topic**, tagged with an **Intensity**. A **Featured Pack** ships with the app; a **Host** can also write custom **Prompts**.
 _Avoid_: Deck, question set
 
 **Featured Pack**:
@@ -96,3 +108,7 @@ _Avoid_: Question, topic, statement
 **Surprise Prompt**:
 A **Prompt** the **Host** has marked to stay hidden in the **Preview** until it is played.
 _Avoid_: Secret prompt, hidden prompt
+
+**Intensity**:
+How heavy a **Pack** is: *Chill* (food, pop culture) or *Spicy* (politics, religion, identity).
+_Avoid_: Difficulty, rating, level
