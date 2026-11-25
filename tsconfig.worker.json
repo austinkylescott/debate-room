@@ -16,5 +16,6 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["worker/**/*.ts"]
+  "include": ["worker/**/*.ts", "worker-configuration.d.ts", "src/room/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
 }
