@@ -57,6 +57,9 @@ export interface RoundRejection {
   message: string;
 }
 
+/** What set off a reveal: everyone Playing locking in, or the Host. */
+export type RevealCause = "everyone-locked-in" | "host";
+
 /** What happened in a Round, for the Recap. The Room adds the time. */
 export type RoundEvent =
   | { type: "round-started"; roundId: string; format: Format; hostPlaying: boolean }
@@ -64,7 +67,7 @@ export type RoundEvent =
       type: "positions-revealed";
       roundId: string;
       promptId: string;
-      by: "everyone-locked-in" | "host";
+      by: RevealCause;
       positions: Record<string, number | null>;
     }
   | {
@@ -220,7 +223,7 @@ function revealIfEveryoneLockedIn(current: CurrentRound): RoundOutcome {
     : { round: current, events: [] };
 }
 
-function revealed(current: CurrentRound, by: "everyone-locked-in" | "host"): RoundOutcome {
+function revealed(current: CurrentRound, by: RevealCause): RoundOutcome {
   const spectrum = reveal(current.spectrum);
   return {
     round: { ...current, spectrum },

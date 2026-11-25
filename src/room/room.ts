@@ -78,6 +78,7 @@ export type RejectionCode =
   | "no-round-to-start"
   | "round-in-progress"
   | "no-round"
+  | "not-in-room"
   | RoundRejectionCode
   | LineupRejectionCode;
 
@@ -637,7 +638,7 @@ function nicknameTaken(nickname: string): Rejection {
 
 const NO_ROUND: Rejection = { code: "no-round", message: "No Round is being played right now." };
 
-const NOT_IN_ROOM: Rejection = { code: "not-playing", message: "Join the Room to take part." };
+const NOT_IN_ROOM: Rejection = { code: "not-in-room", message: "Join the Room to take part." };
 
 const ROOM_NOT_LIVE: Rejection = { code: "room-not-open", message: "The Room isn't open." };
 

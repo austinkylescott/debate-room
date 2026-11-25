@@ -361,6 +361,26 @@ describe("people coming and going mid-Round", () => {
     ]);
   });
 
+  it("keeps the summary card as it was when someone is removed after the Prompt ended", () => {
+    const state = run(
+      roomWith({ prompts: ["A", "B"] }),
+      [start(), host],
+      [lockIn(0), alex],
+      [lockIn(100), sam],
+      [advance, host],
+    );
+    const after = run(state, [{ type: "remove-person", personId: "p2" }, host]);
+    expect(stageOf(after, alex).spectrum.summary).toEqual({
+      before: [1, 0, 0, 0, 1],
+      after: [1, 0, 0, 0, 1],
+    });
+  });
+
+  it("refuses a move from someone who isn't in the Room", () => {
+    const state = run(roomWith({ prompts: ["A"] }), [start(), host]);
+    expect(attempt(state, lockIn(50), visitor).rejection?.code).toBe("not-in-room");
+  });
+
   it("reveals once the rest have locked in if the Host removes the last holdout", () => {
     const state = run(roomWith({ prompts: ["A"] }), [start(), host], [lockIn(10), alex]);
     const result = attempt(state, { type: "remove-person", personId: "p2" }, host);

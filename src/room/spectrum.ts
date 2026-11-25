@@ -128,9 +128,9 @@ export function endPrompt(prompt: SpectrumPrompt): SpectrumPrompt {
   return { ...prompt, step: "summary" };
 }
 
-/** Drops someone who left the Room. */
+/** Drops someone who left the Room. Once the Prompt is over, its summary stays as it was. */
 export function dropPerson(prompt: SpectrumPrompt, personId: string): SpectrumPrompt {
-  if (!prompt.playing.includes(personId)) return prompt;
+  if (prompt.step === "summary" || !prompt.playing.includes(personId)) return prompt;
   const { [personId]: _dropped, ...positions } = prompt.positions;
   return { ...prompt, playing: prompt.playing.filter((id) => id !== personId), positions };
 }
