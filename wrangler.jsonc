@@ -4,10 +4,16 @@
   "main": "./worker/index.ts",
   "compatibility_date": "2026-11-01",
   // The Vue app is served as static assets; unknown paths fall back to index.html
-  // so client-side routes work. Requests under /api go to the Worker first.
+  // so client-side routes work. Requests under /api go to the Worker first,
+  // including the Room WebSockets at /api/parties/room/<room id>.
   "assets": {
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"],
   },
+  // One Durable Object per Room (docs/adr/0002).
+  "durable_objects": {
+    "bindings": [{ "name": "Room", "class_name": "Room" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
   "observability": { "enabled": true },
 }
