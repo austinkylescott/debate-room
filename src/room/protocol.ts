@@ -12,6 +12,10 @@ export type ServerMessage =
 
 export interface CreateRoomRequest {
   hostNickname: string;
+  /** The Host's recovery PIN: 4 to 6 digits. */
+  pin: string;
+  /** Optional; the Room module's default applies when left out. */
+  participantLimit?: number;
 }
 
 export type CreateRoomResponse =
