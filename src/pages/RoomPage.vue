@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import InviteCard from "../components/InviteCard.vue";
 import LineupEditor from "../components/LineupEditor.vue";
+import LineupPreview from "../components/LineupPreview.vue";
 import NicknameField from "../components/NicknameField.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
 import PinField from "../components/PinField.vue";
@@ -111,7 +112,11 @@ function claimHostWithPin() {
       <template v-else-if="view.phase === 'planning'">
         <p class="eyebrow">Planning</p>
         <h1>This Room isn't open yet</h1>
-        <p>The Host is still getting things ready. Keep this page open or come back soon.</p>
+        <p>
+          The Host is still getting things ready. Keep this page open: you can join here as soon as
+          the Room opens.
+        </p>
+        <LineupPreview v-if="view.preview" :rounds="view.preview" />
       </template>
       <template v-else-if="view.phase === 'live'">
         <h1>Join the Room</h1>

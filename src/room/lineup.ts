@@ -44,6 +44,26 @@ export interface Round {
   prompts: Prompt[];
 }
 
+/**
+ * A Round as the Preview shows it: Format, Sides and Prompts, with no person ids
+ * and Surprise Prompts reduced to placeholders.
+ */
+export interface PreviewRound {
+  id: string;
+  setup: PreviewSetup;
+  prompts: PreviewPrompt[];
+}
+
+export type PreviewSetup =
+  | { format: "spectrum" }
+  | { format: "middle-ground"; sides: [string, string] }
+  | { format: "surrounded" };
+
+/** A Surprise Prompt carries no text, so it never reaches Preview viewers. */
+export type PreviewPrompt =
+  | { id: string; surprise: false; text: string }
+  | { id: string; surprise: true };
+
 export interface Lineup {
   rounds: Round[];
   /** Source of Round and Prompt ids, so an id is never reused within a Room. */
@@ -131,6 +151,27 @@ export function editLineup(
   } catch (error) {
     if (error instanceof Refusal) return { rejection: error.rejection };
     throw error;
+  }
+}
+
+/** The read-only Preview of a Lineup, for people who can't see the Lineup itself. */
+export function previewLineup(lineup: Lineup): PreviewRound[] {
+  return lineup.rounds.map((round) => ({
+    id: round.id,
+    setup: previewSetup(round.setup),
+    prompts: round.prompts.map((p) =>
+      p.surprise ? { id: p.id, surprise: true } : { id: p.id, surprise: false, text: p.text },
+    ),
+  }));
+}
+
+function previewSetup(setup: RoundSetup): PreviewSetup {
+  switch (setup.format) {
+    case "spectrum":
+    case "surrounded":
+      return { format: setup.format };
+    case "middle-ground":
+      return { format: "middle-ground", sides: setup.sides };
   }
 }
 
