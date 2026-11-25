@@ -114,5 +114,5 @@ A **Prompt** the **Host** has marked to stay hidden in the **Preview** until it 
 _Avoid_: Secret prompt, hidden prompt
 
 **Intensity**:
-How heavy a **Pack** is: *Chill* (food, pop culture) or *Spicy* (politics, religion, identity).
+How heavy a **Pack** is: _Chill_ (food, pop culture) or _Spicy_ (politics, religion, identity).
 _Avoid_: Difficulty, rating, level

@@ -6,3 +6,4 @@ Each **Room** is a single Cloudflare Durable Object that holds all of its state 
 
 - We are tied to Cloudflare Workers for the backend; moving off means rewriting the Room server, not just redeploying it.
 - There is no cross-Room database in v1. Anything that spans Rooms (accounts, saved Lineups) will need a separate store later.
+- The same Worker also serves the Vue app as static assets, so hosting is all-Cloudflare (one deploy, one origin). We considered Vercel for the front end, but Vercel Functions can't act as WebSocket servers, so it could only host the static app beside a separate Cloudflare backend: two deploys and a cross-origin connection for no real gain.
