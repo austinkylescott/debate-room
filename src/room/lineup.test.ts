@@ -86,7 +86,7 @@ describe("the Lineup", () => {
     expect(lineup(planningRoom())).toEqual([]);
   });
 
-  it("is shown only to the Host for now (the Preview comes later)", () => {
+  it("is shown in full only to the Host", () => {
     const live = run(
       plannedRoom(),
       [{ type: "open-room" }, hostDevice],
@@ -358,6 +358,89 @@ describe("Surprise Prompts", () => {
       hostDevice,
     ]);
     expect(lineup(state)[0].prompts.map((p) => p.surprise)).toEqual([false, true]);
+  });
+});
+
+describe("the Preview", () => {
+  function preview(state: RoomState, viewer: Actor = strangerDevice) {
+    const rounds = viewFor(state, viewer).preview;
+    if (!rounds) throw new Error("this viewer can't see the Preview");
+    return rounds;
+  }
+
+  /** Each Round's Prompt texts as the Preview shows them; a Surprise Prompt shows as null. */
+  function previewTexts(state: RoomState) {
+    return preview(state).map((r) => r.prompts.map((p) => ("text" in p ? p.text : null)));
+  }
+
+  it("shows visitors each Round's Format, Sides and Prompts while the Room is in Planning", () => {
+    const state = plannedRoom();
+    expect(preview(state).map((r) => r.setup)).toEqual([
+      { format: "spectrum" },
+      { format: "middle-ground", sides: ["Cat people", "Dog people"] },
+    ]);
+    expect(previewTexts(state)).toEqual([["A", "B", "C"], ["D"]]);
+  });
+
+  it("shows Surprise Prompts as placeholders, never with their text", () => {
+    const state = run(planningRoom(), [
+      addRound(spectrum, [
+        { text: "Open", surprise: false },
+        { text: "Hidden twist", surprise: true },
+      ]),
+      hostDevice,
+    ]);
+    const [open, surprise] = preview(state)[0].prompts;
+    expect(open).toMatchObject({ text: "Open" });
+    expect(surprise).toMatchObject({ surprise: true });
+    expect(surprise).not.toHaveProperty("text");
+    expect(JSON.stringify(viewFor(state, strangerDevice))).not.toContain("Hidden twist");
+  });
+
+  it("hides a Prompt as soon as the Host marks it a Surprise", () => {
+    const state = plannedRoom();
+    const edited = run(state, [
+      {
+        type: "edit-prompt",
+        roundId: roundId(state, 0),
+        promptId: promptId(state, 0, 1),
+        text: "B, now a twist",
+        surprise: true,
+      },
+      hostDevice,
+    ]);
+    expect(JSON.stringify(viewFor(edited, strangerDevice))).not.toContain("twist");
+  });
+
+  it("shows a Surrounded Round's Format without saying who the Center is", () => {
+    const state = run(planningRoom(), [addRound(surrounded("host"), prompts("E")), hostDevice]);
+    expect(preview(state)[0].setup).toEqual({ format: "surrounded" });
+  });
+
+  it("follows the Host's edits", () => {
+    const state = plannedRoom();
+    const edited = run(
+      state,
+      [{ type: "move-round", roundId: roundId(state, 1), toIndex: 0 }, hostDevice],
+      [
+        { type: "remove-prompt", roundId: roundId(state, 0), promptId: promptId(state, 0, 0) },
+        hostDevice,
+      ],
+    );
+    expect(previewTexts(edited)).toEqual([["D"], ["B", "C"]]);
+  });
+
+  it("is empty while the Host hasn't planned any Rounds", () => {
+    expect(preview(planningRoom())).toEqual([]);
+  });
+
+  it("isn't sent to the Host, who sees the whole Lineup instead", () => {
+    expect(viewFor(plannedRoom(), hostDevice).preview).toBeNull();
+  });
+
+  it("goes away once the Room is Live", () => {
+    const live = run(plannedRoom(), [{ type: "open-room" }, hostDevice]);
+    expect(viewFor(live, strangerDevice).preview).toBeNull();
   });
 });
 

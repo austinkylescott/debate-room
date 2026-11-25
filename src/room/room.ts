@@ -13,6 +13,8 @@ import {
   type LineupIntent,
   type LineupRejectionCode,
   parseLineupIntent,
+  previewLineup,
+  type PreviewRound,
   type Round,
 } from "./lineup";
 
@@ -126,6 +128,8 @@ export interface View {
   waitingRoom: { people: WaitingRoomPerson[] } | null;
   /** The whole Lineup, for the Host. Null for everyone else. */
   lineup: Round[] | null;
+  /** The Preview of the Lineup, for everyone but the Host while the Room is in Planning. */
+  preview: PreviewRound[] | null;
 }
 
 /** What the Worker knows when a Host creates a Room. */
@@ -203,6 +207,7 @@ export function viewFor(state: RoomState, viewer: Actor): View {
     capacity: { joined: state.participants.length, limit: state.participantLimit },
     waitingRoom: inRoom ? { people: waitingRoomPeople(state) } : null,
     lineup: you.role === "host" ? state.lineup.rounds : null,
+    preview: state.phase === "planning" && you.role !== "host" ? previewLineup(state.lineup) : null,
   };
 }
 
