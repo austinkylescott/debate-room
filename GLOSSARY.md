@@ -76,12 +76,16 @@ Who is currently speaking. One or more people "have the Floor" when the **Host**
 _Avoid_: Mic, turn, spotlight
 
 **Recap**:
-The running log of what happened in a **Room** (who had the **Floor**, positions and moves, who stepped into the middle, chair takeovers and votes), visible while Live and kept after the Room has **Ended** until it expires. It holds no record of what was said.
+The running log of what happened in a **Room** (who had the **Floor**, positions and moves, who stepped into the middle, chair takeovers, votes and **Moods**), visible while Live and kept after the Room has **Ended** until it expires. It holds no record of what was said.
 _Avoid_: Transcript, history, log
 
-**Reaction**:
-An emoji anyone in a **Room** sends, which floats across the **Stage**. Reactions are tallied by type over time in the **Recap**.
-_Avoid_: Emote
+**Mood**:
+How a **Playing** **Participant** currently feels during a **Prompt**, chosen from a fixed set of emoji (Happy, Love, Amused, Surprised, Thinking, Sad, Angry). Everyone sees Moods live. A Participant has one Mood at a time and can change it whenever.
+_Avoid_: Reaction, sentiment, emote
+
+**Mood Check-in**:
+A short window when a **Prompt** ends in which everyone **Playing** confirms or picks their **Mood** for that Prompt. It closes when all have answered or after 15 seconds.
+_Avoid_: Poll, survey
 
 **Format**:
 The set of rules that shapes a **Round**: Spectrum, Middle Ground or Surrounded.
