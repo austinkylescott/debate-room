@@ -67,6 +67,10 @@ _Avoid_: Board, screen, display
 Who is currently speaking. One or more people "have the Floor" when the **Host** (or the **Format**'s rules) gives them their turn; a **Participant** can raise a hand to ask for it.
 _Avoid_: Mic, turn, spotlight
 
+**Recap**:
+The running log of what happened in a **Room** (who had the **Floor**, positions and moves, who stepped into the middle, chair takeovers and votes), visible while Live and kept after the Room has **Ended** until it expires. It holds no record of what was said.
+_Avoid_: Transcript, history, log
+
 **Format**:
 The set of rules that shapes a **Round**: Spectrum, Middle Ground or Surrounded.
 _Avoid_: Mode, game type
