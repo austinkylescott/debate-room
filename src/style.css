@@ -261,3 +261,169 @@ button:disabled {
   background: var(--border);
   color: var(--text-h);
 }
+
+select {
+  font: inherit;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.label {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.button-row button {
+  flex: 1 1 auto;
+}
+
+details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 4px 0;
+}
+
+details[open] > summary {
+  margin-bottom: 8px;
+}
+
+/* Lineup editor */
+.round {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--bg);
+}
+
+.round input,
+.round select {
+  background: var(--surface);
+}
+
+.round-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.round-header select {
+  flex: 1;
+}
+
+.round-number {
+  font-weight: 700;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+.icon-buttons {
+  display: inline-flex;
+  gap: 4px;
+  flex: none;
+}
+
+.icon-buttons button {
+  padding: 6px 10px;
+}
+
+.two-up {
+  display: grid;
+  gap: 8px;
+}
+
+@media (min-width: 480px) {
+  .two-up {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.prompts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  counter-reset: prompt;
+}
+
+.prompts li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.prompts li.surprise {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+
+.prompt-text {
+  text-align: left;
+  font-weight: 500;
+  border: none;
+  background: none;
+  padding: 4px;
+}
+
+.prompt-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.surprise-toggle {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+.surprise-toggle[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pick-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.pick-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface);
+}

@@ -4,6 +4,16 @@
 // connections to actors, persists state and sends each connection its own
 // `viewFor` result. Tests drive `createRoom`, `apply` and `viewFor` directly.
 
+import {
+  editLineup,
+  emptyLineup,
+  type Lineup,
+  parseLineupIntent,
+  type LineupErrorCode,
+  type LineupIntent,
+  type Round,
+} from "./lineup";
+
 export type Phase = "planning" | "live" | "ended";
 
 /** Who sent an intent: identified by the per-device token kept in local storage. */
@@ -14,7 +24,8 @@ export interface Actor {
 export type Intent =
   | { type: "claim-host"; hostSecret: string }
   | { type: "open-room" }
-  | { type: "join"; nickname: string };
+  | { type: "join"; nickname: string }
+  | LineupIntent;
 
 export type RejectionCode =
   | "nickname-invalid"
@@ -23,7 +34,8 @@ export type RejectionCode =
   | "room-ended"
   | "not-host"
   | "wrong-host-secret"
-  | "already-in-room";
+  | "already-in-room"
+  | LineupErrorCode;
 
 export interface Rejection {
   code: RejectionCode;
@@ -49,6 +61,7 @@ export interface RoomState {
   hostTokens: string[];
   participants: Participant[];
   nextParticipantNumber: number;
+  lineup: Lineup;
 }
 
 export interface ApplyResult {
@@ -74,6 +87,8 @@ export interface View {
     | { role: "visitor" };
   /** Everyone in the Room, for people who are in it. Null for visitors. */
   waitingRoom: { people: WaitingRoomPerson[] } | null;
+  /** The full Lineup, for the Host. Null for everyone else. */
+  lineup: Round[] | null;
 }
 
 /** What the Worker knows when a Host creates a Room. */
@@ -95,6 +110,7 @@ export function createRoom(
       hostTokens: [],
       participants: [],
       nextParticipantNumber: 1,
+      lineup: emptyLineup(),
     },
   };
 }
@@ -107,6 +123,8 @@ export function apply(state: RoomState, intent: Intent, actor: Actor, now: numbe
       return openRoom(state, actor, now);
     case "join":
       return join(state, intent.nickname, actor, now);
+    default:
+      return lineupEdit(state, intent, actor);
   }
 }
 
@@ -117,6 +135,7 @@ export function viewFor(state: RoomState, viewer: Actor): View {
     phase: state.phase,
     you,
     waitingRoom: inRoom ? { people: waitingRoomPeople(state) } : null,
+    lineup: you.role === "host" ? state.lineup.rounds : null,
   };
 }
 
@@ -134,7 +153,7 @@ export function parseIntent(raw: unknown): Intent | null {
     case "join":
       return typeof value.nickname === "string" ? { type: "join", nickname: value.nickname } : null;
     default:
-      return null;
+      return parseLineupIntent(value);
   }
 }
 
@@ -218,6 +237,15 @@ function join(state: RoomState, rawNickname: string, actor: Actor, now: number):
   };
 }
 
+function lineupEdit(state: RoomState, intent: LineupIntent, actor: Actor): ApplyResult {
+  if (!isHost(state, actor)) {
+    return rejected(state, { code: "not-host", message: "Only the Host can edit the Lineup." });
+  }
+  const edited = editLineup(state.lineup, intent, { personIds: personIds(state) });
+  if ("error" in edited) return rejected(state, edited.error);
+  return { state: { ...state, lineup: edited.lineup }, recapEvents: [] };
+}
+
 function identify(state: RoomState, viewer: Actor): View["you"] {
   if (isHost(state, viewer)) {
     return { role: "host", personId: HOST_PERSON_ID, nickname: state.hostNickname };
@@ -234,6 +262,10 @@ function waitingRoomPeople(state: RoomState): WaitingRoomPerson[] {
     { id: HOST_PERSON_ID, nickname: state.hostNickname, isHost: true },
     ...state.participants.map((p) => ({ id: p.id, nickname: p.nickname, isHost: false })),
   ];
+}
+
+function personIds(state: RoomState): string[] {
+  return [HOST_PERSON_ID, ...state.participants.map((p) => p.id)];
 }
 
 function isHost(state: RoomState, actor: Actor): boolean {

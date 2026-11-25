@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import InviteCard from "../components/InviteCard.vue";
+import LineupEditor from "../components/lineup/LineupEditor.vue";
 import NicknameField from "../components/NicknameField.vue";
 import WaitingRoomList from "../components/WaitingRoomList.vue";
 import { inviteUrl, navigate } from "../lib/route";
@@ -46,6 +47,12 @@ const participantCount = computed(
         <h1>Invite your friends</h1>
         <InviteCard :url="inviteUrl(roomId)" />
       </section>
+      <LineupEditor
+        v-if="view.lineup"
+        :lineup="view.lineup"
+        :people="view.waitingRoom?.people ?? []"
+        :send="send"
+      />
     </template>
 
     <!-- Visitor: not in the Room yet -->
