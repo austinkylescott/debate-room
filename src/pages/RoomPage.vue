@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import InviteCard from "../components/InviteCard.vue";
+import LineupEditor from "../components/LineupEditor.vue";
 import NicknameField from "../components/NicknameField.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
 import PinField from "../components/PinField.vue";
@@ -76,6 +77,13 @@ function claimHostWithPin() {
         <h1>Invite your friends</h1>
         <InviteCard :url="inviteUrl(roomId)" />
       </section>
+
+      <LineupEditor
+        v-if="view.lineup"
+        :rounds="view.lineup"
+        :people="view.waitingRoom?.people ?? []"
+        @send="send"
+      />
 
       <section class="card">
         <h2>Room settings</h2>
