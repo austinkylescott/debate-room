@@ -15,5 +15,14 @@
     "bindings": [{ "name": "Room", "class_name": "Room" }],
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  // Settings for Worker Previews (non-production branch builds run `wrangler preview`).
+  // Previews don't inherit top-level bindings; each Preview gets its own isolated
+  // Room namespace, but the binding must be redeclared because the Worker reads env.Room.
+  "previews": {
+    "durable_objects": {
+      "bindings": [{ "name": "Room", "class_name": "Room" }],
+    },
+    "observability": { "enabled": true },
+  },
   "observability": { "enabled": true },
 }
