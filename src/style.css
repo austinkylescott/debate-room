@@ -261,3 +261,46 @@ button:disabled {
   background: var(--border);
   color: var(--text-h);
 }
+
+.people .actions {
+  display: flex;
+  gap: 4px;
+}
+
+button.link {
+  padding: 4px 8px;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+button.link.danger {
+  color: var(--error);
+}
+
+.rename-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
+.rename-row input {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.rename-row button {
+  padding: 8px 12px;
+}
+
+.inline-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.inline-form .field {
+  flex: 1;
+}

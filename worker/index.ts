@@ -25,10 +25,21 @@ async function createRoom(request: Request, env: Env): Promise<Response> {
   if (typeof body?.hostNickname !== "string") {
     return json({ ok: false, message: "A Host nickname is required." }, 400);
   }
+  if (typeof body.pin !== "string") {
+    return json({ ok: false, message: "A Host PIN is required." }, 400);
+  }
+  if (body.participantLimit !== undefined && typeof body.participantLimit !== "number") {
+    return json({ ok: false, message: "The Participant limit must be a number." }, 400);
+  }
   const roomId = randomId(10);
   const hostSecret = randomId(32);
   const room = await getServerByName(env.Room, roomId);
-  const rejection = await room.create({ hostSecret, hostNickname: body.hostNickname });
+  const rejection = await room.create({
+    hostSecret,
+    hostNickname: body.hostNickname,
+    pin: body.pin,
+    participantLimit: body.participantLimit,
+  });
   if (rejection) return json({ ok: false, message: rejection.message }, 400);
   return json({ ok: true, roomId, hostSecret }, 201);
 }

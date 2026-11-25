@@ -5,7 +5,7 @@ import { PARTY_NAME, PARTY_PREFIX, type ServerMessage } from "../room/protocol";
 import type { Intent, Rejection, View } from "../room/room";
 import { deviceToken, forgetHostSecret, savedHostSecret } from "./device";
 
-export type ConnectionStatus = "connecting" | "open" | "missing";
+export type ConnectionStatus = "connecting" | "open" | "missing" | "removed";
 
 export function useRoom(roomId: string) {
   const view = shallowRef<View | null>(null);
@@ -34,7 +34,7 @@ export function useRoom(roomId: string) {
   });
 
   socket.addEventListener("close", () => {
-    if (status.value !== "missing") status.value = "connecting";
+    if (status.value === "open") status.value = "connecting";
   });
 
   socket.addEventListener("message", (event: MessageEvent<string>) => {
@@ -42,6 +42,11 @@ export function useRoom(roomId: string) {
     switch (message.type) {
       case "view":
         view.value = message.view;
+        // The Host removed this device: stop reconnecting.
+        if (message.view.you.role === "removed") {
+          status.value = "removed";
+          socket.close();
+        }
         break;
       case "rejected":
         if (message.rejection.code === "wrong-host-secret") forgetHostSecret(roomId);

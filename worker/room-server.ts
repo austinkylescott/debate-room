@@ -44,7 +44,7 @@ export class Room extends Server<Env> {
       return;
     }
     connection.setState({ token });
-    send(connection, { type: "view", view: viewFor(this.#state, { token }) });
+    sendView(connection, this.#state, { token });
   }
 
   async onMessage(connection: Connection<Actor>, message: WSMessage) {
@@ -76,11 +76,16 @@ export class Room extends Server<Env> {
     const state = this.#state;
     if (!state) return;
     for (const connection of this.getConnections<Actor>()) {
-      if (connection.state) {
-        send(connection, { type: "view", view: viewFor(state, connection.state) });
-      }
+      if (connection.state) sendView(connection, state, connection.state);
     }
   }
+}
+
+/** Sends the connection its view. A device the Host removed is told, then disconnected. */
+function sendView(connection: Connection, state: RoomState, actor: Actor) {
+  const view = viewFor(state, actor);
+  send(connection, { type: "view", view });
+  if (view.you.role === "removed") connection.close(4403, "Removed by the Host");
 }
 
 function send(connection: Connection, message: ServerMessage) {
