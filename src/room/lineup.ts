@@ -67,6 +67,7 @@ export type LineupRejectionCode =
   | "round-not-found"
   | "prompt-not-found"
   | "prompt-invalid"
+  | "position-invalid"
   | "setup-invalid";
 
 export interface LineupRejection {
@@ -135,17 +136,13 @@ export function editLineup(
 
 /** Drops a person who left the Room from every Round that refers to them. */
 export function forgetPerson(lineup: Lineup, personId: string): Lineup {
-  if (
-    !lineup.rounds.some((r) => r.setup.format === "surrounded" && r.setup.centerId === personId)
-  ) {
-    return lineup;
-  }
+  const isCenter = (round: Round) =>
+    round.setup.format === "surrounded" && round.setup.centerId === personId;
+  if (!lineup.rounds.some(isCenter)) return lineup;
   return {
     ...lineup,
     rounds: lineup.rounds.map((round) =>
-      round.setup.format === "surrounded" && round.setup.centerId === personId
-        ? { ...round, setup: { ...round.setup, centerId: null } }
-        : round,
+      isCenter(round) ? { ...round, setup: { ...round.setup, centerId: null } } : round,
     ),
   };
 }
@@ -166,12 +163,7 @@ function applyEdit(lineup: Lineup, intent: LineupIntent, context: LineupContext)
     case "move-round":
       return {
         ...lineup,
-        rounds: moveItem(
-          lineup.rounds,
-          intent.roundId,
-          intent.toIndex,
-          findRound(lineup, intent.roundId),
-        ),
+        rounds: moveItem(lineup.rounds, findRound(lineup, intent.roundId), intent.toIndex),
       };
     case "set-round-setup": {
       const setup = checkSetup(intent.setup, context);
@@ -204,12 +196,7 @@ function applyEdit(lineup: Lineup, intent: LineupIntent, context: LineupContext)
     case "move-prompt":
       return updateRound(lineup, intent.roundId, (round) => ({
         ...round,
-        prompts: moveItem(
-          round.prompts,
-          intent.promptId,
-          intent.toIndex,
-          findPrompt(round, intent.promptId),
-        ),
+        prompts: moveItem(round.prompts, findPrompt(round, intent.promptId), intent.toIndex),
       }));
   }
 }
@@ -224,10 +211,10 @@ function appendRound(
   if (newPrompts.length > MAX_PROMPTS_PER_ROUND) {
     refuse("lineup-full", `A Round can have up to ${MAX_PROMPTS_PER_ROUND} Prompts.`);
   }
-  const round: Round = { id: `r${lineup.nextId}`, setup, prompts: [] };
+  const id = `r${lineup.nextId}`;
   const added = withIds({ ...lineup, nextId: lineup.nextId + 1 }, newPrompts);
   return {
-    rounds: [...added.lineup.rounds, { ...round, prompts: added.prompts }],
+    rounds: [...added.lineup.rounds, { id, setup, prompts: added.prompts }],
     nextId: added.lineup.nextId,
   };
 }
@@ -235,7 +222,7 @@ function appendRound(
 /** Checks and gives ids to new Prompts, advancing the Lineup's id counter. */
 function withIds(lineup: Lineup, newPrompts: NewPrompt[]): { lineup: Lineup; prompts: Prompt[] } {
   const prompts = newPrompts.map((p, i) => ({
-    id: `q${lineup.nextId + i}`,
+    id: `pr${lineup.nextId + i}`,
     text: checkPromptText(p.text),
     surprise: p.surprise,
   }));
@@ -262,11 +249,11 @@ function updatePrompt(
   });
 }
 
-function moveItem<T extends { id: string }>(items: T[], id: string, toIndex: number, item: T): T[] {
+function moveItem<T extends { id: string }>(items: T[], item: T, toIndex: number): T[] {
   if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex >= items.length) {
-    refuse("setup-invalid", "That position isn't in the list.");
+    refuse("position-invalid", "That position isn't in the list.");
   }
-  const rest = items.filter((i) => i.id !== id);
+  const rest = items.filter((i) => i.id !== item.id);
   return [...rest.slice(0, toIndex), item, ...rest.slice(toIndex)];
 }
 
@@ -425,7 +412,7 @@ function parseSetup(raw: unknown): RoundSetup | null {
 }
 
 function parseNewPrompts(raw: unknown): NewPrompt[] | null {
-  if (!Array.isArray(raw) || raw.length > MAX_PROMPTS_PER_ROUND) return null;
+  if (!Array.isArray(raw)) return null;
   const prompts: NewPrompt[] = [];
   for (const item of raw) {
     if (typeof item !== "object" || item === null) return null;

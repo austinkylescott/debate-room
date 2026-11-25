@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { PACKS } from "../content/packs";
+import { INTENSITY_NAMES, PACKS } from "../content/packs";
 import { customPrompts, forgetCustomPrompt, saveCustomPrompt } from "../lib/customPrompts";
 import { type Format, FORMAT_NAMES, type NewPrompt, PROMPT_MAX_LENGTH } from "../room/lineup";
 
@@ -45,7 +45,7 @@ function addWritten() {
       <span>Add Prompts from</span>
       <select v-model="source" @change="picked = []">
         <option v-for="p in PACKS" :key="p.id" :value="p.id">
-          {{ p.title }} · {{ p.topic }} · {{ p.intensity === "spicy" ? "Spicy" : "Chill" }}
+          {{ p.title }} · {{ p.topic }} · {{ INTENSITY_NAMES[p.intensity] }}
         </option>
         <option :value="WRITE">Write your own</option>
       </select>

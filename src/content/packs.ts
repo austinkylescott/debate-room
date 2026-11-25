@@ -1,8 +1,10 @@
 // Dummy Packs for checking the look and feel of Lineup planning. The real
 // Featured Packs replace these later (issue #19); keep the shape.
-import type { Format } from "../room/lineup";
+import { type Format, FORMATS } from "../room/lineup";
 
 export type Intensity = "chill" | "spicy";
+
+export const INTENSITY_NAMES: Record<Intensity, string> = { chill: "Chill", spicy: "Spicy" };
 
 export interface PackPrompt {
   text: string;
@@ -20,7 +22,7 @@ export interface Pack {
   prompts: PackPrompt[];
 }
 
-const ALL: Format[] = ["spectrum", "middle-ground", "surrounded"];
+const ALL = [...FORMATS];
 
 export const PACKS: Pack[] = [
   {

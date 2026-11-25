@@ -29,10 +29,8 @@ const pickerOpen = ref(props.round.prompts.length === 0);
 const editingId = ref<string | null>(null);
 const draft = ref("");
 
-const roundId = () => props.round.id;
-
 function changeFormat(format: Format) {
-  emit("send", { type: "set-round-setup", roundId: roundId(), setup: defaultSetup(format) });
+  emit("send", { type: "set-round-setup", roundId: props.round.id, setup: defaultSetup(format) });
 }
 
 function changeSide(which: 0 | 1, name: string) {
@@ -41,7 +39,7 @@ function changeSide(which: 0 | 1, name: string) {
   sides[which] = name;
   emit("send", {
     type: "set-round-setup",
-    roundId: roundId(),
+    roundId: props.round.id,
     setup: { ...props.round.setup, sides },
   });
 }
@@ -50,7 +48,7 @@ function changeSurrounded(change: { centerId?: string | null; exchangeSeconds?: 
   if (props.round.setup.format !== "surrounded") return;
   emit("send", {
     type: "set-round-setup",
-    roundId: roundId(),
+    roundId: props.round.id,
     setup: { ...props.round.setup, ...change },
   });
 }
@@ -63,7 +61,7 @@ function startEdit(prompt: Prompt) {
 function saveEdit(prompt: Prompt) {
   emit("send", {
     type: "edit-prompt",
-    roundId: roundId(),
+    roundId: props.round.id,
     promptId: prompt.id,
     text: draft.value,
     surprise: prompt.surprise,
@@ -74,7 +72,7 @@ function saveEdit(prompt: Prompt) {
 function confirmRemoveRound() {
   const label = `Round ${props.index + 1} (${FORMAT_NAMES[props.round.setup.format]})`;
   if (props.round.prompts.length === 0 || confirm(`Remove ${label} and its Prompts?`)) {
-    emit("send", { type: "remove-round", roundId: roundId() });
+    emit("send", { type: "remove-round", roundId: props.round.id });
   }
 }
 

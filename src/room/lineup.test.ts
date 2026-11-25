@@ -5,6 +5,7 @@ import {
   apply,
   createRoom,
   parseIntent,
+  upgradeState,
   type Actor,
   type Intent,
   type RoomState,
@@ -261,7 +262,7 @@ describe("removing and reordering Rounds", () => {
   it.each([-1, 2, 0.5])("refuses to move a Round to position %s", (toIndex) => {
     const state = plannedRoom();
     expect(refusal(state, { type: "move-round", roundId: roundId(state, 0), toIndex })).toBe(
-      "setup-invalid",
+      "position-invalid",
     );
   });
 
@@ -454,5 +455,14 @@ describe("Lineup intents over the wire", () => {
     { type: "move-round", roundId: "r1", toIndex: "0" },
   ])("drops a malformed one (%j)", (raw) => {
     expect(parseIntent(raw)).toBeNull();
+  });
+});
+
+describe("Rooms stored before the Lineup existed", () => {
+  it("get an empty Lineup the Host can edit", () => {
+    const { lineup: _, ...stored } = planningRoom();
+    const upgraded = upgradeState(stored as RoomState);
+    expect(lineup(upgraded)).toEqual([]);
+    expect(lineup(run(upgraded, [addRound(spectrum), hostDevice]))).toHaveLength(1);
   });
 });
