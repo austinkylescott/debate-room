@@ -8,12 +8,12 @@ import {
   createRoom,
   type CreateRoomInput,
   parseIntent,
+  restoreRoom,
   type RecapEvent,
   type Rejection,
   type RoomState,
   viewFor,
 } from "../src/room/room";
-import { emptyLineup } from "../src/room/lineup";
 import type { ServerMessage } from "../src/room/protocol";
 
 const STATE_KEY = "room";
@@ -26,8 +26,7 @@ export class Room extends Server<Env> {
 
   async onStart() {
     const stored = await this.ctx.storage.get<RoomState>(STATE_KEY);
-    // Rooms saved before the Lineup existed have no `lineup` field yet.
-    this.#state = stored ? { ...stored, lineup: stored.lineup ?? emptyLineup() } : null;
+    this.#state = stored ? restoreRoom(stored) : null;
   }
 
   /** Called once by the Worker when a Host creates the Room. */

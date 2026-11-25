@@ -26,7 +26,7 @@ function useSingleRound() {
   if (replacing && !confirm("Replace your whole Lineup with this one Round?")) return;
   props.send({
     type: "use-single-round",
-    setup: defaultSetup(shortcutFormat.value, pack.suggestedSides),
+    setup: defaultSetup(shortcutFormat.value),
     prompts: pack.prompts.map((text) => ({ text, surprise: false })),
   });
 }

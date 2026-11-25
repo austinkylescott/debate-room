@@ -86,7 +86,6 @@ function saveEdit(prompt: Prompt) {
   const text = editText.value.trim();
   editingId.value = null;
   if (!text || text === prompt.text) return;
-  rememberPrompt(text);
   props.send({
     type: "edit-prompt",
     roundId: roundId.value,

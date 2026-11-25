@@ -1,6 +1,8 @@
 // The Lineup: the ordered Rounds a Room will run, each a Format, its setup and
 // its Prompts. Pure edit functions over the Lineup, used by the Room module.
 
+import { tidyText } from "./text";
+
 export type Format = "spectrum" | "middle-ground" | "surrounded";
 
 export type CenterChoice = { mode: "volunteer" } | { mode: "chosen"; personId: string };
@@ -110,13 +112,11 @@ export function editLineup(
     }
     case "add-prompts":
       return withRound(lineup, intent.roundId, (round, current) => {
-        const texts = intent.prompts.map((p) => tidy(p.text));
-        if (texts.some((text) => text.length === 0 || text.length > PROMPT_MAX_LENGTH)) {
-          return invalidPrompt();
-        }
+        const texts = intent.prompts.map((p) => checkPromptText(p.text));
+        if (texts.some((text) => text === null)) return invalidPrompt();
         const prompts = texts.map((text, i) => ({
           id: `q${current.nextPromptNumber + i}`,
-          text,
+          text: text ?? "",
           surprise: intent.prompts[i]?.surprise === true,
         }));
         return {
@@ -126,8 +126,8 @@ export function editLineup(
       });
     case "edit-prompt":
       return withPrompt(lineup, intent.roundId, intent.promptId, (round, prompt) => {
-        const text = tidy(intent.text);
-        if (text.length === 0 || text.length > PROMPT_MAX_LENGTH) return invalidPrompt();
+        const text = checkPromptText(intent.text);
+        if (text === null) return invalidPrompt();
         const edited = { ...prompt, text, surprise: intent.surprise };
         return {
           round: { ...round, prompts: round.prompts.map((p) => (p === prompt ? edited : p)) },
@@ -202,7 +202,7 @@ function checkSetup(
     case "spectrum":
       return { setup: { format: "spectrum" } };
     case "middle-ground": {
-      const sides = setup.sides.map(tidy);
+      const sides = setup.sides.map(tidyText);
       if (sides.some((side) => side.length === 0 || side.length > SIDE_NAME_MAX_LENGTH)) {
         return invalidSetup(`Each Side needs a name of 1 to ${SIDE_NAME_MAX_LENGTH} characters.`);
       }
@@ -227,7 +227,11 @@ function checkSetup(
   }
 }
 
-const tidy = (text: string) => text.trim().replace(/\s+/g, " ");
+/** Tidies a Prompt's text. Returns null if the result is empty or too long. */
+function checkPromptText(raw: string): string | null {
+  const text = tidyText(raw);
+  return text.length === 0 || text.length > PROMPT_MAX_LENGTH ? null : text;
+}
 
 function invalidSetup(message: string): { error: LineupError } {
   return { error: { code: "setup-invalid", message } };
@@ -351,12 +355,12 @@ export const FORMAT_NAMES: Record<Format, string> = {
 };
 
 /** The setup a new Round of a Format starts with, before the Host changes it. */
-export function defaultSetup(format: Format, sides?: [string, string]): RoundSetup {
+export function defaultSetup(format: Format): RoundSetup {
   switch (format) {
     case "spectrum":
       return { format: "spectrum" };
     case "middle-ground":
-      return { format: "middle-ground", sides: sides ?? ["Side A", "Side B"] };
+      return { format: "middle-ground", sides: ["Side A", "Side B"] };
     case "surrounded":
       return { format: "surrounded", center: { mode: "volunteer" }, exchangeSeconds: 60 };
   }

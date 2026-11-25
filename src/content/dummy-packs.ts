@@ -6,8 +6,6 @@ export interface Pack {
   topic: string;
   name: string;
   prompts: string[];
-  /** Middle Ground Packs suggest the two Sides. */
-  suggestedSides?: [string, string];
 }
 
 export const DUMMY_PACKS: Pack[] = [
@@ -27,7 +25,6 @@ export const DUMMY_PACKS: Pack[] = [
     id: "dummy-pets",
     topic: "Pets",
     name: "Cats vs Dogs",
-    suggestedSides: ["Cat people", "Dog people"],
     prompts: [
       "Pets should be allowed in restaurants",
       "A pet can be your best friend",

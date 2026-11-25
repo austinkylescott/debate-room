@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { apply, createRoom, type Actor, viewFor } from "./room";
+import { apply, createRoom, type Actor, restoreRoom, type RoomState, viewFor } from "./room";
 import {
   alexDevice,
   claimHost,
@@ -10,6 +10,7 @@ import {
   newRoom,
   nicknamesSeenBy,
   openRoom,
+  plannedRoom,
   run,
   samDevice,
 } from "./test-helpers";
@@ -189,5 +190,13 @@ describe("reconnecting by token", () => {
     const state = run(liveRoom(), [join("Jordan's phone"), hostPhone], [claimHost(), hostPhone]);
     expect(viewFor(state, hostPhone).you.role).toBe("host");
     expect(nicknamesSeenBy(state, hostDevice)).toEqual(["Jordan"]);
+  });
+});
+
+describe("restoring a saved Room", () => {
+  it("gives a Room saved before the Lineup existed an empty Lineup", () => {
+    const { lineup: _, ...savedBeforeLineup } = plannedRoom();
+    const restored = restoreRoom(savedBeforeLineup as RoomState);
+    expect(viewFor(restored, hostDevice).lineup).toEqual([]);
   });
 });

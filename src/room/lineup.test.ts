@@ -82,8 +82,8 @@ describe("Round setup per Format", () => {
     });
   });
 
-  it("rejects a Center who isn't in the Room, or an exchange timer out of range", () => {
-    const badCenter = apply(
+  it("rejects a Center who isn't in the Room", () => {
+    const result = apply(
       plannedRoom(),
       {
         type: "add-round",
@@ -96,7 +96,11 @@ describe("Round setup per Format", () => {
       hostDevice,
       3_000,
     );
-    const badTimer = apply(
+    expect(result.rejection?.code).toBe("setup-invalid");
+  });
+
+  it("rejects an exchange timer out of range", () => {
+    const result = apply(
       plannedRoom(),
       {
         type: "add-round",
@@ -105,8 +109,7 @@ describe("Round setup per Format", () => {
       hostDevice,
       3_000,
     );
-    expect(badCenter.rejection?.code).toBe("setup-invalid");
-    expect(badTimer.rejection?.code).toBe("setup-invalid");
+    expect(result.rejection?.code).toBe("setup-invalid");
   });
 });
 
@@ -218,22 +221,28 @@ describe("editing Prompts", () => {
   });
 });
 
-/** A planned Room with Rounds r1 (Spectrum), r2 (Middle Ground) and r3 (Spectrum). */
+/** A planned Room with Rounds r1 (Spectrum), r2 (Middle Ground) and r3 (Surrounded). */
 function roomWithThreeRounds(): RoomState {
   return run(
     plannedRoom(),
     [addSpectrum, hostDevice],
     [{ type: "add-round", setup: { format: "middle-ground", sides: ["A", "B"] } }, hostDevice],
-    [addSpectrum, hostDevice],
+    [
+      {
+        type: "add-round",
+        setup: { format: "surrounded", center: { mode: "volunteer" }, exchangeSeconds: 60 },
+      },
+      hostDevice,
+    ],
   );
 }
 
-const roundIds = (state: RoomState) => lineupOf(state).map((r) => r.id);
+const formatsOf = (state: RoomState) => lineupOf(state).map((r) => r.setup.format);
 
 describe("editing Rounds", () => {
   it("removes a Round", () => {
     const state = run(roomWithThreeRounds(), [{ type: "remove-round", roundId: "r2" }, hostDevice]);
-    expect(roundIds(state)).toEqual(["r1", "r3"]);
+    expect(formatsOf(state)).toEqual(["spectrum", "surrounded"]);
   });
 
   it("moves a Round to a new position", () => {
@@ -241,7 +250,7 @@ describe("editing Rounds", () => {
       { type: "move-round", roundId: "r1", toIndex: 2 },
       hostDevice,
     ]);
-    expect(roundIds(state)).toEqual(["r2", "r3", "r1"]);
+    expect(formatsOf(state)).toEqual(["middle-ground", "surrounded", "spectrum"]);
   });
 
   it("changes a Round's Format and setup, keeping its Prompts", () => {
@@ -282,7 +291,13 @@ describe("the single-Format shortcut", () => {
 });
 
 describe("who can edit the Lineup", () => {
-  it("refuses Lineup edits from anyone but the Host", () => {
+  it("refuses Lineup edits from a visitor who hasn't joined", () => {
+    const result = apply(plannedRoom(), addSpectrum, alexDevice, 3_000);
+    expect(result.rejection?.code).toBe("not-host");
+    expect(lineupOf(result.state)).toEqual([]);
+  });
+
+  it("refuses Lineup edits from a Participant", () => {
     const state = run(liveRoom(), [join("Alex"), alexDevice]);
     const result = apply(state, addSpectrum, alexDevice, 3_000);
     expect(result.rejection?.code).toBe("not-host");
@@ -294,8 +309,7 @@ describe("who sees the Lineup", () => {
   it("shows Lineup edits on every device the Host uses", () => {
     const laptop = { token: "host-laptop" };
     const state = run(plannedRoom(), [claimHost(), laptop], [addSpectrum, hostDevice]);
-    expect(lineupOf(state)).toEqual(viewFor(state, laptop).lineup);
-    expect(viewFor(state, laptop).lineup).toHaveLength(1);
+    expect(viewFor(state, laptop).lineup?.map((r) => r.setup.format)).toEqual(["spectrum"]);
   });
 
   it("keeps the Lineup editable once the Room is Live", () => {

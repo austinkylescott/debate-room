@@ -13,6 +13,7 @@ import {
   type LineupIntent,
   type Round,
 } from "./lineup";
+import { tidyText } from "./text";
 
 export type Phase = "planning" | "live" | "ended";
 
@@ -115,6 +116,15 @@ export function createRoom(
   };
 }
 
+/**
+ * Brings a Room saved by an earlier version of the app up to the current shape.
+ * The Durable Object calls this on every state it loads from storage.
+ */
+export function restoreRoom(saved: RoomState): RoomState {
+  // Rooms saved before the Lineup existed have no `lineup` field.
+  return { ...saved, lineup: saved.lineup ?? emptyLineup() };
+}
+
 export function apply(state: RoomState, intent: Intent, actor: Actor, now: number): ApplyResult {
   switch (intent.type) {
     case "claim-host":
@@ -159,7 +169,7 @@ export function parseIntent(raw: unknown): Intent | null {
 
 /** Trims and collapses whitespace. Returns null if the result is empty or too long. */
 function normalizeNickname(raw: string): string | null {
-  const nickname = raw.trim().replace(/\s+/g, " ");
+  const nickname = tidyText(raw);
   if (nickname.length === 0 || nickname.length > NICKNAME_MAX_LENGTH) return null;
   return nickname;
 }
