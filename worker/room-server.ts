@@ -11,6 +11,7 @@ import {
   type RecapEvent,
   type Rejection,
   type RoomState,
+  upgradeState,
   viewFor,
 } from "../src/room/room";
 import type { ServerMessage } from "../src/room/protocol";
@@ -24,7 +25,8 @@ export class Room extends Server<Env> {
   #state: RoomState | null = null;
 
   async onStart() {
-    this.#state = (await this.ctx.storage.get<RoomState>(STATE_KEY)) ?? null;
+    const stored = await this.ctx.storage.get<RoomState>(STATE_KEY);
+    this.#state = stored ? upgradeState(stored) : null;
   }
 
   /** Called once by the Worker when a Host creates the Room. */

@@ -4,6 +4,18 @@
 // connections to actors, persists state and sends each connection its own
 // `viewFor` result. Tests drive `createRoom`, `apply` and `viewFor` directly.
 
+import {
+  editLineup,
+  emptyLineup,
+  forgetPerson,
+  isLineupIntent,
+  type Lineup,
+  type LineupIntent,
+  type LineupRejectionCode,
+  parseLineupIntent,
+  type Round,
+} from "./lineup";
+
 export type Phase = "planning" | "live" | "ended";
 
 /** Who sent an intent: identified by the per-device token kept in local storage. */
@@ -18,7 +30,8 @@ export type Intent =
   | { type: "set-participant-limit"; limit: number }
   | { type: "join"; nickname: string }
   | { type: "rename-person"; personId: string; nickname: string }
-  | { type: "remove-person"; personId: string };
+  | { type: "remove-person"; personId: string }
+  | LineupIntent;
 
 export type RejectionCode =
   | "nickname-invalid"
@@ -35,7 +48,8 @@ export type RejectionCode =
   | "already-in-room"
   | "person-not-found"
   | "cant-remove-host"
-  | "removed";
+  | "removed"
+  | LineupRejectionCode;
 
 export interface Rejection {
   code: RejectionCode;
@@ -73,6 +87,7 @@ export interface RoomState {
   /** The most Participants the Room allows, set by the Host. */
   participantLimit: number;
   nextParticipantNumber: number;
+  lineup: Lineup;
 }
 
 export interface ApplyResult {
@@ -109,6 +124,8 @@ export interface View {
   capacity: { joined: number; limit: number };
   /** Everyone in the Room, for people who are in it. Null for visitors. */
   waitingRoom: { people: WaitingRoomPerson[] } | null;
+  /** The whole Lineup, for the Host. Null for everyone else. */
+  lineup: Round[] | null;
 }
 
 /** What the Worker knows when a Host creates a Room. */
@@ -149,6 +166,7 @@ export function createRoom(
       removedTokens: [],
       participantLimit,
       nextParticipantNumber: 1,
+      lineup: emptyLineup(),
     },
   };
 }
@@ -157,6 +175,7 @@ export function apply(state: RoomState, intent: Intent, actor: Actor, now: numbe
   // A removed device can do nothing in the Room (not even guess the PIN),
   // except present the Host link, which always grants the Host role.
   if (isRemoved(state, actor) && intent.type !== "claim-host") return rejected(state, REMOVED);
+  if (isLineupIntent(intent)) return changeLineup(state, intent, actor);
   switch (intent.type) {
     case "claim-host":
       return claimHost(state, intent.hostSecret, actor);
@@ -183,6 +202,7 @@ export function viewFor(state: RoomState, viewer: Actor): View {
     you,
     capacity: { joined: state.participants.length, limit: state.participantLimit },
     waitingRoom: inRoom ? { people: waitingRoomPeople(state) } : null,
+    lineup: you.role === "host" ? state.lineup.rounds : null,
   };
 }
 
@@ -214,8 +234,13 @@ export function parseIntent(raw: unknown): Intent | null {
         ? { type: "remove-person", personId: value.personId }
         : null;
     default:
-      return null;
+      return parseLineupIntent(value);
   }
+}
+
+/** Fills in what a Room stored by an earlier version of the app is missing. */
+export function upgradeState(stored: RoomState): RoomState {
+  return stored.lineup ? stored : { ...stored, lineup: emptyLineup() };
 }
 
 /** Trims and collapses whitespace. Returns null if the result is empty or too long. */
@@ -324,7 +349,7 @@ function join(state: RoomState, rawNickname: string, actor: Actor, now: number):
     });
   }
   if (state.phase === "ended") {
-    return rejected(state, { code: "room-ended", message: "This Room has ended." });
+    return rejected(state, ROOM_ENDED);
   }
   // Only Participants count for now. Once the Host can be Playing in a Round,
   // a Playing Host takes one of these places too.
@@ -394,9 +419,19 @@ function removePerson(state: RoomState, personId: string, actor: Actor, now: num
       ...state,
       participants: state.participants.filter((p) => p.id !== personId),
       removedTokens: [...state.removedTokens, participant.token],
+      lineup: forgetPerson(state.lineup, personId),
     },
     recapEvents: [{ at: now, type: "person-removed", personId, nickname: participant.nickname }],
   };
+}
+
+function changeLineup(state: RoomState, intent: LineupIntent, actor: Actor): ApplyResult {
+  if (!isHost(state, actor)) return rejected(state, notHost("edit the Lineup"));
+  if (state.phase === "ended") return rejected(state, ROOM_ENDED);
+  const personIds = waitingRoomPeople(state).map((p) => p.id);
+  const result = editLineup(state.lineup, intent, { personIds });
+  if ("rejection" in result) return rejected(state, result.rejection);
+  return { state: { ...state, lineup: result.lineup }, recapEvents: [] };
 }
 
 function identify(state: RoomState, viewer: Actor): View["you"] {
@@ -452,6 +487,8 @@ function nicknameTaken(nickname: string): Rejection {
     message: `Someone in this Room is already called "${nickname}". Pick another nickname.`,
   };
 }
+
+const ROOM_ENDED: Rejection = { code: "room-ended", message: "This Room has ended." };
 
 const REMOVED: Rejection = { code: "removed", message: "The Host removed you from this Room." };
 
