@@ -370,7 +370,7 @@ describe("the Preview", () => {
 
   /** Each Round's Prompt texts as the Preview shows them; a Surprise Prompt shows as null. */
   function previewTexts(state: RoomState) {
-    return preview(state).map((r) => r.prompts.map((p) => ("text" in p ? p.text : null)));
+    return preview(state).map((r) => r.prompts.map((p) => (p.surprise ? null : p.text)));
   }
 
   it("shows visitors each Round's Format, Sides and Prompts while the Room is in Planning", () => {

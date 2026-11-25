@@ -128,7 +128,7 @@ export interface View {
   waitingRoom: { people: WaitingRoomPerson[] } | null;
   /** The whole Lineup, for the Host. Null for everyone else. */
   lineup: Round[] | null;
-  /** The Preview of the Lineup, for everyone but the Host while the Room is in Planning. */
+  /** The Preview of the Lineup, for visitors while the Room is in Planning. Null for everyone else. */
   preview: PreviewRound[] | null;
 }
 
@@ -207,7 +207,8 @@ export function viewFor(state: RoomState, viewer: Actor): View {
     capacity: { joined: state.participants.length, limit: state.participantLimit },
     waitingRoom: inRoom ? { people: waitingRoomPeople(state) } : null,
     lineup: you.role === "host" ? state.lineup.rounds : null,
-    preview: state.phase === "planning" && you.role !== "host" ? previewLineup(state.lineup) : null,
+    preview:
+      state.phase === "planning" && you.role === "visitor" ? previewLineup(state.lineup) : null,
   };
 }
 

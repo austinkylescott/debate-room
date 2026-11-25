@@ -60,7 +60,9 @@ export type PreviewSetup =
   | { format: "surrounded" };
 
 /** A Surprise Prompt carries no text, so it never reaches Preview viewers. */
-export type PreviewPrompt = { id: string; text: string } | { id: string; surprise: true };
+export type PreviewPrompt =
+  | { id: string; surprise: false; text: string }
+  | { id: string; surprise: true };
 
 export interface Lineup {
   rounds: Round[];
@@ -158,7 +160,7 @@ export function previewLineup(lineup: Lineup): PreviewRound[] {
     id: round.id,
     setup: previewSetup(round.setup),
     prompts: round.prompts.map((p) =>
-      p.surprise ? { id: p.id, surprise: true } : { id: p.id, text: p.text },
+      p.surprise ? { id: p.id, surprise: true } : { id: p.id, surprise: false, text: p.text },
     ),
   }));
 }

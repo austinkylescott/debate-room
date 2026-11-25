@@ -21,7 +21,7 @@ defineProps<{ rounds: PreviewRound[] }>();
       <p v-if="round.prompts.length === 0" class="muted small">No Prompts yet.</p>
       <ol v-else class="prompts">
         <li v-for="prompt in round.prompts" :key="prompt.id">
-          <span v-if="'text' in prompt" class="name">{{ prompt.text }}</span>
+          <span v-if="!prompt.surprise" class="name">{{ prompt.text }}</span>
           <span v-else class="name muted">Surprise Prompt, revealed when it's played</span>
         </li>
       </ol>
