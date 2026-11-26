@@ -445,7 +445,7 @@ export function leaveRound(current: CurrentRound, personId: string): RoundOutcom
 
 export function stageView(
   current: CurrentRound,
-  viewer: { personId: string; isHost: boolean },
+  viewer: { personId: string; isHost: boolean; isSpectator: boolean },
   people: RoundPeople,
 ): StageView {
   const viewerId = viewer.personId;
@@ -453,7 +453,8 @@ export function stageView(
   const playing = currentPromptState(current).playing.includes(viewerId);
   // Only those not Playing this Prompt see positions before the reveal. Each
   // Prompt starts fresh, so seeing this one gives a late joiner nothing for the next.
-  const seesHidden = !playing;
+  // Spectators never do: they see what Playing people see, so nothing leaks over the call.
+  const seesHidden = !playing && !viewer.isSpectator;
   const checkIn = viewCheckIn(current.moods);
   // The summary card waits until the Mood Check-in has closed.
   const summaryHeld = checkIn?.status === "open";

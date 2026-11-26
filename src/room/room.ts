@@ -66,6 +66,9 @@ export type { FloorView } from "./floor";
 
 export type Phase = "planning" | "live" | "ended";
 
+/** What a person joins the Room as. */
+export type JoinRole = "participant" | "spectator";
+
 /** Who sent an intent: identified by the per-device token kept in local storage. */
 export interface Actor {
   token: string;
@@ -80,7 +83,10 @@ export type Intent =
   /** Discards a Room still in Planning, as if it had never been made. */
   | { type: "cancel-room" }
   | { type: "set-participant-limit"; limit: number }
-  | { type: "join"; nickname: string }
+  /** Joins as a Participant unless `as` says Spectator. */
+  | { type: "join"; nickname: string; as?: JoinRole }
+  /** A Spectator takes a Participant's place, between Rounds. */
+  | { type: "become-participant" }
   | { type: "rename-person"; personId: string; nickname: string }
   | { type: "remove-person"; personId: string }
   /** Starts the next Round in the Lineup. */
@@ -103,6 +109,7 @@ export type RejectionCode =
   | "pin-invalid"
   | "limit-invalid"
   | "room-full"
+  | "spectators-full"
   | "room-not-open"
   | "room-ended"
   | "not-host"
@@ -118,6 +125,8 @@ export type RejectionCode =
   | "no-round"
   | "not-in-room"
   | "not-participant"
+  | "spectators-watch"
+  | "not-spectator"
   | RoundRejectionCode
   | FloorRejectionCode
   | LineupRejectionCode;
@@ -137,17 +146,22 @@ export type RecapEvent =
   /** `hostNickname` is missing from events stored before it was added. */
   | { at: number; type: "room-opened"; hostNickname?: string }
   | { at: number; type: "room-ended" }
-  | { at: number; type: "person-joined"; personId: string; nickname: string }
+  | { at: number; type: "person-joined"; personId: string; nickname: string; as: JoinRole }
+  | { at: number; type: "spectator-became-participant"; personId: string }
   | { at: number; type: "person-renamed"; personId: string; from: string; to: string }
   | { at: number; type: "person-removed"; personId: string; nickname: string }
   | ({ at: number } & RoundEvent)
   | ({ at: number } & FloorEvent);
 
-interface Participant {
+/** A Participant or a Spectator: someone who joined the Room with a nickname. */
+interface Person {
   id: string;
   nickname: string;
   token: string;
 }
+
+type Participant = Person;
+type Spectator = Person;
 
 /** Internal state. Never sent to clients as-is: clients only see `viewFor`. */
 export interface RoomState {
@@ -163,10 +177,13 @@ export interface RoomState {
   /** Device tokens recognised as the Host (one per device the Host has used). */
   hostTokens: string[];
   participants: Participant[];
+  /** People watching the Stage who never take part in Rounds. */
+  spectators: Spectator[];
   /** Device tokens the Host removed from the Room. They can't join again. */
   removedTokens: string[];
   /** The most Participants the Room allows, set by the Host. */
   participantLimit: number;
+  /** Numbers the ids of Participants and Spectators alike, so a switch keeps the id. */
   nextParticipantNumber: number;
   lineup: Lineup;
   /** The Round being played, or null while the Room is in the Waiting Room. */
@@ -206,6 +223,8 @@ export const DEFAULT_PARTICIPANT_LIMIT = 15;
 export const MAX_PARTICIPANT_LIMIT = 50;
 /** A Room with no activity for this long expires, Recap and all. */
 export const ROOM_EXPIRY_MS = 7 * 24 * 60 * 60_000;
+/** The most Spectators any Room allows. Fixed, and separate from the Participant limit. */
+export const SPECTATOR_LIMIT = 25;
 
 export interface WaitingRoomPerson {
   id: string;
@@ -218,13 +237,19 @@ export interface View {
   you:
     | { role: "host"; personId: string; nickname: string }
     | { role: "participant"; personId: string; nickname: string }
+    | { role: "spectator"; personId: string; nickname: string }
     | { role: "visitor" }
     /** The Host removed this device from the Room. */
     | { role: "removed" };
   /** How full the Room is. Shown to everyone, so visitors can see it's full. */
   capacity: { joined: number; limit: number };
-  /** Everyone in the Room, for people who are in it. Null for visitors. */
-  waitingRoom: { people: WaitingRoomPerson[] } | null;
+  /** How full the Room is for Spectators, who have their own fixed limit. Shown to everyone. */
+  spectatorCapacity: { joined: number; limit: number };
+  /**
+   * Everyone in the Room, for people who are in it: the Host and Participants
+   * in `people`, Spectators apart. Null for visitors.
+   */
+  waitingRoom: { people: WaitingRoomPerson[]; spectators: WaitingRoomPerson[] } | null;
   /** The whole Lineup, for the Host. Null for everyone else. */
   lineup: Round[] | null;
   /** The Preview of the Lineup, for visitors while the Room is in Planning. Null for everyone else. */
@@ -282,6 +307,7 @@ export function createRoom(
       hostNickname: nickname,
       hostTokens: [],
       participants: [],
+      spectators: [],
       removedTokens: [],
       participantLimit,
       nextParticipantNumber: 1,
@@ -382,7 +408,9 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
     case "set-participant-limit":
       return setParticipantLimit(state, intent.limit, actor);
     case "join":
-      return join(state, intent.nickname, actor, now);
+      return join(state, intent.nickname, intent.as ?? "participant", actor, now);
+    case "become-participant":
+      return becomeParticipant(state, actor, now);
     case "rename-person":
       return renamePerson(state, intent.personId, intent.nickname, actor, now);
     case "remove-person":
@@ -396,6 +424,10 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
     case "choose-middle":
       return playCurrentRound(state, intent, actor, now);
     case "move-to-side":
+      // Spectators never have a Side, so there's nothing to move them to.
+      if (isHost(state, actor) && state.spectators.some((s) => s.id === intent.personId)) {
+        return rejected(state, SPECTATORS_WATCH);
+      }
       return runCurrentRound(state, actor, "move people between Sides", now, (round) =>
         moveSide(round, intent.personId, intent.side),
       );
@@ -410,12 +442,15 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
 
 export function viewFor(state: RoomState, viewer: Actor): View {
   const you = identify(state, viewer);
-  const inRoom = you.role === "host" || you.role === "participant";
+  const inRoom = you.role === "host" || you.role === "participant" || you.role === "spectator";
   return {
     phase: state.phase,
     you,
     capacity: { joined: state.participants.length, limit: state.participantLimit },
-    waitingRoom: inRoom ? { people: waitingRoomPeople(state) } : null,
+    spectatorCapacity: { joined: state.spectators.length, limit: SPECTATOR_LIMIT },
+    waitingRoom: inRoom
+      ? { people: waitingRoomPeople(state), spectators: state.spectators.map(asWaitingRoomPerson) }
+      : null,
     lineup: you.role === "host" ? state.lineup.rounds : null,
     preview:
       state.phase === "planning" && you.role === "visitor" ? previewLineup(state.lineup) : null,
@@ -423,7 +458,11 @@ export function viewFor(state: RoomState, viewer: Actor): View {
       inRoom && state.round
         ? stageView(
             state.round,
-            { personId: you.personId, isHost: you.role === "host" },
+            {
+              personId: you.personId,
+              isHost: you.role === "host",
+              isSpectator: you.role === "spectator",
+            },
             roundPeople(state),
           )
         : null,
@@ -458,7 +497,13 @@ export function parseIntent(raw: unknown): Intent | null {
         ? { type: "set-participant-limit", limit: value.limit }
         : null;
     case "join":
-      return typeof value.nickname === "string" ? { type: "join", nickname: value.nickname } : null;
+      if (typeof value.nickname !== "string") return null;
+      if (value.as === undefined) return { type: "join", nickname: value.nickname };
+      return value.as === "participant" || value.as === "spectator"
+        ? { type: "join", nickname: value.nickname, as: value.as }
+        : null;
+    case "become-participant":
+      return { type: "become-participant" };
     case "rename-person":
       return typeof value.personId === "string" && typeof value.nickname === "string"
         ? { type: "rename-person", personId: value.personId, nickname: value.nickname }
@@ -520,6 +565,7 @@ export function parseIntent(raw: unknown): Intent | null {
 export function upgradeState(stored: RoomState, now: number): RoomState {
   return {
     ...stored,
+    spectators: stored.spectators ?? [],
     lineup: stored.lineup ?? emptyLineup(),
     round: stored.round
       ? { ...stored.round, moods: stored.round.moods ?? startPromptMoods() }
@@ -584,8 +630,8 @@ function pinLocked(remainingMs: number): Rejection {
 
 /**
  * The Host secret or the right PIN always grants the Host role. If the Host had
- * already joined from this device as a Participant, that entry gives way: the
- * Host is listed in the Waiting Room as the Host.
+ * already joined from this device as a Participant or Spectator, that entry
+ * gives way: the Host is listed in the Waiting Room as the Host.
  */
 function grantHost(state: RoomState, actor: Actor): ApplyResult {
   return {
@@ -593,6 +639,7 @@ function grantHost(state: RoomState, actor: Actor): ApplyResult {
       ...state,
       hostTokens: [...state.hostTokens, actor.token],
       participants: state.participants.filter((p) => p.token !== actor.token),
+      spectators: state.spectators.filter((s) => s.token !== actor.token),
     },
     recapEvents: [],
   };
@@ -651,15 +698,21 @@ function setParticipantLimit(state: RoomState, limit: number, actor: Actor): App
   return { state: { ...state, participantLimit: limit }, recapEvents: [] };
 }
 
-function join(state: RoomState, rawNickname: string, actor: Actor, now: number): ApplyResult {
+function join(
+  state: RoomState,
+  rawNickname: string,
+  role: JoinRole,
+  actor: Actor,
+  now: number,
+): ApplyResult {
   if (isHost(state, actor)) {
     return rejected(state, {
       code: "already-in-room",
       message: "You're already in this Room as the Host.",
     });
   }
-  // Rejoining from the same device restores the same Participant.
-  if (findParticipant(state, actor)) return unchanged(state);
+  // Rejoining from the same device restores the same Participant or Spectator.
+  if (findParticipant(state, actor) || findSpectator(state, actor)) return unchanged(state);
   if (state.phase === "planning") {
     return rejected(state, {
       code: "room-not-open",
@@ -668,27 +721,72 @@ function join(state: RoomState, rawNickname: string, actor: Actor, now: number):
   }
   // Only Participants count for now. Once the Host can be Playing in a Round,
   // a Playing Host takes one of these places too.
-  if (state.participants.length >= state.participantLimit) {
+  // A full Participant limit offers Spectator instead, if there's room to watch.
+  if (role === "participant" && isParticipantLimitFull(state)) {
+    const full = roomFull(state);
+    return rejected(
+      state,
+      state.spectators.length < SPECTATOR_LIMIT
+        ? { ...full, message: `${full.message} You can join as a Spectator instead.` }
+        : full,
+    );
+  }
+  if (role === "spectator" && state.spectators.length >= SPECTATOR_LIMIT) {
     return rejected(state, {
-      code: "room-full",
-      message: `This Room is full: it allows ${state.participantLimit} Participants.`,
+      code: "spectators-full",
+      message: `This Room has no room for more Spectators: it allows ${SPECTATOR_LIMIT}.`,
     });
   }
   const nickname = normalizeNickname(rawNickname);
   if (nickname === null) return rejected(state, INVALID_NICKNAME);
   if (isNicknameTaken(state, nickname)) return rejected(state, nicknameTaken(nickname));
-  const participant: Participant = {
-    id: `p${state.nextParticipantNumber}`,
-    nickname,
-    token: actor.token,
-  };
+  const person: Person = { id: `p${state.nextParticipantNumber}`, nickname, token: actor.token };
   return {
     state: {
       ...state,
-      participants: [...state.participants, participant],
+      ...(role === "participant"
+        ? { participants: [...state.participants, person] }
+        : { spectators: [...state.spectators, person] }),
       nextParticipantNumber: state.nextParticipantNumber + 1,
     },
-    recapEvents: [{ at: now, type: "person-joined", personId: participant.id, nickname }],
+    recapEvents: [{ at: now, type: "person-joined", personId: person.id, nickname, as: role }],
+  };
+}
+
+/** Between Rounds, a Spectator can take a free Participant place. They keep their id. */
+function becomeParticipant(state: RoomState, actor: Actor, now: number): ApplyResult {
+  const spectator = findSpectator(state, actor);
+  if (!spectator) {
+    return rejected(state, {
+      code: "not-spectator",
+      message: "Only Spectators can switch to Participant.",
+    });
+  }
+  if (state.round) {
+    return rejected(state, {
+      code: "round-in-progress",
+      message: "You can switch to Participant once this Round is over.",
+    });
+  }
+  if (isParticipantLimitFull(state)) return rejected(state, roomFull(state));
+  return {
+    state: {
+      ...state,
+      spectators: state.spectators.filter((s) => s.id !== spectator.id),
+      participants: [...state.participants, spectator],
+    },
+    recapEvents: [{ at: now, type: "spectator-became-participant", personId: spectator.id }],
+  };
+}
+
+function isParticipantLimitFull(state: RoomState): boolean {
+  return state.participants.length >= state.participantLimit;
+}
+
+function roomFull(state: RoomState): Rejection {
+  return {
+    code: "room-full",
+    message: `This Room is full: it allows ${state.participantLimit} Participants.`,
   };
 }
 
@@ -706,12 +804,14 @@ function renamePerson(
   if (nickname === null) return rejected(state, INVALID_NICKNAME);
   if (isNicknameTaken(state, nickname, personId)) return rejected(state, nicknameTaken(nickname));
   if (nickname === from) return unchanged(state);
+  const rename = (p: Person): Person => (p.id === personId ? { ...p, nickname } : p);
   const renamed: RoomState =
     personId === HOST_PERSON_ID
       ? { ...state, hostNickname: nickname }
       : {
           ...state,
-          participants: state.participants.map((p) => (p.id === personId ? { ...p, nickname } : p)),
+          participants: state.participants.map(rename),
+          spectators: state.spectators.map(rename),
         };
   return {
     state: renamed,
@@ -727,19 +827,20 @@ function removePerson(state: RoomState, personId: string, actor: Actor, now: num
       message: "The Host can't be removed from their own Room.",
     });
   }
-  const participant = state.participants.find((p) => p.id === personId);
-  if (!participant) return rejected(state, PERSON_NOT_FOUND);
+  const person = [...state.participants, ...state.spectators].find((p) => p.id === personId);
+  if (!person) return rejected(state, PERSON_NOT_FOUND);
   const floor = leaveFloor(state.floor, personId);
   const removed: ApplyResult = {
     state: {
       ...state,
       participants: state.participants.filter((p) => p.id !== personId),
-      removedTokens: [...state.removedTokens, participant.token],
+      spectators: state.spectators.filter((s) => s.id !== personId),
+      removedTokens: [...state.removedTokens, person.token],
       lineup: forgetPerson(state.lineup, personId),
       floor: floor.floor,
     },
     recapEvents: [
-      { at: now, type: "person-removed", personId, nickname: participant.nickname },
+      { at: now, type: "person-removed", personId, nickname: person.nickname },
       ...floor.events.map((event) => ({ at: now, ...event })),
     ],
   };
@@ -790,6 +891,8 @@ function playCurrentRound(
 ): ApplyResult {
   const you = identify(state, actor);
   if (!("personId" in you)) return rejected(state, NOT_IN_ROOM);
+  // Spectators watch: they never place themselves, take the chair, vote or set a Mood.
+  if (you.role === "spectator") return rejected(state, SPECTATORS_WATCH);
   if (!state.round) return rejected(state, NO_ROUND);
   return withRound(state, playRound(state.round, intent, you.personId, roundPeople(state)), now);
 }
@@ -817,7 +920,8 @@ function controlFloor(
   if (state.phase !== "live") return rejected(state, ROOM_NOT_LIVE);
   switch (intent.type) {
     case "give-floor":
-      if (nicknameOf(state, intent.personId) === undefined) {
+      // The Floor is for the Host and Participants: Spectators only watch.
+      if (!waitingRoomPeople(state).some((p) => p.id === intent.personId)) {
         return rejected(state, PERSON_NOT_FOUND);
       }
       return withFloor(state, giveFloor(state.floor, intent.personId, now), now);
@@ -839,6 +943,7 @@ function moveOwnHand(state: RoomState, intent: HandIntent, actor: Actor, now: nu
       message: "Only Participants raise a hand. As the Host, give yourself the Floor.",
     });
   }
+  if (you.role === "spectator") return rejected(state, SPECTATORS_WATCH);
   if (you.role !== "participant") return rejected(state, NOT_IN_ROOM);
   if (state.phase !== "live") return rejected(state, ROOM_NOT_LIVE);
   return withFloor(state, moveHand(state.floor, you.personId, intent), now);
@@ -877,6 +982,10 @@ function identify(state: RoomState, viewer: Actor): View["you"] {
   if (participant) {
     return { role: "participant", personId: participant.id, nickname: participant.nickname };
   }
+  const spectator = findSpectator(state, viewer);
+  if (spectator) {
+    return { role: "spectator", personId: spectator.id, nickname: spectator.nickname };
+  }
   if (isRemoved(state, viewer)) return { role: "removed" };
   return { role: "visitor" };
 }
@@ -884,8 +993,12 @@ function identify(state: RoomState, viewer: Actor): View["you"] {
 function waitingRoomPeople(state: RoomState): WaitingRoomPerson[] {
   return [
     { id: HOST_PERSON_ID, nickname: state.hostNickname, isHost: true },
-    ...state.participants.map((p) => ({ id: p.id, nickname: p.nickname, isHost: false })),
+    ...state.participants.map(asWaitingRoomPerson),
   ];
+}
+
+function asWaitingRoomPerson(person: Person): WaitingRoomPerson {
+  return { id: person.id, nickname: person.nickname, isHost: false };
 }
 
 function isHost(state: RoomState, actor: Actor): boolean {
@@ -904,14 +1017,23 @@ function findParticipant(state: RoomState, actor: Actor): Participant | undefine
   return state.participants.find((p) => p.token === actor.token);
 }
 
+function findSpectator(state: RoomState, actor: Actor): Spectator | undefined {
+  return state.spectators.find((s) => s.token === actor.token);
+}
+
 function nicknameOf(state: RoomState, personId: string): string | undefined {
-  return waitingRoomPeople(state).find((p) => p.id === personId)?.nickname;
+  return everyone(state).find((p) => p.id === personId)?.nickname;
+}
+
+/** The Host, Participants and Spectators. */
+function everyone(state: RoomState): WaitingRoomPerson[] {
+  return [...waitingRoomPeople(state), ...state.spectators.map(asWaitingRoomPerson)];
 }
 
 /** Whether anyone (other than `exceptPersonId`) has this nickname, ignoring case. */
 function isNicknameTaken(state: RoomState, nickname: string, exceptPersonId?: string): boolean {
   const key = nickname.toLocaleLowerCase();
-  return waitingRoomPeople(state).some(
+  return everyone(state).some(
     (p) => p.id !== exceptPersonId && p.nickname.toLocaleLowerCase() === key,
   );
 }
@@ -926,6 +1048,11 @@ function nicknameTaken(nickname: string): Rejection {
 const NO_ROUND: Rejection = { code: "no-round", message: "No Round is being played right now." };
 
 const NOT_IN_ROOM: Rejection = { code: "not-in-room", message: "Join the Room to take part." };
+
+const SPECTATORS_WATCH: Rejection = {
+  code: "spectators-watch",
+  message: "Spectators watch the Stage but don't take part in Rounds.",
+};
 
 const ROOM_NOT_LIVE: Rejection = { code: "room-not-open", message: "The Room isn't open." };
 

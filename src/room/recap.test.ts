@@ -195,6 +195,17 @@ describe("who can see the Recap", () => {
     expect(viewFor(state, visitor).seesRecap).toBe(false);
   });
 
+  it("is open to Spectators while the Room is Live", () => {
+    const casey: Actor = { token: "casey-device" };
+    const state = run(liveRoom(), [
+      { type: "join", nickname: "Casey", as: "spectator" },
+      casey,
+      2_500,
+    ]);
+    expect(viewFor(state, casey).you.role).toBe("spectator");
+    expect(viewFor(state, casey).seesRecap).toBe(true);
+  });
+
   it("is closed to visitors while the Room is in Planning", () => {
     expect(viewFor(plannedRoom(), visitor).seesRecap).toBe(false);
   });
@@ -251,6 +262,18 @@ describe("ending the Room", () => {
     ]);
     // Its close no longer needs a tick: only the expiry is left.
     expect(result.scheduled).toBe(4_000 + 7 * DAY);
+  });
+
+  it("keeps a Spectator a Spectator: switching to Participant is refused", () => {
+    const casey: Actor = { token: "casey-device" };
+    const ended = run(
+      liveRoom(),
+      [{ type: "join", nickname: "Casey", as: "spectator" }, casey, 2_500],
+      [endRoom, host, 3_000],
+    );
+    const result = apply(ended, { type: "become-participant" }, casey, 4_000);
+    expect(result.rejection?.code).toBe("room-ended");
+    expect(viewFor(result.state, casey).you.role).toBe("spectator");
   });
 
   it("stops the Room: nobody can join, play or edit any more", () => {
@@ -375,6 +398,31 @@ describe("Floor changes recorded for Floor time", () => {
       { at: 3_000, type: "floor-given", personId: ALEX },
       { at: 4_000, type: "floor-given", personId: SAM },
       { at: 9_000, type: "floor-taken", personId: ALEX },
+    ]);
+  });
+});
+
+describe("who was in the Room", () => {
+  it("lists the Host, Participants and Spectators, with switches and removals", () => {
+    const casey: Actor = { token: "casey-device" };
+    const events = wholeRecap(
+      [{ type: "join", nickname: "Casey", as: "spectator" }, casey, 2_500],
+      [{ type: "become-participant" }, casey, 2_600],
+      [{ type: "remove-person", personId: SAM }, host, 2_700],
+    );
+    const people = summarizeRecap(events, 9_000).people.map(
+      ({ nickname, joinedAs, becameParticipantAt, removedAt }) => [
+        nickname,
+        joinedAs,
+        becameParticipantAt,
+        removedAt,
+      ],
+    );
+    expect(people).toEqual([
+      ["Jordan", "host", null, null],
+      ["Alex", "participant", null, null],
+      ["Sam", "participant", null, 2_700],
+      ["Casey", "spectator", 2_600, null],
     ]);
   });
 });

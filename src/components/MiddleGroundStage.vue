@@ -9,6 +9,7 @@ const props = defineProps<{
   stage: Extract<StageView, { format: "middle-ground" }>;
   isHost: boolean;
   personId: string;
+  isSpectator?: boolean;
 }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
@@ -165,6 +166,9 @@ const advanceLabel = computed(() => {
         </button>
       </template>
     </div>
+    <p v-else-if="isSpectator && middle.step !== 'summary'" class="muted">
+      You're a Spectator: you see what the people Playing see.
+    </p>
     <p v-else-if="!stage.playing && !isHost && middle.step !== 'summary'" class="muted">
       You joined mid-Prompt: you'll be in from the next one.
     </p>

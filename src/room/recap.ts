@@ -5,16 +5,30 @@
 // or a downloaded copy. Pure and dependency-free like the rest of the Room module.
 
 import type { Format } from "./lineup";
-import { HOST_PERSON_ID, type RecapEvent } from "./room";
+import { HOST_PERSON_ID, type JoinRole, type RecapEvent } from "./room";
 import type { RevealCause } from "./round";
 import { type Distribution, distribution } from "./spectrum";
 
 export interface RecapSummary {
+  /** Everyone who joined the Room, in the order they joined, the Host first. */
+  people: RecapPerson[];
   /** Everyone who has had the Floor, most Floor time first. */
   floorTime: { personId: string; nickname: string; ms: number }[];
   rounds: RecapRound[];
   /** When the Host ended the Room, or null while it's Live. */
   endedAt: number | null;
+}
+
+export interface RecapPerson {
+  personId: string;
+  /** Their latest nickname. */
+  nickname: string;
+  joinedAs: "host" | JoinRole;
+  joinedAt: number;
+  /** When a Spectator switched to Participant, or null if they never did. */
+  becameParticipantAt: number | null;
+  /** When the Host removed them, or null. */
+  removedAt: number | null;
 }
 
 export interface RecapRound {
@@ -256,12 +270,49 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
   for (const personId of floorSince.keys()) endFloorTurn(personId, endedAt ?? now);
 
   return {
+    people: people(events, nickname),
     floorTime: [...floorMs]
       .map(([personId, ms]) => ({ personId, nickname: nickname(personId), ms }))
       .sort((a, b) => b.ms - a.ms),
     rounds,
     endedAt,
   };
+}
+
+/** Who joined the Room and how, as the events tell it. */
+function people(events: RecapEvent[], nickname: (personId: string) => string): RecapPerson[] {
+  const byId = new Map<string, RecapPerson>();
+  const add = (personId: string, joinedAs: RecapPerson["joinedAs"], at: number) =>
+    byId.set(personId, {
+      personId,
+      nickname: nickname(personId),
+      joinedAs,
+      joinedAt: at,
+      becameParticipantAt: null,
+      removedAt: null,
+    });
+  for (const event of events) {
+    switch (event.type) {
+      case "room-opened":
+        add(HOST_PERSON_ID, "host", event.at);
+        break;
+      case "person-joined":
+        // Events stored before Spectators existed have no `as`: they were Participants.
+        add(event.personId, event.as ?? "participant", event.at);
+        break;
+      case "spectator-became-participant": {
+        const person = byId.get(event.personId);
+        if (person) person.becameParticipantAt = event.at;
+        break;
+      }
+      case "person-removed": {
+        const person = byId.get(event.personId);
+        if (person) person.removedAt = event.at;
+        break;
+      }
+    }
+  }
+  return [...byId.values()];
 }
 
 /** Each person's latest nickname, as the events tell it. Removed people keep theirs. */
