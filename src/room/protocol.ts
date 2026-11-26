@@ -1,13 +1,17 @@
 // Messages between a client and its Room's Durable Object. Clients send
 // intents (see `Intent` in ./room); the server answers with these.
-import type { Rejection, View } from "./room";
+import type { RecapEvent, Rejection, View } from "./room";
 
 export type ServerMessage =
   /** The connection's own view, sent on connect and after every change. */
   | { type: "view"; view: View }
   /** Sent only to the connection whose intent was refused. */
   | { type: "rejected"; rejection: Rejection }
-  /** There is no Room with this id. */
+  /** The whole Recap so far, sent once a connection may see it (see `View.seesRecap`). */
+  | { type: "recap"; events: RecapEvent[] }
+  /** Events added to the Recap since, for connections that already have it. */
+  | { type: "recap-added"; events: RecapEvent[] }
+  /** There is no Room with this id: it never existed, or it expired. */
   | { type: "missing" };
 
 /**

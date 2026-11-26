@@ -104,6 +104,17 @@ export function movePosition(prompt: SpectrumPrompt, personId: string, position:
   return { prompt: setPosition(prompt, personId, { ...current, current: position }) };
 }
 
+/**
+ * The notch values a move from `from` to `to` passes or lands on, in the order
+ * it reaches them. Leaving a notch doesn't count as crossing it.
+ */
+export function notchesCrossed(from: number, to: number): number[] {
+  const values = SPECTRUM_NOTCHES.map((notch) => notch.value as number);
+  return to > from
+    ? values.filter((v) => from < v && v <= to)
+    : values.filter((v) => to <= v && v < from).reverse();
+}
+
 export function lockIn(prompt: SpectrumPrompt, personId: string, position: number): Outcome {
   const refusal = checkMove(prompt, personId, position);
   if (refusal) return { rejection: refusal };
@@ -216,7 +227,7 @@ function furthestApart(prompt: SpectrumPrompt): SpectrumCallingAids["furthestApa
 }
 
 /** Counts positions by nearest notch. A position halfway between two counts toward agreeing. */
-function distribution(positions: (number | null)[]): Distribution {
+export function distribution(positions: (number | null)[]): Distribution {
   const counts = SPECTRUM_NOTCHES.map(() => 0);
   for (const position of positions) {
     if (position !== null) counts[nearestNotch(position)]! += 1;

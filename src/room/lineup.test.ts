@@ -19,7 +19,7 @@ const alexDevice: Actor = { token: "alex-device" };
 const strangerDevice: Actor = { token: "stranger-device" };
 
 function planningRoom(): RoomState {
-  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" });
+  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" }, 0);
   if ("rejection" in created) throw new Error(created.rejection.message);
   return run(created.state, [{ type: "claim-host", hostSecret: HOST_SECRET }, hostDevice]);
 }
@@ -544,7 +544,7 @@ describe("Lineup intents over the wire", () => {
 describe("Rooms stored before the Lineup existed", () => {
   it("get an empty Lineup the Host can edit", () => {
     const { lineup: _, ...stored } = planningRoom();
-    const upgraded = upgradeState(stored as RoomState);
+    const upgraded = upgradeState(stored as RoomState, 0);
     expect(lineup(upgraded)).toEqual([]);
     expect(lineup(run(upgraded, [addRound(spectrum), hostDevice]))).toHaveLength(1);
   });

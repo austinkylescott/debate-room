@@ -46,7 +46,7 @@ const advance: Intent = { type: "advance" };
 
 /** A Live Room with Alex and Sam in the Waiting Room and a Spectrum Round over these Prompts. */
 function roomWith(...prompts: string[]): RoomState {
-  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" });
+  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" }, 0);
   if ("rejection" in created) throw new Error(created.rejection.message);
   return run(
     created.state,
@@ -63,6 +63,11 @@ function roomWith(...prompts: string[]): RoomState {
     [{ type: "join", nickname: "Alex" }, alex],
     [{ type: "join", nickname: "Sam" }, sam],
   );
+}
+
+/** With no timer running, only the Room's expiry is left to schedule. */
+function onlyExpiry(result: ApplyResult): number {
+  return viewFor(result.state, host).expiresAt;
 }
 
 function stageOf(state: RoomState, viewer: Actor): Extract<StageView, { format: "spectrum" }> {
@@ -288,11 +293,12 @@ describe("the Mood Check-in", () => {
     expect(result.recapEvents).toEqual([]);
   });
 
-  it("keeps its close scheduled while open, and nothing once it closes", () => {
+  it("keeps its close scheduled while open, and only the expiry once it closes", () => {
     const opened = attempt(revealed(), advance, host);
     const answered = attempt(opened.state, setMood("happy"), alex);
     expect(answered.scheduled).toBe(opened.scheduled);
-    expect(attempt(answered.state, setMood("sad"), sam).scheduled).toBeUndefined();
+    const closed = attempt(answered.state, setMood("sad"), sam);
+    expect(closed.scheduled).toBe(onlyExpiry(closed));
   });
 
   it("holds the Round until it closes", () => {
@@ -372,7 +378,7 @@ describe("the Mood Check-in sharing the Room's one timer with the Floor", () => 
 
     const closed = tick(floorUp.state, checkInClosesAt);
     expect(typesOf(closed)).toEqual(["mood-check-in-closed"]);
-    expect(closed.scheduled).toBeUndefined();
+    expect(closed.scheduled).toBe(onlyExpiry(closed));
   });
 
   it("schedules the Check-in close first when it comes before the Floor timer runs out", () => {
@@ -385,14 +391,14 @@ describe("the Mood Check-in sharing the Room's one timer with the Floor", () => 
 
     const floorUp = tick(closed.state, floorEndsAt);
     expect(typesOf(floorUp)).toEqual(["floor-time-up"]);
-    expect(floorUp.scheduled).toBeUndefined();
+    expect(floorUp.scheduled).toBe(onlyExpiry(floorUp));
   });
 
   it("handles both on one tick when both are due", () => {
     const { opened, checkInClosesAt } = checkInWithFloorTimer(10);
     const late = tick(opened.state, checkInClosesAt);
     expect(typesOf(late)).toEqual(["floor-time-up", "mood-check-in-closed"]);
-    expect(late.scheduled).toBeUndefined();
+    expect(late.scheduled).toBe(onlyExpiry(late));
   });
 });
 
@@ -416,7 +422,7 @@ describe("Rounds stored before Moods existed", () => {
   it("pick up with no Moods, and still run the Check-in", () => {
     const playing = run(roomWith("A"), [start(), host], [lockIn(20), alex], [lockIn(80), sam]);
     const { moods: _, ...round } = playing.round!;
-    const upgraded = upgradeState({ ...playing, round } as RoomState);
+    const upgraded = upgradeState({ ...playing, round } as RoomState, 0);
     expect(stageOf(upgraded, alex).moods).toEqual({});
     const ended = run(upgraded, [advance, host], [setMood("happy"), alex], [setMood("sad"), sam]);
     expect(stageOf(ended, alex).checkIn?.status).toBe("closed");

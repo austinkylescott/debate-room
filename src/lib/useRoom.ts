@@ -2,7 +2,7 @@
 import PartySocket from "partysocket";
 import { onBeforeUnmount, ref, shallowRef } from "vue";
 import { PARTY_NAME, PARTY_PREFIX, type StampedServerMessage } from "../room/protocol";
-import type { Intent, Rejection, View } from "../room/room";
+import type { Intent, RecapEvent, Rejection, View } from "../room/room";
 import { deviceToken, forgetHostSecret, savedHostSecret } from "./device";
 import { serverClock } from "./serverClock";
 
@@ -11,6 +11,8 @@ export type ConnectionStatus = "connecting" | "open" | "missing" | "removed";
 export function useRoom(roomId: string) {
   const view = shallowRef<View | null>(null);
   const rejection = shallowRef<Rejection | null>(null);
+  /** The Recap's events, once this device may see it (see `View.seesRecap`). */
+  const recap = shallowRef<RecapEvent[] | null>(null);
   const status = ref<ConnectionStatus>("connecting");
 
   const socket = new PartySocket({
@@ -44,6 +46,7 @@ export function useRoom(roomId: string) {
     switch (message.type) {
       case "view":
         view.value = message.view;
+        if (!message.view.seesRecap) recap.value = null;
         // The Host removed this device: stop reconnecting.
         if (message.view.you.role === "removed") {
           status.value = "removed";
@@ -54,6 +57,12 @@ export function useRoom(roomId: string) {
         if (message.rejection.code === "wrong-host-secret") forgetHostSecret(roomId);
         rejection.value = message.rejection;
         break;
+      case "recap":
+        recap.value = message.events;
+        break;
+      case "recap-added":
+        recap.value = [...(recap.value ?? []), ...message.events];
+        break;
       case "missing":
         status.value = "missing";
         socket.close();
@@ -63,5 +72,5 @@ export function useRoom(roomId: string) {
 
   onBeforeUnmount(() => socket.close());
 
-  return { view, rejection, status, send };
+  return { view, rejection, status, recap, send };
 }
