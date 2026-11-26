@@ -44,6 +44,7 @@ import {
   advanceRound,
   type CurrentRound,
   leaveRound,
+  stopSittingOut,
   moveSide,
   nextRound,
   playRound,
@@ -97,6 +98,13 @@ export type Intent =
   | { type: "move-to-side"; personId: string; side: 0 | 1 }
   /** Moves the Round on: to the Prompt's summary, the next Prompt or the Waiting Room. */
   | { type: "advance" }
+  /** The Host makes these Participants Co-Hosts. */
+  | { type: "grant-co-host"; personIds: string[] }
+  | { type: "revoke-co-host"; personId: string }
+  /** A Co-Host gives up the Co-Host controls. */
+  | { type: "step-down" }
+  /** A Co-Host chooses, between Rounds, whether they're Playing the next Round. */
+  | { type: "set-playing"; playing: boolean }
   | RoundIntent
   | FloorControlIntent
   | HandIntent
@@ -127,6 +135,7 @@ export type RejectionCode =
   | "not-participant"
   | "spectators-watch"
   | "not-spectator"
+  | "not-co-host"
   | RoundRejectionCode
   | FloorRejectionCode
   | LineupRejectionCode;
@@ -150,6 +159,11 @@ export type RecapEvent =
   | { at: number; type: "spectator-became-participant"; personId: string }
   | { at: number; type: "person-renamed"; personId: string; from: string; to: string }
   | { at: number; type: "person-removed"; personId: string; nickname: string }
+  | {
+      at: number;
+      type: "co-host-granted" | "co-host-revoked" | "co-host-stepped-down";
+      personId: string;
+    }
   | ({ at: number } & RoundEvent)
   | ({ at: number } & FloorEvent);
 
@@ -162,6 +176,13 @@ interface Person {
 
 type Participant = Person;
 type Spectator = Person;
+
+/** A Participant the Host has given the controls for running Rounds. */
+interface CoHost {
+  personId: string;
+  /** Whether they're Playing the next Round. They choose between Rounds. */
+  playing: boolean;
+}
 
 /** Internal state. Never sent to clients as-is: clients only see `viewFor`. */
 export interface RoomState {
@@ -179,6 +200,8 @@ export interface RoomState {
   participants: Participant[];
   /** People watching the Stage who never take part in Rounds. */
   spectators: Spectator[];
+  /** Participants who run Rounds alongside the Host, in the order they were made Co-Hosts. */
+  coHosts: CoHost[];
   /** Device tokens the Host removed from the Room. They can't join again. */
   removedTokens: string[];
   /** The most Participants the Room allows, set by the Host. */
@@ -230,6 +253,7 @@ export interface WaitingRoomPerson {
   id: string;
   nickname: string;
   isHost: boolean;
+  isCoHost: boolean;
 }
 
 export interface View {
@@ -241,6 +265,13 @@ export interface View {
     | { role: "visitor" }
     /** The Host removed this device from the Room. */
     | { role: "removed" };
+  /**
+   * Whether this viewer has the controls for running Rounds: the Host and
+   * Co-Hosts. Room-level controls stay with the Host.
+   */
+  runsRoom: boolean;
+  /** For a Co-Host, whether they've chosen to be Playing the next Round. Null for everyone else. */
+  coHost: { playingNextRound: boolean } | null;
   /** How full the Room is. Shown to everyone, so visitors can see it's full. */
   capacity: { joined: number; limit: number };
   /** How full the Room is for Spectators, who have their own fixed limit. Shown to everyone. */
@@ -250,13 +281,13 @@ export interface View {
    * in `people`, Spectators apart. Null for visitors.
    */
   waitingRoom: { people: WaitingRoomPerson[]; spectators: WaitingRoomPerson[] } | null;
-  /** The whole Lineup, for the Host. Null for everyone else. */
+  /** The whole Lineup, for the Host and Co-Hosts. Null for everyone else. */
   lineup: Round[] | null;
   /** The Preview of the Lineup, for visitors while the Room is in Planning. Null for everyone else. */
   preview: PreviewRound[] | null;
   /** The current Round, for people in the Room while one is being played. Null otherwise. */
   stage: StageView | null;
-  /** The Round that "Start Round" would start, for the Host. Null for everyone else. */
+  /** The Round that "Start Round" would start, for the Host and Co-Hosts. Null for everyone else. */
   nextRoundId: string | null;
   /** Who has the Floor, for people in the Room while it's Live. Null otherwise. */
   floor: FloorView | null;
@@ -308,6 +339,7 @@ export function createRoom(
       hostTokens: [],
       participants: [],
       spectators: [],
+      coHosts: [],
       removedTokens: [],
       participantLimit,
       nextParticipantNumber: 1,
@@ -425,7 +457,7 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
       return playCurrentRound(state, intent, actor, now);
     case "move-to-side":
       // Spectators never have a Side, so there's nothing to move them to.
-      if (isHost(state, actor) && state.spectators.some((s) => s.id === intent.personId)) {
+      if (canRunRoom(state, actor) && state.spectators.some((s) => s.id === intent.personId)) {
         return rejected(state, SPECTATORS_WATCH);
       }
       return runCurrentRound(state, actor, "move people between Sides", now, (round) =>
@@ -437,21 +469,36 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
       return runCurrentRound(state, actor, "move the Round on", now, (round) =>
         advanceRound(round, roundPeople(state), now),
       );
+    case "grant-co-host":
+      return grantCoHost(state, intent.personIds, actor, now);
+    case "revoke-co-host":
+      return revokeCoHost(state, intent.personId, actor, now);
+    case "step-down":
+      return stepDown(state, actor, now);
+    case "set-playing":
+      return setCoHostPlaying(state, intent.playing, actor);
   }
 }
 
 export function viewFor(state: RoomState, viewer: Actor): View {
   const you = identify(state, viewer);
   const inRoom = you.role === "host" || you.role === "participant" || you.role === "spectator";
+  const runsRoom = canRunRoom(state, viewer);
+  const coHost = coHostOf(state, viewer);
   return {
     phase: state.phase,
     you,
+    runsRoom,
+    coHost: coHost ? { playingNextRound: coHost.playing } : null,
     capacity: { joined: state.participants.length, limit: state.participantLimit },
     spectatorCapacity: { joined: state.spectators.length, limit: SPECTATOR_LIMIT },
     waitingRoom: inRoom
-      ? { people: waitingRoomPeople(state), spectators: state.spectators.map(asWaitingRoomPerson) }
+      ? {
+          people: waitingRoomPeople(state),
+          spectators: state.spectators.map((s) => asWaitingRoomPerson(s)),
+        }
       : null,
-    lineup: you.role === "host" ? state.lineup.rounds : null,
+    lineup: runsRoom ? state.lineup.rounds : null,
     preview:
       state.phase === "planning" && you.role === "visitor" ? previewLineup(state.lineup) : null,
     stage:
@@ -460,14 +507,13 @@ export function viewFor(state: RoomState, viewer: Actor): View {
             state.round,
             {
               personId: you.personId,
-              isHost: you.role === "host",
+              runsRoom,
               isSpectator: you.role === "spectator",
             },
             roundPeople(state),
           )
         : null,
-    nextRoundId:
-      you.role === "host" ? (nextRound(state.lineup, state.playedRoundIds)?.id ?? null) : null,
+    nextRoundId: runsRoom ? (nextRound(state.lineup, state.playedRoundIds)?.id ?? null) : null,
     floor:
       inRoom && state.phase === "live"
         ? viewFloor(state.floor, roundPeople(state).nicknames)
@@ -552,7 +598,21 @@ export function parseIntent(raw: unknown): Intent | null {
     case "clear-floor":
     case "raise-hand":
     case "lower-hand":
+    case "step-down":
       return { type: value.type };
+    case "grant-co-host":
+      return Array.isArray(value.personIds) &&
+        value.personIds.every((id): id is string => typeof id === "string")
+        ? { type: "grant-co-host", personIds: value.personIds }
+        : null;
+    case "revoke-co-host":
+      return typeof value.personId === "string"
+        ? { type: "revoke-co-host", personId: value.personId }
+        : null;
+    case "set-playing":
+      return typeof value.playing === "boolean"
+        ? { type: "set-playing", playing: value.playing }
+        : null;
     default:
       return parseLineupIntent(value);
   }
@@ -566,9 +626,14 @@ export function upgradeState(stored: RoomState, now: number): RoomState {
   return {
     ...stored,
     spectators: stored.spectators ?? [],
+    coHosts: stored.coHosts ?? [],
     lineup: stored.lineup ?? emptyLineup(),
     round: stored.round
-      ? { ...stored.round, moods: stored.round.moods ?? startPromptMoods() }
+      ? {
+          ...stored.round,
+          moods: stored.round.moods ?? startPromptMoods(),
+          sittingOut: stored.round.sittingOut ?? [],
+        }
       : null,
     playedRoundIds: stored.playedRoundIds ?? [],
     floor: stored.floor ?? emptyFloor(),
@@ -640,6 +705,7 @@ function grantHost(state: RoomState, actor: Actor): ApplyResult {
       hostTokens: [...state.hostTokens, actor.token],
       participants: state.participants.filter((p) => p.token !== actor.token),
       spectators: state.spectators.filter((s) => s.token !== actor.token),
+      coHosts: withoutCoHost(state, findParticipant(state, actor)?.id),
     },
     recapEvents: [],
   };
@@ -797,7 +863,7 @@ function renamePerson(
   actor: Actor,
   now: number,
 ): ApplyResult {
-  if (!isHost(state, actor)) return rejected(state, notHost("rename people"));
+  if (!canRunRoom(state, actor)) return rejected(state, notRunner("rename people"));
   const from = nicknameOf(state, personId);
   if (from === undefined) return rejected(state, PERSON_NOT_FOUND);
   const nickname = normalizeNickname(rawNickname);
@@ -820,12 +886,16 @@ function renamePerson(
 }
 
 function removePerson(state: RoomState, personId: string, actor: Actor, now: number): ApplyResult {
-  if (!isHost(state, actor)) return rejected(state, notHost("remove people"));
+  if (!canRunRoom(state, actor)) return rejected(state, notRunner("remove people"));
   if (personId === HOST_PERSON_ID) {
     return rejected(state, {
       code: "cant-remove-host",
       message: "The Host can't be removed from their own Room.",
     });
+  }
+  // Removing a Co-Host takes their controls away too, which is the Host's call.
+  if (isCoHost(state, personId) && !isHost(state, actor)) {
+    return rejected(state, notHost("remove a Co-Host"));
   }
   const person = [...state.participants, ...state.spectators].find((p) => p.id === personId);
   if (!person) return rejected(state, PERSON_NOT_FOUND);
@@ -835,6 +905,7 @@ function removePerson(state: RoomState, personId: string, actor: Actor, now: num
       ...state,
       participants: state.participants.filter((p) => p.id !== personId),
       spectators: state.spectators.filter((s) => s.id !== personId),
+      coHosts: withoutCoHost(state, personId),
       removedTokens: [...state.removedTokens, person.token],
       lineup: forgetPerson(state.lineup, personId),
       floor: floor.floor,
@@ -849,8 +920,97 @@ function removePerson(state: RoomState, personId: string, actor: Actor, now: num
   return { state: left.state, recapEvents: [...removed.recapEvents, ...left.recapEvents] };
 }
 
+/**
+ * The Host makes Participants Co-Hosts, several at once. All or nobody: if one
+ * of them can't be a Co-Host, nobody is made one. Anyone already a Co-Host
+ * stays as they are.
+ */
+function grantCoHost(
+  state: RoomState,
+  personIds: string[],
+  actor: Actor,
+  now: number,
+): ApplyResult {
+  if (!isHost(state, actor)) return rejected(state, notHost("make people Co-Hosts"));
+  for (const personId of personIds) {
+    if (state.spectators.some((s) => s.id === personId)) {
+      return rejected(state, {
+        code: "spectators-watch",
+        message: "Spectators watch the Stage, so they can't be Co-Hosts.",
+      });
+    }
+    if (!state.participants.some((p) => p.id === personId)) {
+      return rejected(state, PERSON_NOT_FOUND);
+    }
+  }
+  const granted = [...new Set(personIds)].filter((id) => !isCoHost(state, id));
+  if (granted.length === 0) return unchanged(state);
+  return {
+    // A new Co-Host keeps Playing, as they were as a Participant, until they choose otherwise.
+    state: {
+      ...state,
+      coHosts: [...state.coHosts, ...granted.map((personId) => ({ personId, playing: true }))],
+    },
+    recapEvents: granted.map((personId) => ({ at: now, type: "co-host-granted", personId })),
+  };
+}
+
+function revokeCoHost(state: RoomState, personId: string, actor: Actor, now: number): ApplyResult {
+  if (!isHost(state, actor)) return rejected(state, notHost("revoke Co-Hosts"));
+  if (!isCoHost(state, personId)) {
+    return rejected(state, { code: "not-co-host", message: "That person isn't a Co-Host." });
+  }
+  return endCoHost(state, personId, "co-host-revoked", now);
+}
+
+function stepDown(state: RoomState, actor: Actor, now: number): ApplyResult {
+  const personId = coHostOf(state, actor)?.personId;
+  if (personId === undefined) return rejected(state, NOT_CO_HOST);
+  return endCoHost(state, personId, "co-host-stepped-down", now);
+}
+
+/**
+ * Someone stops being a Co-Host. If they were sitting out the Round in
+ * progress, they're Playing from its next Prompt, like anyone who joins mid-Round.
+ */
+function endCoHost(
+  state: RoomState,
+  personId: string,
+  type: "co-host-revoked" | "co-host-stepped-down",
+  now: number,
+): ApplyResult {
+  return {
+    state: {
+      ...state,
+      coHosts: withoutCoHost(state, personId),
+      round: state.round ? stopSittingOut(state.round, personId) : null,
+    },
+    recapEvents: [{ at: now, type, personId }],
+  };
+}
+
+/** Between Rounds, a Co-Host chooses whether they're Playing the next Round. */
+function setCoHostPlaying(state: RoomState, playing: boolean, actor: Actor): ApplyResult {
+  const coHost = coHostOf(state, actor);
+  if (!coHost) return rejected(state, NOT_CO_HOST);
+  if (state.round) {
+    return rejected(state, {
+      code: "round-in-progress",
+      message: "You can choose whether you're Playing once this Round is over.",
+    });
+  }
+  if (coHost.playing === playing) return unchanged(state);
+  return {
+    state: {
+      ...state,
+      coHosts: state.coHosts.map((c) => (c.personId === coHost.personId ? { ...c, playing } : c)),
+    },
+    recapEvents: [],
+  };
+}
+
 function changeLineup(state: RoomState, intent: LineupIntent, actor: Actor): ApplyResult {
-  if (!isHost(state, actor)) return rejected(state, notHost("edit the Lineup"));
+  if (!canRunRoom(state, actor)) return rejected(state, notRunner("edit the Lineup"));
   const personIds = waitingRoomPeople(state).map((p) => p.id);
   const result = editLineup(state.lineup, intent, { personIds });
   if ("rejection" in result) return rejected(state, result.rejection);
@@ -878,7 +1038,8 @@ function beginRound(
       message: "Every Round in the Lineup has been played. Add a Round to play another.",
     });
   }
-  const started = startRound(round, hostPlaying, roundPeople(state));
+  const sittingOut = state.coHosts.filter((c) => !c.playing).map((c) => c.personId);
+  const started = startRound(round, hostPlaying, sittingOut, roundPeople(state));
   if ("rejection" in started) return rejected(state, started.rejection);
   return withRound({ ...state, playedRoundIds: [...state.playedRoundIds, round.id] }, started, now);
 }
@@ -897,7 +1058,7 @@ function playCurrentRound(
   return withRound(state, playRound(state.round, intent, you.personId, roundPeople(state)), now);
 }
 
-/** A Host control for the current Round. */
+/** A control for running the current Round, for the Host and Co-Hosts. */
 function runCurrentRound(
   state: RoomState,
   actor: Actor,
@@ -905,7 +1066,7 @@ function runCurrentRound(
   now: number,
   control: (round: CurrentRound) => RoundOutcome,
 ): ApplyResult {
-  if (!isHost(state, actor)) return rejected(state, notHost(action));
+  if (!canRunRoom(state, actor)) return rejected(state, notRunner(action));
   if (!state.round) return rejected(state, NO_ROUND);
   return withRound(state, control(state.round), now);
 }
@@ -916,7 +1077,7 @@ function controlFloor(
   actor: Actor,
   now: number,
 ): ApplyResult {
-  if (!isHost(state, actor)) return rejected(state, notHost("give and take the Floor"));
+  if (!canRunRoom(state, actor)) return rejected(state, notRunner("give and take the Floor"));
   if (state.phase !== "live") return rejected(state, ROOM_NOT_LIVE);
   switch (intent.type) {
     case "give-floor":
@@ -992,13 +1153,13 @@ function identify(state: RoomState, viewer: Actor): View["you"] {
 
 function waitingRoomPeople(state: RoomState): WaitingRoomPerson[] {
   return [
-    { id: HOST_PERSON_ID, nickname: state.hostNickname, isHost: true },
-    ...state.participants.map(asWaitingRoomPerson),
+    { id: HOST_PERSON_ID, nickname: state.hostNickname, isHost: true, isCoHost: false },
+    ...state.participants.map((p) => asWaitingRoomPerson(p, isCoHost(state, p.id))),
   ];
 }
 
-function asWaitingRoomPerson(person: Person): WaitingRoomPerson {
-  return { id: person.id, nickname: person.nickname, isHost: false };
+function asWaitingRoomPerson(person: Person, coHost = false): WaitingRoomPerson {
+  return { id: person.id, nickname: person.nickname, isHost: false, isCoHost: coHost };
 }
 
 function isHost(state: RoomState, actor: Actor): boolean {
@@ -1008,6 +1169,37 @@ function isHost(state: RoomState, actor: Actor): boolean {
 function notHost(action: string): Rejection {
   return { code: "not-host", message: `Only the Host can ${action}.` };
 }
+
+/**
+ * The permission check for every control that runs Rounds (the Floor, reveals,
+ * moving the Round on, Lineup edits, renaming and removing people, moving
+ * people between Sides, calling aids): the Host and Co-Hosts have it.
+ * Room-level controls (the PIN, opening, ending and cancelling the Room, the
+ * Participant limit, granting and revoking Co-Host) check {@link isHost} instead.
+ */
+function canRunRoom(state: RoomState, actor: Actor): boolean {
+  return isHost(state, actor) || coHostOf(state, actor) !== undefined;
+}
+
+/** The refusal for someone without {@link canRunRoom}. */
+function notRunner(action: string): Rejection {
+  return { code: "not-host", message: `Only the Host or a Co-Host can ${action}.` };
+}
+
+function coHostOf(state: RoomState, actor: Actor): CoHost | undefined {
+  const participant = findParticipant(state, actor);
+  return participant && state.coHosts.find((c) => c.personId === participant.id);
+}
+
+function isCoHost(state: RoomState, personId: string): boolean {
+  return state.coHosts.some((c) => c.personId === personId);
+}
+
+function withoutCoHost(state: RoomState, personId: string | undefined): CoHost[] {
+  return state.coHosts.filter((c) => c.personId !== personId);
+}
+
+const NOT_CO_HOST: Rejection = { code: "not-co-host", message: "You're not a Co-Host." };
 
 function isRemoved(state: RoomState, actor: Actor): boolean {
   return state.removedTokens.includes(actor.token);
@@ -1027,7 +1219,7 @@ function nicknameOf(state: RoomState, personId: string): string | undefined {
 
 /** The Host, Participants and Spectators. */
 function everyone(state: RoomState): WaitingRoomPerson[] {
-  return [...waitingRoomPeople(state), ...state.spectators.map(asWaitingRoomPerson)];
+  return [...waitingRoomPeople(state), ...state.spectators.map((s) => asWaitingRoomPerson(s))];
 }
 
 /** Whether anyone (other than `exceptPersonId`) has this nickname, ignoring case. */

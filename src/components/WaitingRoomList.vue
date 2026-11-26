@@ -2,10 +2,21 @@
 import { ref } from "vue";
 import { NICKNAME_MAX_LENGTH, type WaitingRoomPerson } from "../room/room";
 
-defineProps<{ people: WaitingRoomPerson[]; youId: string; canManage?: boolean }>();
+const props = defineProps<{
+  people: WaitingRoomPerson[];
+  youId: string;
+  /** Rename and remove: the Host and Co-Hosts. */
+  canManage?: boolean;
+  /** Make and revoke Co-Hosts, and remove them: the Host only. */
+  isHost?: boolean;
+  /** Spectators can't be Co-Hosts. */
+  canBeCoHosts?: boolean;
+}>();
 const emit = defineEmits<{
   rename: [personId: string, nickname: string];
   remove: [personId: string];
+  grant: [personId: string];
+  revoke: [personId: string];
 }>();
 
 const editingId = ref<string | null>(null);
@@ -26,6 +37,10 @@ function confirmRemove(person: WaitingRoomPerson) {
     emit("remove", person.id);
   }
 }
+
+/** Only the Host removes a Co-Host; nobody removes the Host. */
+const canRemove = (person: WaitingRoomPerson) =>
+  !person.isHost && (!person.isCoHost || props.isHost);
 </script>
 
 <template>
@@ -48,11 +63,25 @@ function confirmRemove(person: WaitingRoomPerson) {
       <template v-else>
         <span class="name">{{ person.nickname }}</span>
         <span v-if="person.isHost" class="tag">Host</span>
+        <span v-if="person.isCoHost" class="tag">Co-Host</span>
         <span v-if="person.id === youId" class="tag subtle">You</span>
         <span v-if="canManage" class="actions">
           <button type="button" class="link" @click="startRename(person)">Rename</button>
+          <template v-if="isHost && canBeCoHosts && !person.isHost">
+            <button
+              v-if="person.isCoHost"
+              type="button"
+              class="link"
+              @click="emit('revoke', person.id)"
+            >
+              Revoke Co-Host
+            </button>
+            <button v-else type="button" class="link" @click="emit('grant', person.id)">
+              Make Co-Host
+            </button>
+          </template>
           <button
-            v-if="!person.isHost"
+            v-if="canRemove(person)"
             type="button"
             class="link danger"
             @click="confirmRemove(person)"

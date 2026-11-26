@@ -228,10 +228,11 @@ function claimHostWithPin(pin: string) {
 
     <!-- Participant or Spectator: the Stage, while a Round is being played, and the Floor -->
     <template v-else-if="view.you.role === 'participant' || view.you.role === 'spectator'">
+      <!-- A Co-Host gets the controls for running Rounds -->
       <SpectrumStage
         v-if="view.stage?.format === 'spectrum'"
         :stage="view.stage"
-        :is-host="false"
+        :is-host="view.runsRoom"
         :person-id="personId"
         :is-spectator="view.you.role === 'spectator'"
         @send="send"
@@ -239,20 +240,55 @@ function claimHostWithPin(pin: string) {
       <MiddleGroundStage
         v-else-if="view.stage?.format === 'middle-ground'"
         :stage="view.stage"
-        :is-host="false"
+        :is-host="view.runsRoom"
         :person-id="personId"
         :is-spectator="view.you.role === 'spectator'"
         @send="send"
       />
+      <section v-else-if="view.coHost && view.phase === 'live'" class="card">
+        <p class="eyebrow">Waiting Room · Co-Host</p>
+        <h1 v-if="nextRound">Up next: Round {{ nextRound.number }}</h1>
+        <h1 v-else>No Rounds left to play</h1>
+        <p v-if="nextRound">
+          {{ FORMAT_NAMES[nextRound.round.setup.format] }} · The Host starts the Round.
+        </p>
+        <label class="check">
+          <input
+            type="checkbox"
+            :checked="view.coHost.playingNextRound"
+            @change="
+              send({
+                type: 'set-playing',
+                playing: ($event.target as HTMLInputElement).checked,
+              })
+            "
+          />
+          I'm Playing the next Round
+        </label>
+        <p class="muted small">
+          If you're not Playing, you'll see where people are leaning before the reveal.
+        </p>
+      </section>
       <FloorPanel
         v-if="view.floor"
         :floor="view.floor"
         :people="view.waitingRoom?.people ?? []"
         :you-id="personId"
-        :is-host="false"
+        :is-host="view.runsRoom"
         :is-spectator="view.you.role === 'spectator'"
         @send="send"
       />
+      <LineupEditor
+        v-if="view.lineup"
+        :rounds="view.lineup"
+        :people="view.waitingRoom?.people ?? []"
+        @send="send"
+      />
+      <p v-if="view.coHost">
+        <button type="button" class="link" @click="send({ type: 'step-down' })">
+          Step down as Co-Host
+        </button>
+      </p>
     </template>
 
     <!-- Visitor: not in the Room yet -->
@@ -350,11 +386,15 @@ function claimHostWithPin(pin: string) {
       <WaitingRoomList
         :people="view.waitingRoom.people"
         :you-id="personId"
-        :can-manage="view.you.role === 'host'"
+        :can-manage="view.runsRoom"
+        :is-host="view.you.role === 'host'"
+        can-be-co-hosts
         @rename="renamePerson"
         @remove="removePerson"
+        @grant="(id) => send({ type: 'grant-co-host', personIds: [id] })"
+        @revoke="(id) => send({ type: 'revoke-co-host', personId: id })"
       />
-      <p v-if="view.you.role === 'participant' && !view.stage" class="muted">
+      <p v-if="view.you.role === 'participant' && !view.stage && !view.coHost" class="muted">
         You're in. The Host will start the first Round soon.
       </p>
 
@@ -368,7 +408,8 @@ function claimHostWithPin(pin: string) {
         v-if="view.waitingRoom.spectators.length"
         :people="view.waitingRoom.spectators"
         :you-id="personId"
-        :can-manage="view.you.role === 'host'"
+        :can-manage="view.runsRoom"
+        :is-host="view.you.role === 'host'"
         @rename="renamePerson"
         @remove="removePerson"
       />

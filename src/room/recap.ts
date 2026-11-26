@@ -38,6 +38,8 @@ export interface RecapPerson {
   becameParticipantAt: number | null;
   /** When the Host removed them, or null. */
   removedAt: number | null;
+  /** Each time they were made a Co-Host, revoked or stepped down, in order. */
+  coHost: { at: number; change: "granted" | "revoked" | "stepped-down" }[];
 }
 
 export interface RecapRound {
@@ -331,6 +333,7 @@ function people(events: RecapEvent[], nickname: (personId: string) => string): R
       joinedAt: at,
       becameParticipantAt: null,
       removedAt: null,
+      coHost: [],
     });
   for (const event of events) {
     switch (event.type) {
@@ -351,10 +354,23 @@ function people(events: RecapEvent[], nickname: (personId: string) => string): R
         if (person) person.removedAt = event.at;
         break;
       }
+      case "co-host-granted":
+      case "co-host-revoked":
+      case "co-host-stepped-down":
+        byId
+          .get(event.personId)
+          ?.coHost.push({ at: event.at, change: CO_HOST_CHANGES[event.type] });
+        break;
     }
   }
   return [...byId.values()];
 }
+
+const CO_HOST_CHANGES = {
+  "co-host-granted": "granted",
+  "co-host-revoked": "revoked",
+  "co-host-stepped-down": "stepped-down",
+} as const;
 
 /** Each person's latest nickname, as the events tell it. Removed people keep theirs. */
 function nicknames(events: RecapEvent[]): Map<string, string> {

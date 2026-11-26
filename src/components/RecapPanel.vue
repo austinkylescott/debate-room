@@ -28,7 +28,7 @@ function duration(ms: number): string {
 }
 
 const REVEALED_BY: Record<RevealCause, string> = {
-  host: "by the Host",
+  host: "by the Host or a Co-Host",
   "everyone-locked-in": "once everyone locked in",
   "everyone-chose": "once everyone chose",
 };
