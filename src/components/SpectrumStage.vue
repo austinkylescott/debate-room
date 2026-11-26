@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { Intent, StageView } from "../room/room";
 import { SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
 
-const props = defineProps<{ stage: StageView; isHost: boolean }>();
+const props = defineProps<{ stage: StageView; isHost: boolean; isSpectator?: boolean }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
 /** How often slider moves go to the Room while dragging. */
@@ -156,6 +156,9 @@ function percent(position: number) {
       </p>
       <p v-else class="muted">Positions are out. Move if you've changed your mind.</p>
     </div>
+    <p v-else-if="isSpectator" class="muted">
+      You're a Spectator: you see what the people Playing see.
+    </p>
     <p v-else-if="!stage.playing && !isHost" class="muted">
       You joined mid-Prompt: you'll be in from the next one.
     </p>
