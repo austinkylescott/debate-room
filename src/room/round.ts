@@ -2,10 +2,10 @@
 // its Prompts and returning to the Waiting Room. Pure and dependency-free like
 // the rest of the Room module. The Room (./room.ts) decides who may act and
 // knows who is in the Room; this module decides what a Round does. Format rules
-// live in their own modules (./spectrum.ts, ./middle-ground.ts); Moods and the
+// live in their own modules (./spectrum.ts, ./middle-ground.ts, ./surrounded.ts); Moods and the
 // Mood Check-in (./mood.ts) belong to every Format.
 
-import { FORMAT_NAMES, type Format, type Lineup, type Prompt, type Round } from "./lineup";
+import type { Format, Lineup, Prompt, Round } from "./lineup";
 import {
   chooseMiddle,
   choices,
@@ -59,9 +59,32 @@ import {
   startSpectrumPrompt,
   viewSpectrum,
 } from "./spectrum";
+import {
+  becomeCenter,
+  dropFromSurrounded,
+  type EndedExchange,
+  endSurroundedPrompt,
+  exchangeEndsAt,
+  hostEndsExchange,
+  nextSurroundedPrompt,
+  seatChallenger,
+  startSurrounded,
+  type Surrounded,
+  type SurroundedChange,
+  type SurroundedPrompt,
+  type SurroundedRejection,
+  type SurroundedRejectionCode,
+  surroundedSpeakers,
+  type SurroundedView,
+  takeChair,
+  tickSurrounded,
+  viewSurrounded,
+  voteToRemove,
+  yieldExchange,
+} from "./surrounded";
 
 /** The Round being played. Null in the Room state means the Waiting Room. */
-export type CurrentRound = SpectrumRound | MiddleGroundRound;
+export type CurrentRound = SpectrumRound | MiddleGroundRound | SurroundedRound;
 
 /** What every Round has, whatever its Format. */
 interface RoundBase {
@@ -76,6 +99,7 @@ interface RoundBase {
 
 type SpectrumRound = RoundBase & { format: "spectrum"; spectrum: SpectrumPrompt };
 type MiddleGroundRound = RoundBase & { format: "middle-ground"; middleGround: MiddleGround };
+type SurroundedRound = RoundBase & { format: "surrounded"; surrounded: Surrounded };
 
 /** Who is in the Room, as the Round needs to know it. */
 export interface RoundPeople {
@@ -98,17 +122,35 @@ export type RoundIntent =
   /** Middle Ground: picks your own Side for the Round. */
   | { type: "pick-side"; side: SideIndex }
   /** Middle Ground: step into the middle or stay (before the reveal), step in or back out (after). */
-  | { type: "choose-middle"; stepIn: boolean };
+  | { type: "choose-middle"; stepIn: boolean }
+  /** Surrounded: step up as the Center, while the Round has none. */
+  | { type: "volunteer-center" }
+  /** Surrounded: a Challenger takes the empty chair. The first press wins. */
+  | { type: "take-chair" }
+  /** Surrounded: a Challenger not in the chair votes to remove the Challenger, or takes it back. */
+  | { type: "vote-remove"; remove: boolean }
+  /** Surrounded: the Center or the Challenger in the chair ends the exchange. */
+  | { type: "yield-chair" };
+
+/** What the Host does in a Surrounded Round. */
+export type SurroundedControl =
+  /** Makes someone Playing the Center, while the Round has none. */
+  | { type: "choose-center"; personId: string }
+  /** Ends the exchange running now. */
+  | { type: "end-exchange" }
+  /** Puts a Challenger in the chair, ending any exchange running now. */
+  | { type: "seat-challenger"; personId: string };
 
 export type RoundRejectionCode =
   | SpectrumRejectionCode
   | MiddleGroundRejectionCode
+  | SurroundedRejectionCode
   | "wrong-format"
   | "mood-invalid"
   | "check-in-open"
   | "prompt-over"
   | "round-empty"
-  | "format-not-available"
+  | "center-not-playing"
   | "already-revealed"
   | "not-revealed";
 
@@ -190,6 +232,34 @@ export type RoundEvent =
       /** How many stepped in from each Side, out of how many were on it, in Side order. */
       sides: { name: string; steppedIn: number; onSide: number }[];
     }
+  /** Surrounded: the Round has its Center, picked by the Host or stepping up. */
+  | { type: "center-chosen"; roundId: string; personId: string; by: "host" | "volunteer" }
+  /** Surrounded: a Challenger is in the chair, by taking it or put there by the Host. */
+  | {
+      type: "chair-taken";
+      roundId: string;
+      promptId: string;
+      personId: string;
+      by: "challenger" | "host";
+    }
+  /** Surrounded: a Challenger not in the chair voted to remove the Challenger, or took it back. */
+  | {
+      type: "removal-vote";
+      roundId: string;
+      promptId: string;
+      personId: string;
+      challengerId: string;
+      remove: boolean;
+    }
+  | ({ type: "exchange-ended"; roundId: string; promptId: string } & EndedExchange)
+  | {
+      type: "prompt-ended";
+      format: "surrounded";
+      roundId: string;
+      promptId: string;
+      /** Every exchange on the Prompt, in order, with how it ended. */
+      exchanges: EndedExchange[];
+    }
   | { type: "mood-changed"; roundId: string; promptId: string; personId: string; mood: Mood }
   | {
       type: "mood-check-in-closed";
@@ -210,6 +280,7 @@ export type StageView = StageBase &
   (
     | { format: "spectrum"; spectrum: SpectrumView }
     | { format: "middle-ground"; middleGround: MiddleGroundView }
+    | { format: "surrounded"; surrounded: SurroundedView }
   );
 
 /** What every Stage shows, whatever the Format. */
@@ -235,12 +306,6 @@ export function nextRound(lineup: Lineup, playedRoundIds: string[]): Round | und
 
 export function startRound(round: Round, hostPlaying: boolean, people: RoundPeople): RoundOutcome {
   const { setup } = round;
-  if (setup.format === "surrounded") {
-    return refuse(
-      "format-not-available",
-      `${FORMAT_NAMES[setup.format]} Rounds can't be played yet.`,
-    );
-  }
   if (round.prompts.length === 0) {
     return refuse("round-empty", "This Round has no Prompts yet. Add one to start it.");
   }
@@ -252,18 +317,33 @@ export function startRound(round: Round, hostPlaying: boolean, people: RoundPeop
     moods: startPromptMoods(),
   };
   const playing = playingIds(hostPlaying, people);
+  if (setup.format === "surrounded" && setup.centerId === people.hostId && !hostPlaying) {
+    return refuse("center-not-playing", "You're this Round's Center, so you need to be Playing.");
+  }
   const current: CurrentRound =
     setup.format === "spectrum"
       ? { ...base, format: "spectrum", spectrum: startSpectrumPrompt(playing) }
-      : {
-          ...base,
-          format: "middle-ground",
-          middleGround: startMiddleGround(setup.sides, playing),
-        };
+      : setup.format === "middle-ground"
+        ? {
+            ...base,
+            format: "middle-ground",
+            middleGround: startMiddleGround(setup.sides, playing),
+          }
+        : {
+            ...base,
+            format: "surrounded",
+            surrounded: startSurrounded(setup.centerId, setup.exchangeSeconds, playing),
+          };
+  const centerId = current.format === "surrounded" ? current.surrounded.centerId : null;
+  const centerChosen: RoundEvent[] =
+    centerId === null
+      ? []
+      : [{ type: "center-chosen", roundId: round.id, personId: centerId, by: "host" }];
   return {
     round: current,
     events: [
       { type: "round-started", roundId: round.id, format: setup.format, hostPlaying },
+      ...centerChosen,
       promptStarted(current),
     ],
   };
@@ -275,6 +355,7 @@ export function playRound(
   intent: RoundIntent,
   personId: string,
   people: RoundPeople,
+  now: number,
 ): RoundOutcome {
   switch (intent.type) {
     case "set-mood":
@@ -310,7 +391,51 @@ export function playRound(
     }
     case "choose-middle":
       return chooseInMiddleGround(current, personId, intent.stepIn);
+    case "volunteer-center":
+      return inSurrounded(current, (s) => becomeCenter(s, personId), { centerBy: "volunteer" });
+    case "take-chair":
+      return inSurrounded(current, (s) => takeChair(s, personId, now), { chairBy: "challenger" });
+    case "vote-remove": {
+      if (current.format !== "surrounded") return WRONG_FORMAT;
+      const chair = current.surrounded.prompt.chair;
+      const voted = chair?.votes.includes(personId) ?? false;
+      return inSurrounded(current, (s) => voteToRemove(s, personId, intent.remove), {
+        vote:
+          chair && voted !== intent.remove
+            ? { personId, challengerId: chair.challengerId, remove: intent.remove }
+            : undefined,
+      });
+    }
+    case "yield-chair":
+      return inSurrounded(current, (s) => yieldExchange(s, personId));
   }
+}
+
+/** A Host control in a Surrounded Round. */
+export function controlSurrounded(
+  current: CurrentRound,
+  control: SurroundedControl,
+  now: number,
+): RoundOutcome {
+  switch (control.type) {
+    case "choose-center":
+      return inSurrounded(current, (s) => becomeCenter(s, control.personId), { centerBy: "host" });
+    case "end-exchange":
+      return inSurrounded(current, hostEndsExchange);
+    case "seat-challenger":
+      return inSurrounded(current, (s) => seatChallenger(s, control.personId, now), {
+        chairBy: "host",
+      });
+  }
+}
+
+/**
+ * Who has the Floor by the Format's rules (Surrounded: the Center and the
+ * Challenger in the chair). The Room keeps the Floor in step as these change,
+ * and the Host can still give and take it by hand in between.
+ */
+export function formatSpeakers(current: CurrentRound): string[] {
+  return current.format === "surrounded" ? surroundedSpeakers(current.surrounded) : [];
 }
 
 /** The Host moves someone to a Side. */
@@ -338,6 +463,7 @@ export function moveSide(current: CurrentRound, personId: string, side: SideInde
 
 /** The Host reveals the current Prompt's positions or choices without waiting for everyone. */
 export function revealPositions(current: CurrentRound): RoundOutcome {
+  if (current.format === "surrounded") return WRONG_FORMAT;
   const { step } = currentPromptState(current);
   if (step !== "positioning" && step !== "choosing") {
     return refuse("already-revealed", "Everyone's already out in the open.");
@@ -361,7 +487,8 @@ export function advanceRound(
     case "positioning":
     case "choosing":
       return refuse("not-revealed", "Reveal before moving on.");
-    case "revealed": {
+    case "revealed":
+    case "exchanges": {
       const ended = endCurrentPrompt(current);
       const outcome = closeIfEveryoneAnswered({
         ...ended.round,
@@ -382,26 +509,45 @@ export function advanceRound(
       const nextRound: CurrentRound =
         current.format === "spectrum"
           ? { ...current, ...next, spectrum: startSpectrumPrompt(nextPlaying) }
-          : {
-              ...current,
-              ...next,
-              middleGround: nextMiddleGroundPrompt(current.middleGround, nextPlaying),
-            };
+          : current.format === "middle-ground"
+            ? {
+                ...current,
+                ...next,
+                middleGround: nextMiddleGroundPrompt(current.middleGround, nextPlaying),
+              }
+            : {
+                ...current,
+                ...next,
+                surrounded: nextSurroundedPrompt(current.surrounded, nextPlaying),
+              };
       return { round: nextRound, events: [promptStarted(nextRound)] };
     }
   }
 }
 
-/** Closes the Mood Check-in once its 15 seconds are up. */
+/**
+ * Closes the Mood Check-in once its 15 seconds are up, and ends a Surrounded
+ * exchange whose timer has run out.
+ */
 export function tickRound(current: CurrentRound, now: number): RoundOutcome {
-  return checkInDue(current.moods, now)
-    ? checkInClosed(current, "timeout")
-    : { round: current, events: [] };
+  if (checkInDue(current.moods, now)) return checkInClosed(current, "timeout");
+  if (current.format === "surrounded") {
+    const ticked = tickSurrounded(current.surrounded, now);
+    if (ticked.ended) return inSurrounded(current, () => ticked);
+  }
+  return { round: current, events: [] };
 }
 
-/** When `tickRound` next has something to do: the open Mood Check-in's close. Null if nothing. */
+/**
+ * When `tickRound` next has something to do: the open Mood Check-in's close or
+ * the running exchange's end, whichever is sooner. Null if nothing.
+ */
 export function nextRoundTimer(current: CurrentRound): number | null {
-  return checkInClosesAt(current.moods) ?? null;
+  const due = [
+    checkInClosesAt(current.moods) ?? null,
+    current.format === "surrounded" ? exchangeEndsAt(current.surrounded) : null,
+  ].filter((at): at is number => at !== null);
+  return due.length > 0 ? Math.min(...due) : null;
 }
 
 /**
@@ -412,7 +558,8 @@ export function nextRoundTimer(current: CurrentRound): number | null {
 export function abandonRound(current: CurrentRound): RoundOutcome {
   const roundEnded: RoundEvent = { type: "round-ended", roundId: current.roundId };
   const { step } = currentPromptState(current);
-  if (step === "revealed") {
+  // Nothing in a Surrounded Prompt is hidden, so it always ends with its summary card.
+  if (step === "revealed" || step === "exchanges") {
     return { round: null, events: [...endCurrentPrompt(current).events, roundEnded] };
   }
   const closed = checkInOpen(current.moods) ? checkInClosed(current, "room-ended").events : [];
@@ -434,6 +581,13 @@ export function leaveRound(current: CurrentRound, personId: string): RoundOutcom
     return checkInOpen(current.moods)
       ? closeIfEveryoneAnswered(left)
       : revealIfEveryoneLockedIn(left);
+  }
+  if (current.format === "surrounded") {
+    const dropped = inSurrounded(current, (s) => dropFromSurrounded(s, personId));
+    if ("rejection" in dropped || !dropped.round) return dropped;
+    const left = { ...dropped.round, moods: dropFromMoods(current.moods, personId) };
+    const closed = closeIfEveryoneAnswered(left);
+    return { round: closed.round, events: [...dropped.events, ...closed.events] };
   }
   const left: MiddleGroundRound = {
     ...current,
@@ -478,6 +632,14 @@ export function stageView(
       ...base,
       format: "spectrum",
       spectrum: summaryHeld ? { ...spectrum, summary: null } : spectrum,
+    };
+  }
+  if (current.format === "surrounded") {
+    const surrounded = viewSurrounded(current.surrounded, people.nicknames);
+    return {
+      ...base,
+      format: "surrounded",
+      surrounded: summaryHeld ? { ...surrounded, summary: null } : surrounded,
     };
   }
   const inRound = playingIds(current.hostPlaying, people);
@@ -617,6 +779,25 @@ function endCurrentPrompt(current: CurrentRound): RoundChange {
       ],
     };
   }
+  if (current.format === "surrounded") {
+    const ended = endSurroundedPrompt(current.surrounded);
+    const exchangeEnded: RoundEvent[] = ended.ended
+      ? [{ type: "exchange-ended", roundId, promptId, ...ended.ended }]
+      : [];
+    return {
+      round: { ...current, surrounded: ended.surrounded },
+      events: [
+        ...exchangeEnded,
+        {
+          type: "prompt-ended",
+          format: "surrounded",
+          roundId,
+          promptId,
+          exchanges: ended.surrounded.prompt.exchanges,
+        },
+      ],
+    };
+  }
   const middleGround = endMiddleGroundPrompt(current.middleGround);
   const summary = middleGround.prompt.summary!;
   return {
@@ -671,7 +852,7 @@ function revealIfEveryoneChose(current: MiddleGroundRound): RoundOutcome {
     : { round: current, events: [] };
 }
 
-function revealed(current: CurrentRound, by: RevealCause): RoundOutcome {
+function revealed(current: SpectrumRound | MiddleGroundRound, by: RevealCause): RoundOutcome {
   const promptId = currentPrompt(current).id;
   if (current.format === "spectrum") {
     const spectrum = reveal(current.spectrum);
@@ -703,8 +884,53 @@ function revealed(current: CurrentRound, by: RevealCause): RoundOutcome {
 }
 
 /** The Format's state for the current Prompt: its step and who is Playing it. */
-function currentPromptState(current: CurrentRound): SpectrumPrompt | MiddleGroundPrompt {
-  return current.format === "spectrum" ? current.spectrum : current.middleGround.prompt;
+function currentPromptState(
+  current: CurrentRound,
+): SpectrumPrompt | MiddleGroundPrompt | SurroundedPrompt {
+  switch (current.format) {
+    case "spectrum":
+      return current.spectrum;
+    case "middle-ground":
+      return current.middleGround.prompt;
+    case "surrounded":
+      return current.surrounded.prompt;
+  }
+}
+
+/**
+ * Applies a change to a Surrounded Round and works out its Recap events, in
+ * the order they happened: a vote, an exchange ending, a new Center, a new
+ * Challenger in the chair.
+ */
+function inSurrounded(
+  current: CurrentRound,
+  change: (surrounded: Surrounded) => SurroundedChange | { rejection: SurroundedRejection },
+  record: {
+    centerBy?: "host" | "volunteer";
+    chairBy?: "challenger" | "host";
+    vote?: { personId: string; challengerId: string; remove: boolean };
+  } = {},
+): RoundOutcome {
+  if (current.format !== "surrounded") return WRONG_FORMAT;
+  const outcome = change(current.surrounded);
+  if ("rejection" in outcome) return outcome;
+  const base = { roundId: current.roundId, promptId: currentPrompt(current).id };
+  const events: RoundEvent[] = [];
+  if (record.vote) events.push({ type: "removal-vote", ...base, ...record.vote });
+  if (outcome.ended) events.push({ type: "exchange-ended", ...base, ...outcome.ended });
+  const { centerId } = outcome.surrounded;
+  if (record.centerBy && centerId !== null && centerId !== current.surrounded.centerId) {
+    events.push({
+      type: "center-chosen",
+      roundId: current.roundId,
+      personId: centerId,
+      by: record.centerBy,
+    });
+  }
+  if (record.chairBy && outcome.started !== null) {
+    events.push({ type: "chair-taken", ...base, personId: outcome.started, by: record.chairBy });
+  }
+  return { round: { ...current, surrounded: outcome.surrounded }, events };
 }
 
 function currentPrompt(current: CurrentRound): Prompt {

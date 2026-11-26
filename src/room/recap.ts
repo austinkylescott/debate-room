@@ -1,6 +1,6 @@
 // Views derived from the Recap's events: Floor time per person, and each Round
-// with its Prompts: reveals, moves (Spectrum) or step-ins (Middle Ground),
-// summary cards and Mood events. Nothing here is stored: it's all computed from
+// with its Prompts: reveals, moves (Spectrum), step-ins (Middle Ground) or
+// chair exchanges and votes (Surrounded), summary cards and Mood events. Nothing here is stored: it's all computed from
 // the append-only event list, so a client can rebuild it from the Recap stream
 // or a downloaded copy. Pure and dependency-free like the rest of the Room module.
 
@@ -8,6 +8,12 @@ import type { Format } from "./lineup";
 import { HOST_PERSON_ID, type JoinRole, type RecapEvent } from "./room";
 import type { RevealCause } from "./round";
 import { type Distribution, distribution } from "./spectrum";
+import {
+  type ExchangeEnd,
+  summarizeExchanges,
+  type SurroundedSummary,
+  type Yielder,
+} from "./surrounded";
 
 export interface RecapSummary {
   /** Everyone who joined the Room, in the order they joined, the Host first. */
@@ -38,6 +44,8 @@ export interface RecapRound {
   endedAt: number | null;
   /** Middle Ground: each Side someone picked, or was moved to by the Host, in order. */
   sides: { at: number; personId: string; nickname: string; side: string; from: string | null }[];
+  /** Surrounded: each Center the Round had, in order (a new one only if the last left). */
+  centers: { at: number; personId: string; nickname: string; by: "host" | "volunteer" }[];
   prompts: RecapPrompt[];
 }
 
@@ -53,6 +61,8 @@ export interface RecapPrompt {
   spectrum: RecapSpectrum | null;
   /** Set for a Middle Ground Prompt. */
   middleGround: RecapMiddleGround | null;
+  /** Set for a Surrounded Prompt. */
+  surrounded: RecapSurrounded | null;
   /**
    * The Prompt's Mood changes and its Check-in close, as recorded. Mood insights
    * (timelines, tallies, links to position changes) are built on these later.
@@ -97,6 +107,28 @@ export interface RecapMiddleGround {
   summary: { sides: { name: string; steppedIn: number; onSide: number }[] } | null;
 }
 
+export interface RecapSurrounded {
+  /** Each exchange in the chair, in order, with its removal votes and how it ended. */
+  exchanges: RecapExchange[];
+  /** The summary card: how many exchanges, and how each ended. Only once the Prompt ends. */
+  summary: SurroundedSummary | null;
+}
+
+export interface RecapExchange {
+  challengerId: string;
+  nickname: string;
+  takenAt: number;
+  /** Whether the Challenger took the chair, or the Host put them there. */
+  takenBy: "challenger" | "host";
+  /** Null while the exchange is running. */
+  endedAt: number | null;
+  endedBy: ExchangeEnd | null;
+  /** Who yielded, for an exchange that ended by a yield. */
+  yieldedBy: Yielder | null;
+  /** Votes to remove the Challenger, and votes taken back, in order. */
+  votes: { at: number; personId: string; nickname: string; remove: boolean }[];
+}
+
 export type MoodRecapEvent = Extract<
   RecapEvent,
   { type: "mood-changed" } | { type: "mood-check-in-closed" }
@@ -124,6 +156,11 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
   let endedAt: number | null = null;
   const currentRound = () => rounds.at(-1);
   const currentPrompt = () => currentRound()?.prompts.at(-1);
+  /** Surrounded: the exchange in the chair now, if it hasn't ended. */
+  const currentExchange = () => {
+    const exchange = currentPrompt()?.surrounded?.exchanges.at(-1);
+    return exchange?.endedAt === null ? exchange : undefined;
+  };
   /** Middle Ground: each person's Side in the current Round. */
   let sideOf = new Map<string, string>();
   /** Spectrum: each person's last known position on the current Prompt. */
@@ -144,6 +181,7 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
           startedAt: event.at,
           endedAt: null,
           sides: [],
+          centers: [],
           prompts: [],
         });
         sideOf = new Map();
@@ -161,6 +199,7 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
             round.format === "spectrum" ? { revealed: null, moves: [], summary: null } : null,
           middleGround:
             round.format === "middle-ground" ? { revealed: null, steps: [], summary: null } : null,
+          surrounded: round.format === "surrounded" ? { exchanges: [], summary: null } : null,
           moodEvents: [],
         });
         positionOf = new Map();
@@ -239,6 +278,42 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
           steppedIn: event.type === "stepped-in",
         });
         break;
+      case "center-chosen":
+        currentRound()?.centers.push({
+          at: event.at,
+          personId: event.personId,
+          nickname: nickname(event.personId),
+          by: event.by,
+        });
+        break;
+      case "chair-taken":
+        currentPrompt()?.surrounded?.exchanges.push({
+          challengerId: event.personId,
+          nickname: nickname(event.personId),
+          takenAt: event.at,
+          takenBy: event.by,
+          endedAt: null,
+          endedBy: null,
+          yieldedBy: null,
+          votes: [],
+        });
+        break;
+      case "removal-vote":
+        currentExchange()?.votes.push({
+          at: event.at,
+          personId: event.personId,
+          nickname: nickname(event.personId),
+          remove: event.remove,
+        });
+        break;
+      case "exchange-ended": {
+        const exchange = currentExchange();
+        if (!exchange) break;
+        exchange.endedAt = event.at;
+        exchange.endedBy = event.endedBy;
+        exchange.yieldedBy = event.yieldedBy ?? null;
+        break;
+      }
       case "prompt-ended": {
         const prompt = currentPrompt();
         if (!prompt) break;
@@ -250,6 +325,8 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
           };
         } else if (event.format === "middle-ground" && prompt.middleGround) {
           prompt.middleGround.summary = { sides: event.sides };
+        } else if (event.format === "surrounded" && prompt.surrounded) {
+          prompt.surrounded.summary = summarizeExchanges(event.exchanges);
         }
         break;
       }

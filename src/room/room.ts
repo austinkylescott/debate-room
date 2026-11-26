@@ -42,7 +42,9 @@ import {
 import {
   abandonRound,
   advanceRound,
+  controlSurrounded,
   type CurrentRound,
+  formatSpeakers,
   leaveRound,
   moveSide,
   nextRound,
@@ -56,6 +58,7 @@ import {
   stageView,
   startRound,
   type StageView,
+  type SurroundedControl,
   nextRoundTimer,
   tickRound,
 } from "./round";
@@ -98,6 +101,7 @@ export type Intent =
   /** Moves the Round on: to the Prompt's summary, the next Prompt or the Waiting Room. */
   | { type: "advance" }
   | RoundIntent
+  | SurroundedControl
   | FloorControlIntent
   | HandIntent
   | LineupIntent;
@@ -422,7 +426,24 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
     case "set-mood":
     case "pick-side":
     case "choose-middle":
+    case "volunteer-center":
+    case "take-chair":
+    case "vote-remove":
+    case "yield-chair":
       return playCurrentRound(state, intent, actor, now);
+    case "choose-center":
+    case "seat-challenger":
+      // Spectators watch: they're never the Center or in the chair.
+      if (isHost(state, actor) && state.spectators.some((s) => s.id === intent.personId)) {
+        return rejected(state, SPECTATORS_WATCH);
+      }
+      return runCurrentRound(state, actor, "run the chair", now, (round) =>
+        controlSurrounded(round, intent, now),
+      );
+    case "end-exchange":
+      return runCurrentRound(state, actor, "end an exchange", now, (round) =>
+        controlSurrounded(round, intent, now),
+      );
     case "move-to-side":
       // Spectators never have a Side, so there's nothing to move them to.
       if (isHost(state, actor) && state.spectators.some((s) => s.id === intent.personId)) {
@@ -539,6 +560,20 @@ export function parseIntent(raw: unknown): Intent | null {
     case "choose-middle":
       return typeof value.stepIn === "boolean"
         ? { type: "choose-middle", stepIn: value.stepIn }
+        : null;
+    case "volunteer-center":
+    case "take-chair":
+    case "yield-chair":
+    case "end-exchange":
+      return { type: value.type };
+    case "vote-remove":
+      return typeof value.remove === "boolean"
+        ? { type: "vote-remove", remove: value.remove }
+        : null;
+    case "choose-center":
+    case "seat-challenger":
+      return typeof value.personId === "string"
+        ? { type: value.type, personId: value.personId }
         : null;
     case "give-floor":
     case "take-floor":
@@ -894,7 +929,11 @@ function playCurrentRound(
   // Spectators watch: they never place themselves, take the chair, vote or set a Mood.
   if (you.role === "spectator") return rejected(state, SPECTATORS_WATCH);
   if (!state.round) return rejected(state, NO_ROUND);
-  return withRound(state, playRound(state.round, intent, you.personId, roundPeople(state)), now);
+  return withRound(
+    state,
+    playRound(state.round, intent, you.personId, roundPeople(state), now),
+    now,
+  );
 }
 
 /** A Host control for the current Round. */
@@ -957,11 +996,31 @@ function withFloor(state: RoomState, outcome: FloorOutcome, now: number): ApplyR
   };
 }
 
+/**
+ * Applies a change to the Round. The Floor follows the Format: whoever the
+ * Format's rules stop giving the Floor to loses it, and whoever they start
+ * giving it to gets it. Anything the Host gave or took by hand in between stays.
+ */
 function withRound(state: RoomState, outcome: RoundOutcome, now: number): ApplyResult {
   if ("rejection" in outcome) return rejected(state, outcome.rejection);
+  const before = state.round ? formatSpeakers(state.round) : [];
+  const after = outcome.round ? formatSpeakers(outcome.round) : [];
+  let floor = state.floor;
+  const floorEvents: FloorEvent[] = [];
+  for (const personId of before.filter((id) => !after.includes(id))) {
+    const taken = takeFloor(floor, personId);
+    floor = taken.floor;
+    floorEvents.push(...taken.events);
+  }
+  for (const personId of after.filter((id) => !before.includes(id))) {
+    const given = giveFloor(floor, personId, now);
+    if ("rejection" in given) continue;
+    floor = given.floor;
+    floorEvents.push(...given.events);
+  }
   return {
-    state: { ...state, round: outcome.round },
-    recapEvents: outcome.events.map((event) => ({ at: now, ...event })),
+    state: { ...state, round: outcome.round, floor },
+    recapEvents: [...outcome.events, ...floorEvents].map((event) => ({ at: now, ...event })),
   };
 }
 
