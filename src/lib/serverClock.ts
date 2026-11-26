@@ -26,6 +26,8 @@ export function createServerClock(localNow: () => number = Date.now): ServerCloc
   const now = () => localNow() + offset;
   return {
     observe(serverTime) {
+      // A message from a server without stamps (mid-deploy) leaves the estimate be.
+      if (!Number.isFinite(serverTime)) return;
       samples = [...samples.slice(1 - SAMPLES), serverTime - localNow()];
       offset = Math.max(...samples);
     },

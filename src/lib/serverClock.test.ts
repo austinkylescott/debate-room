@@ -54,4 +54,12 @@ describe("server clock", () => {
     expect(clock.secondsLeft(w.trueNow + 15_000)).toBe(15);
     expect(clock.secondsLeft(w.trueNow - 1_000)).toBe(0);
   });
+
+  it("ignores a message without a server time", () => {
+    const w = world();
+    const clock = createServerClock(w.device(0));
+    clock.observe(undefined as unknown as number);
+
+    expect(clock.secondsLeft(w.trueNow + 15_000)).toBe(15);
+  });
 });
