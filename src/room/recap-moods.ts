@@ -1,12 +1,11 @@
 // Mood insights for the Recap (./recap.ts): for each Prompt, each person's
 // timeline of Mood changes, the Mood Check-in tally, and links where a Mood
 // change came shortly before a position change; and across the Room, an
-// overview of Moods by Prompt. Derived from the Prompt's Mood
-// events and position changes, never stored. Format-agnostic: the Recap says
-// what counts as a position change in each Format. Pure and dependency-free like
-// the rest of the Room module.
+// overview of Moods by Prompt. Derived from the Recap's events, never stored.
+// Format-agnostic: the Recap says what counts as a position change in each
+// Format. Pure and dependency-free like the rest of the Room module.
 
-import { type CheckInClose, type CheckInTally, type Mood, tallyCheckIn } from "./mood";
+import { type CheckInClose, type CheckInTally, type Mood, tallyMoods } from "./mood";
 import type { MoodRecapEvent, RecapRound } from "./recap";
 
 /** A Mood change links to the position changes that came at most this long after it. */
@@ -40,7 +39,7 @@ export interface MoodTimeline {
 export type PositionChange = { at: number; personId: string } & PositionChangeKind;
 
 export type PositionChangeKind =
-  /** Spectrum: one move of the slider, from where it started to where it ended up. */
+  /** Spectrum: a recorded move after the reveal (a notch crossed, or where the slider settled). */
   | { kind: "moved"; from: number | null; to: number }
   /** Middle Ground: stepping into the middle, or back to their Side, after the reveal. */
   | { kind: "stepped-in" | "stepped-back"; side: string };
@@ -71,7 +70,7 @@ export function promptMoodInsights(
       checkIn = {
         at: event.at,
         by: event.by,
-        tally: tallyCheckIn(answers.map(([, mood]) => mood)),
+        tally: tallyMoods(answers.map(([, mood]) => mood)),
         answers: answers.map(([personId, mood]) => ({
           personId,
           nickname: nickname(personId),
@@ -128,7 +127,7 @@ export function moodOverview(rounds: RecapRound[]): MoodOverviewEntry[] {
       roundNumber: r + 1,
       promptNumber: prompt.promptNumber,
       text: prompt.text,
-      moodChanges: tallyCheckIn(
+      moodChanges: tallyMoods(
         prompt.moods.timelines.flatMap((timeline) => timeline.changes.map((c) => c.mood)),
       ).moods,
       checkIn: prompt.moods.checkIn?.tally ?? null,
