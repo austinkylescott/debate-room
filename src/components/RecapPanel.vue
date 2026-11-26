@@ -4,6 +4,7 @@ import { FORMAT_NAMES } from "../room/lineup";
 import { summarizeRecap } from "../room/recap";
 import type { RecapEvent } from "../room/room";
 import { SPECTRUM_NOTCHES } from "../room/spectrum";
+import SpectrumSummary from "./SpectrumSummary.vue";
 
 const props = defineProps<{ roomId: string; events: RecapEvent[] }>();
 
@@ -27,10 +28,6 @@ function notchLabel(position: number | null): string {
     Math.abs(notch.value - position) < Math.abs(best.value - position) ? notch : best,
   );
   return nearest.label;
-}
-
-function distributionMax(summary: { before: number[]; after: number[] }): number {
-  return Math.max(1, ...summary.before, ...summary.after);
 }
 
 function download() {
@@ -91,38 +88,11 @@ function download() {
             </li>
           </ul>
         </template>
-        <table v-if="prompt.summary" class="summary">
-          <thead>
-            <tr>
-              <th scope="col" />
-              <th scope="col">Locked in</th>
-              <th scope="col">At the end</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(notch, i) in SPECTRUM_NOTCHES" :key="notch.value">
-              <th scope="row">{{ notch.label }}</th>
-              <td>
-                <span
-                  class="bar"
-                  :style="{
-                    width: `${(prompt.summary.before[i]! / distributionMax(prompt.summary)) * 75}%`,
-                  }"
-                />
-                {{ prompt.summary.before[i] }}
-              </td>
-              <td>
-                <span
-                  class="bar after"
-                  :style="{
-                    width: `${(prompt.summary.after[i]! / distributionMax(prompt.summary)) * 75}%`,
-                  }"
-                />
-                {{ prompt.summary.after[i] }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <SpectrumSummary
+          v-if="prompt.summary"
+          :before="prompt.summary.before"
+          :after="prompt.summary.after"
+        />
       </div>
     </article>
   </section>

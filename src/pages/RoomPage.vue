@@ -6,7 +6,7 @@ import LineupEditor from "../components/LineupEditor.vue";
 import LineupPreview from "../components/LineupPreview.vue";
 import NicknameField from "../components/NicknameField.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
-import PinField from "../components/PinField.vue";
+import HostPinForm from "../components/HostPinForm.vue";
 import RecapPanel from "../components/RecapPanel.vue";
 import SpectrumStage from "../components/SpectrumStage.vue";
 import WaitingRoomList from "../components/WaitingRoomList.vue";
@@ -19,7 +19,6 @@ const props = defineProps<{ roomId: string }>();
 const { view, rejection, status, recap, send } = useRoom(props.roomId);
 
 const nickname = ref("");
-const pin = ref("");
 const hostFormOpen = ref(false);
 const limitDraft = ref(DEFAULT_PARTICIPANT_LIMIT);
 const hostPlaying = ref(false);
@@ -62,9 +61,8 @@ function endRoom() {
   }
 }
 
-function claimHostWithPin() {
-  send({ type: "claim-host-pin", pin: pin.value });
-  pin.value = "";
+function claimHostWithPin(pin: string) {
+  send({ type: "claim-host-pin", pin });
 }
 </script>
 
@@ -99,16 +97,12 @@ function claimHostWithPin() {
         <p v-if="view.you.role === 'visitor' && !hostFormOpen">
           <button type="button" class="link" @click="hostFormOpen = true">I'm the Host</button>
         </p>
-        <form
+        <HostPinForm
           v-if="view.you.role === 'visitor' && hostFormOpen"
-          class="stack"
-          @submit.prevent="claimHostWithPin"
-        >
-          <PinField v-model="pin" label="Your Host PIN" />
-          <p v-if="rejection" class="error" role="alert">{{ rejection.message }}</p>
-          <button class="primary" type="submit">Continue as the Host</button>
-          <button type="button" @click="hostFormOpen = false">Back</button>
-        </form>
+          :error="rejection?.message ?? null"
+          @submit="claimHostWithPin"
+          @back="hostFormOpen = false"
+        />
       </section>
       <RecapPanel v-if="recap" :room-id="roomId" :events="recap" />
     </template>
@@ -204,12 +198,11 @@ function claimHostWithPin() {
     <section v-else-if="view.you.role === 'visitor'" class="card">
       <template v-if="hostFormOpen">
         <h1>Take back Host control</h1>
-        <form class="stack" @submit.prevent="claimHostWithPin">
-          <PinField v-model="pin" label="Your Host PIN" />
-          <p v-if="rejection" class="error" role="alert">{{ rejection.message }}</p>
-          <button class="primary" type="submit">Continue as the Host</button>
-          <button type="button" @click="hostFormOpen = false">Back</button>
-        </form>
+        <HostPinForm
+          :error="rejection?.message ?? null"
+          @submit="claimHostWithPin"
+          @back="hostFormOpen = false"
+        />
       </template>
       <template v-else-if="view.phase === 'planning'">
         <p class="eyebrow">Planning</p>

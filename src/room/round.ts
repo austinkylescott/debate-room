@@ -221,6 +221,11 @@ export function advanceRound(current: CurrentRound, people: RoundPeople): RoundO
   }
 }
 
+/** The Host ended the Room mid-Round: the Round ends where it is, with no summary card for its Prompt. */
+export function abandonRound(current: CurrentRound): RoundOutcome {
+  return { round: null, events: [{ type: "round-ended", roundId: current.roundId }] };
+}
+
 /** Someone left the Room. If they were the last to lock in, the reveal happens. */
 export function leaveRound(current: CurrentRound, personId: string): RoundOutcome {
   if (!current.spectrum.playing.includes(personId)) return { round: current, events: [] };

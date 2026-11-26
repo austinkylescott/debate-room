@@ -40,6 +40,7 @@ import {
   type Round,
 } from "./lineup";
 import {
+  abandonRound,
   advanceRound,
   type CurrentRound,
   leaveRound,
@@ -545,19 +546,16 @@ function openRoom(state: RoomState, actor: Actor, now: number): ApplyResult {
   };
 }
 
-/** Ends the Room: the Round in progress ends and the Floor is taken back from everyone. */
+/** Ends the Room: the Floor is taken back from everyone and the Round in progress ends. */
 function endRoom(state: RoomState, actor: Actor, now: number): ApplyResult {
   if (!isHost(state, actor)) return rejected(state, notHost("end the Room"));
-  const floor = clearFloor(state.floor);
-  const roundEnded = state.round
-    ? [{ type: "round-ended" as const, roundId: state.round.roundId }]
-    : [];
+  const cleared = withFloor(state, clearFloor(state.floor), now);
+  const ended = state.round
+    ? withRound(cleared.state, abandonRound(state.round), now)
+    : unchanged(cleared.state);
   return {
-    state: { ...state, phase: "ended", round: null, floor: floor.floor },
-    recapEvents: [
-      ...[...floor.events, ...roundEnded].map((event) => ({ at: now, ...event })),
-      { at: now, type: "room-ended" },
-    ],
+    state: { ...ended.state, phase: "ended" },
+    recapEvents: [...cleared.recapEvents, ...ended.recapEvents, { at: now, type: "room-ended" }],
   };
 }
 

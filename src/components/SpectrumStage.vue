@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { Intent, StageView } from "../room/room";
 import { SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
+import SpectrumSummary from "./SpectrumSummary.vue";
 
 const props = defineProps<{ stage: StageView; isHost: boolean }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
@@ -58,11 +59,6 @@ const advanceLabel = computed(() => {
   return props.stage.promptNumber < props.stage.promptCount
     ? "Next Prompt"
     : "Back to the Waiting Room";
-});
-
-const summaryMax = computed(() => {
-  const summary = spectrum.value.summary;
-  return summary ? Math.max(1, ...summary.before, ...summary.after) : 1;
 });
 
 /** Ids of the two people furthest apart, highlighted for the Host. */
@@ -191,34 +187,7 @@ function percent(position: number) {
     <!-- Summary card -->
     <template v-if="spectrum.summary">
       <h2>How it moved</h2>
-      <table class="summary">
-        <thead>
-          <tr>
-            <th scope="col" />
-            <th scope="col">Locked in</th>
-            <th scope="col">At the end</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(notch, i) in SPECTRUM_NOTCHES" :key="notch.value">
-            <th scope="row">{{ notch.label }}</th>
-            <td>
-              <span
-                class="bar"
-                :style="{ width: `${(spectrum.summary.before[i]! / summaryMax) * 75}%` }"
-              />
-              {{ spectrum.summary.before[i] }}
-            </td>
-            <td>
-              <span
-                class="bar after"
-                :style="{ width: `${(spectrum.summary.after[i]! / summaryMax) * 75}%` }"
-              />
-              {{ spectrum.summary.after[i] }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <SpectrumSummary :before="spectrum.summary.before" :after="spectrum.summary.after" />
     </template>
 
     <!-- Host controls -->
