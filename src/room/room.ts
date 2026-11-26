@@ -32,6 +32,7 @@ import {
   stageView,
   startRound,
   type StageView,
+  nextRoundTimer,
   tickRound,
 } from "./round";
 import { isMood, startPromptMoods } from "./mood";
@@ -132,7 +133,7 @@ export interface ApplyResult {
   state: RoomState;
   recapEvents: RecapEvent[];
   rejection?: Rejection;
-  /** When a timer started by this change is due: the Room should `tick` at this time. */
+  /** When `tick` next needs to run for a timer that is due then. Left out when no timer is running. */
   scheduled?: number;
 }
 
@@ -220,6 +221,26 @@ export function createRoom(
 }
 
 export function apply(state: RoomState, intent: Intent, actor: Actor, now: number): ApplyResult {
+  return withSchedule(applyIntent(state, intent, actor, now));
+}
+
+/** Handles the timers that are due by `now`. The Durable Object calls it from an alarm. */
+export function tick(state: RoomState, now: number): ApplyResult {
+  if (!state.round) return withSchedule(unchanged(state));
+  const outcome = tickRound(state.round, now);
+  // Nothing due: the same state, so the adapter has nothing to save or send.
+  const nothingDue = "round" in outcome && outcome.round === state.round;
+  return withSchedule(nothingDue ? unchanged(state) : withRound(state, outcome, now));
+}
+
+/** Points `scheduled` at the Room's next timer, worked out from the state after the change. */
+function withSchedule(result: ApplyResult): ApplyResult {
+  const round = result.state.round;
+  const scheduled = round ? nextRoundTimer(round) : null;
+  return scheduled === null ? result : { ...result, scheduled };
+}
+
+function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number): ApplyResult {
   // A removed device can do nothing in the Room (not even guess the PIN),
   // except present the Host link, which always grants the Host role.
   if (isRemoved(state, actor) && intent.type !== "claim-host") return rejected(state, REMOVED);
@@ -252,17 +273,6 @@ export function apply(state: RoomState, intent: Intent, actor: Actor, now: numbe
         advanceRound(round, roundPeople(state), now),
       );
   }
-}
-
-/** Handles any timers that are due by `now`, such as the Mood Check-in closing. */
-export function tick(state: RoomState, now: number): ApplyResult {
-  if (!state.round) return unchanged(state);
-  const outcome = tickRound(state.round, now);
-  // Nothing due: the same state, so the adapter has nothing to save or send.
-  if ("round" in outcome && outcome.round === state.round) {
-    return { ...unchanged(state), scheduled: outcome.scheduled };
-  }
-  return withRound(state, outcome, now);
 }
 
 export function viewFor(state: RoomState, viewer: Actor): View {
@@ -597,7 +607,6 @@ function withRound(state: RoomState, outcome: RoundOutcome, now: number): ApplyR
   return {
     state: { ...state, round: outcome.round },
     recapEvents: outcome.events.map((event) => ({ at: now, ...event })),
-    scheduled: outcome.scheduled,
   };
 }
 

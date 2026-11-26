@@ -115,12 +115,9 @@ export type RoundEvent =
     }
   | { type: "round-ended"; roundId: string };
 
-/**
- * A changed Round (null once it's over and the Room is back in the Waiting Room),
- * and when the Room should next `tick` for it, if a timer started.
- */
+/** A changed Round (null once it's over and the Room is back in the Waiting Room). */
 export type RoundOutcome =
-  | { round: CurrentRound | null; events: RoundEvent[]; scheduled?: number }
+  | { round: CurrentRound | null; events: RoundEvent[] }
   | { rejection: RoundRejection };
 
 export interface StageView {
@@ -221,11 +218,7 @@ export function advanceRound(
         spectrum: endPrompt(spectrum),
         moods,
       });
-      return {
-        round: outcome.round,
-        events: [ended, ...outcome.events],
-        scheduled: checkInClosesAt(outcome.round.moods),
-      };
+      return { round: outcome.round, events: [ended, ...outcome.events] };
     }
     case "summary": {
       if (checkInOpen(current.moods)) {
@@ -250,9 +243,14 @@ export function advanceRound(
 
 /** Closes the Mood Check-in once its 15 seconds are up. */
 export function tickRound(current: CurrentRound, now: number): RoundOutcome {
-  if (checkInDue(current.moods, now)) return checkInClosed(current, "timeout");
-  // Not due yet: say when it will be, so an early tick never loses the close.
-  return { round: current, events: [], scheduled: checkInClosesAt(current.moods) };
+  return checkInDue(current.moods, now)
+    ? checkInClosed(current, "timeout")
+    : { round: current, events: [] };
+}
+
+/** When `tickRound` next has something to do: the open Mood Check-in's close. Null if nothing. */
+export function nextRoundTimer(current: CurrentRound): number | null {
+  return checkInClosesAt(current.moods) ?? null;
 }
 
 /**

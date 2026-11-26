@@ -287,6 +287,13 @@ describe("the Mood Check-in", () => {
     expect(result.recapEvents).toEqual([]);
   });
 
+  it("keeps its close scheduled while open, and nothing once it closes", () => {
+    const opened = attempt(revealed(), advance, host);
+    const answered = attempt(opened.state, setMood("happy"), alex);
+    expect(answered.scheduled).toBe(opened.scheduled);
+    expect(attempt(answered.state, setMood("sad"), sam).scheduled).toBeUndefined();
+  });
+
   it("holds the Round until it closes", () => {
     const state = run(revealed(), [advance, host]);
     expect(attempt(state, advance, host).rejection?.code).toBe("check-in-open");
