@@ -263,7 +263,13 @@ describe("joining the Waiting Room", () => {
   it("records the join in the Recap", () => {
     const result = apply(liveRoom(), join("Alex"), alexDevice, 7_000);
     expect(result.recapEvents).toEqual([
-      { at: 7_000, type: "person-joined", personId: expect.any(String), nickname: "Alex" },
+      {
+        at: 7_000,
+        type: "person-joined",
+        personId: expect.any(String),
+        nickname: "Alex",
+        as: "participant",
+      },
     ]);
   });
 

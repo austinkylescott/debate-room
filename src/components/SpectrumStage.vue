@@ -9,6 +9,7 @@ const props = defineProps<{
   stage: Extract<StageView, { format: "spectrum" }>;
   isHost: boolean;
   personId: string;
+  isSpectator?: boolean;
 }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
@@ -170,6 +171,9 @@ function percent(position: number) {
       </p>
       <p v-else class="muted">Positions are out. Move if you've changed your mind.</p>
     </div>
+    <p v-else-if="isSpectator" class="muted">
+      You're a Spectator: you see what the people Playing see.
+    </p>
     <p v-else-if="!stage.playing && !isHost" class="muted">
       You joined mid-Prompt: you'll be in from the next one.
     </p>

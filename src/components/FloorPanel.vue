@@ -7,6 +7,7 @@ const props = defineProps<{
   people: WaitingRoomPerson[];
   youId: string;
   isHost: boolean;
+  isSpectator?: boolean;
 }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
@@ -89,9 +90,10 @@ function setTimer(event: Event) {
     </ul>
     <p v-else class="muted">No one has the Floor.</p>
 
-    <!-- Participants ask for the Floor -->
+    <!-- Participants ask for the Floor; Spectators only watch -->
     <template v-if="!isHost">
-      <p v-if="youHaveFloor" class="muted">You have the Floor.</p>
+      <p v-if="isSpectator" class="muted small">Spectators watch: they don't raise hands.</p>
+      <p v-else-if="youHaveFloor" class="muted">You have the Floor.</p>
       <button
         v-else-if="yourHand === null"
         class="primary"

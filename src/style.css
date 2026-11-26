@@ -596,6 +596,19 @@ button.mood.picked {
   color: var(--surface);
 }
 
+.join-as {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.join-as legend {
+  padding: 0;
+  margin-bottom: 6px;
+  color: var(--text-h);
+}
+
 /* The Stage: a Middle Ground Round */
 .middle-ground {
   display: grid;

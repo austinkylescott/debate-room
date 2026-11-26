@@ -13,7 +13,7 @@ import WaitingRoomList from "../components/WaitingRoomList.vue";
 import { inviteUrl, navigate } from "../lib/route";
 import { useRoom } from "../lib/useRoom";
 import { FORMAT_NAMES } from "../room/lineup";
-import { DEFAULT_PARTICIPANT_LIMIT } from "../room/room";
+import { DEFAULT_PARTICIPANT_LIMIT, type JoinRole } from "../room/room";
 
 const props = defineProps<{ roomId: string }>();
 const { view, rejection, status, send } = useRoom(props.roomId);
@@ -26,10 +26,11 @@ const hostPlaying = ref(false);
 
 const you = computed(() => view.value?.you);
 const personId = computed(() => (you.value && "personId" in you.value ? you.value.personId : ""));
-const isFull = computed(() => {
-  const capacity = view.value?.capacity;
-  return capacity !== undefined && capacity.joined >= capacity.limit;
-});
+const isFull = (capacity: { joined: number; limit: number } | undefined) =>
+  capacity !== undefined && capacity.joined >= capacity.limit;
+const participantsFull = computed(() => isFull(view.value?.capacity));
+const spectatorsFull = computed(() => isFull(view.value?.spectatorCapacity));
+const joinAs = ref<JoinRole>("participant");
 const nextRound = computed(() => {
   const id = view.value?.nextRoundId;
   if (!id) return null;
@@ -49,6 +50,23 @@ watch(
   },
   { immediate: true },
 );
+
+// A full Participant limit offers Spectator instead.
+watch(
+  participantsFull,
+  (full) => {
+    if (full) joinAs.value = "spectator";
+  },
+  { immediate: true },
+);
+
+function renamePerson(personId: string, newNickname: string) {
+  send({ type: "rename-person", personId, nickname: newNickname });
+}
+
+function removePerson(personId: string) {
+  send({ type: "remove-person", personId });
+}
 
 function claimHostWithPin() {
   send({ type: "claim-host-pin", pin: pin.value });
@@ -159,13 +177,14 @@ function claimHostWithPin() {
       </section>
     </template>
 
-    <!-- Participant: the Stage, while a Round is being played, and the Floor -->
-    <template v-else-if="view.you.role === 'participant'">
+    <!-- Participant or Spectator: the Stage, while a Round is being played, and the Floor -->
+    <template v-else-if="view.you.role === 'participant' || view.you.role === 'spectator'">
       <SpectrumStage
         v-if="view.stage?.format === 'spectrum'"
         :stage="view.stage"
         :is-host="false"
         :person-id="personId"
+        :is-spectator="view.you.role === 'spectator'"
         @send="send"
       />
       <MiddleGroundStage
@@ -173,6 +192,7 @@ function claimHostWithPin() {
         :stage="view.stage"
         :is-host="false"
         :person-id="personId"
+        :is-spectator="view.you.role === 'spectator'"
         @send="send"
       />
       <FloorPanel
@@ -181,6 +201,7 @@ function claimHostWithPin() {
         :people="view.waitingRoom?.people ?? []"
         :you-id="personId"
         :is-host="false"
+        :is-spectator="view.you.role === 'spectator'"
         @send="send"
       />
     </template>
@@ -207,10 +228,53 @@ function claimHostWithPin() {
       </template>
       <template v-else-if="view.phase === 'live'">
         <h1>Join the Room</h1>
-        <p class="muted">{{ view.capacity.joined }} of {{ view.capacity.limit }} joined</p>
-        <p v-if="isFull" class="warning">This Room is full right now.</p>
-        <form class="stack" @submit.prevent="send({ type: 'join', nickname })">
+        <p v-if="participantsFull && spectatorsFull" class="warning">
+          This Room is full right now, for Participants and Spectators.
+        </p>
+        <p v-else-if="participantsFull" class="warning">
+          The Participant places are all taken, but you can watch as a Spectator.
+        </p>
+        <form class="stack" @submit.prevent="send({ type: 'join', nickname, as: joinAs })">
           <NicknameField v-model="nickname" />
+          <fieldset class="join-as">
+            <legend>Join as</legend>
+            <ul class="choices">
+              <li>
+                <label>
+                  <input
+                    v-model="joinAs"
+                    type="radio"
+                    value="participant"
+                    :disabled="participantsFull"
+                  />
+                  <span>
+                    Participant
+                    <span class="muted small">
+                      Take part in the Rounds · {{ view.capacity.joined }} of
+                      {{ view.capacity.limit }} joined
+                    </span>
+                  </span>
+                </label>
+              </li>
+              <li>
+                <label>
+                  <input
+                    v-model="joinAs"
+                    type="radio"
+                    value="spectator"
+                    :disabled="spectatorsFull"
+                  />
+                  <span>
+                    Spectator
+                    <span class="muted small">
+                      Watch the Stage · {{ view.spectatorCapacity.joined }} of
+                      {{ view.spectatorCapacity.limit }} joined (Spectators have their own limit)
+                    </span>
+                  </span>
+                </label>
+              </li>
+            </ul>
+          </fieldset>
           <p v-if="rejection" class="error" role="alert">{{ rejection.message }}</p>
           <button class="primary" type="submit">Join</button>
         </form>
@@ -238,14 +302,45 @@ function claimHostWithPin() {
         :people="view.waitingRoom.people"
         :you-id="personId"
         :can-manage="view.you.role === 'host'"
-        @rename="
-          (id, newNickname) => send({ type: 'rename-person', personId: id, nickname: newNickname })
-        "
-        @remove="(id) => send({ type: 'remove-person', personId: id })"
+        @rename="renamePerson"
+        @remove="removePerson"
       />
       <p v-if="view.you.role === 'participant' && !view.stage" class="muted">
         You're in. The Host will start the first Round soon.
       </p>
+
+      <h3>
+        Spectators
+        <span class="count">
+          {{ view.spectatorCapacity.joined }} of {{ view.spectatorCapacity.limit }}
+        </span>
+      </h3>
+      <WaitingRoomList
+        v-if="view.waitingRoom.spectators.length"
+        :people="view.waitingRoom.spectators"
+        :you-id="personId"
+        :can-manage="view.you.role === 'host'"
+        @rename="renamePerson"
+        @remove="removePerson"
+      />
+      <p v-else class="muted small">No one is watching yet.</p>
+
+      <template v-if="view.you.role === 'spectator'">
+        <p class="muted">You're watching as a Spectator.</p>
+        <template v-if="!view.stage">
+          <button
+            v-if="!participantsFull"
+            type="button"
+            @click="send({ type: 'become-participant' })"
+          >
+            Switch to Participant
+          </button>
+          <p v-else class="muted small">
+            The Participant places are all taken. You can switch if one frees up.
+          </p>
+        </template>
+        <p v-else class="muted small">You can switch to Participant once this Round is over.</p>
+      </template>
     </section>
   </template>
 </template>
