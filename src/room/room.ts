@@ -5,6 +5,27 @@
 // `viewFor` result. Tests drive `createRoom`, `apply` and `viewFor` directly.
 
 import {
+  clearFloor,
+  emptyFloor,
+  type Floor,
+  type FloorControlIntent,
+  type FloorEvent,
+  type FloorOutcome,
+  type FloorRejectionCode,
+  type FloorView,
+  giveFloor,
+  type HandIntent,
+  isFloorControlIntent,
+  isHandIntent,
+  leaveFloor,
+  moveHand,
+  nextFloorTimeUp,
+  setFloorTimer,
+  takeFloor,
+  tickFloor,
+  viewFloor,
+} from "./floor";
+import {
   editLineup,
   emptyLineup,
   forgetPerson,
@@ -35,6 +56,7 @@ import {
 } from "./round";
 
 export type { StageView } from "./round";
+export type { FloorView } from "./floor";
 
 export type Phase = "planning" | "live" | "ended";
 
@@ -57,6 +79,8 @@ export type Intent =
   /** Moves the Round on: to the Prompt's summary, the next Prompt or the Waiting Room. */
   | { type: "advance" }
   | RoundIntent
+  | FloorControlIntent
+  | HandIntent
   | LineupIntent;
 
 export type RejectionCode =
@@ -79,7 +103,9 @@ export type RejectionCode =
   | "round-in-progress"
   | "no-round"
   | "not-in-room"
+  | "not-participant"
   | RoundRejectionCode
+  | FloorRejectionCode
   | LineupRejectionCode;
 
 export interface Rejection {
@@ -92,7 +118,8 @@ export type RecapEvent =
   | { at: number; type: "person-joined"; personId: string; nickname: string }
   | { at: number; type: "person-renamed"; personId: string; from: string; to: string }
   | { at: number; type: "person-removed"; personId: string; nickname: string }
-  | ({ at: number } & RoundEvent);
+  | ({ at: number } & RoundEvent)
+  | ({ at: number } & FloorEvent);
 
 interface Participant {
   id: string;
@@ -124,12 +151,16 @@ export interface RoomState {
   round: CurrentRound | null;
   /** Rounds of the Lineup already started, so "the next Round" skips them. */
   playedRoundIds: string[];
+  /** Who is speaking on the call. */
+  floor: Floor;
 }
 
 export interface ApplyResult {
   state: RoomState;
   recapEvents: RecapEvent[];
   rejection?: Rejection;
+  /** When `tick` next needs to run for a timer that is due then. Left out when no timer is running. */
+  scheduled?: number;
 }
 
 export const HOST_PERSON_ID = "host";
@@ -168,6 +199,8 @@ export interface View {
   stage: StageView | null;
   /** The Round that "Start Round" would start, for the Host. Null for everyone else. */
   nextRoundId: string | null;
+  /** Who has the Floor, for people in the Room while it's Live. Null otherwise. */
+  floor: FloorView | null;
 }
 
 /** What the Worker knows when a Host creates a Room. */
@@ -211,15 +244,35 @@ export function createRoom(
       lineup: emptyLineup(),
       round: null,
       playedRoundIds: [],
+      floor: emptyFloor(),
     },
   };
 }
 
 export function apply(state: RoomState, intent: Intent, actor: Actor, now: number): ApplyResult {
+  return withSchedule(applyIntent(state, intent, actor, now));
+}
+
+/** Handles the timers that are due by `now`. The Durable Object calls it from an alarm. */
+export function tick(state: RoomState, now: number): ApplyResult {
+  const floor = tickFloor(state.floor, now);
+  return withSchedule(
+    floor.floor === state.floor ? unchanged(state) : withFloor(state, floor, now),
+  );
+}
+
+function withSchedule(result: ApplyResult): ApplyResult {
+  const scheduled = nextFloorTimeUp(result.state.floor);
+  return scheduled === null ? result : { ...result, scheduled };
+}
+
+function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number): ApplyResult {
   // A removed device can do nothing in the Room (not even guess the PIN),
   // except present the Host link, which always grants the Host role.
   if (isRemoved(state, actor) && intent.type !== "claim-host") return rejected(state, REMOVED);
   if (isLineupIntent(intent)) return changeLineup(state, intent, actor);
+  if (isFloorControlIntent(intent)) return controlFloor(state, intent, actor, now);
+  if (isHandIntent(intent)) return moveOwnHand(state, intent, actor, now);
   switch (intent.type) {
     case "claim-host":
       return claimHost(state, intent.hostSecret, actor);
@@ -270,6 +323,10 @@ export function viewFor(state: RoomState, viewer: Actor): View {
         : null,
     nextRoundId:
       you.role === "host" ? (nextRound(state.lineup, state.playedRoundIds)?.id ?? null) : null,
+    floor:
+      inRoom && state.phase === "live"
+        ? viewFloor(state.floor, roundPeople(state).nicknames)
+        : null,
   };
 }
 
@@ -312,6 +369,19 @@ export function parseIntent(raw: unknown): Intent | null {
       return typeof value.position === "number"
         ? { type: value.type, position: value.position }
         : null;
+    case "give-floor":
+    case "take-floor":
+      return typeof value.personId === "string"
+        ? { type: value.type, personId: value.personId }
+        : null;
+    case "set-floor-timer":
+      return value.seconds === null || typeof value.seconds === "number"
+        ? { type: value.type, seconds: value.seconds }
+        : null;
+    case "clear-floor":
+    case "raise-hand":
+    case "lower-hand":
+      return { type: value.type };
     default:
       return parseLineupIntent(value);
   }
@@ -324,6 +394,7 @@ export function upgradeState(stored: RoomState): RoomState {
     lineup: stored.lineup ?? emptyLineup(),
     round: stored.round ?? null,
     playedRoundIds: stored.playedRoundIds ?? [],
+    floor: stored.floor ?? emptyFloor(),
   };
 }
 
@@ -498,14 +569,19 @@ function removePerson(state: RoomState, personId: string, actor: Actor, now: num
   }
   const participant = state.participants.find((p) => p.id === personId);
   if (!participant) return rejected(state, PERSON_NOT_FOUND);
+  const floor = leaveFloor(state.floor, personId);
   const removed: ApplyResult = {
     state: {
       ...state,
       participants: state.participants.filter((p) => p.id !== personId),
       removedTokens: [...state.removedTokens, participant.token],
       lineup: forgetPerson(state.lineup, personId),
+      floor: floor.floor,
     },
-    recapEvents: [{ at: now, type: "person-removed", personId, nickname: participant.nickname }],
+    recapEvents: [
+      { at: now, type: "person-removed", personId, nickname: participant.nickname },
+      ...floor.events.map((event) => ({ at: now, ...event })),
+    ],
   };
   if (!state.round) return removed;
   const left = withRound(removed.state, leaveRound(state.round, personId), now);
@@ -570,6 +646,51 @@ function runCurrentRound(
   if (!isHost(state, actor)) return rejected(state, notHost(action));
   if (!state.round) return rejected(state, NO_ROUND);
   return withRound(state, control(state.round), now);
+}
+
+function controlFloor(
+  state: RoomState,
+  intent: FloorControlIntent,
+  actor: Actor,
+  now: number,
+): ApplyResult {
+  if (!isHost(state, actor)) return rejected(state, notHost("give and take the Floor"));
+  if (state.phase !== "live") return rejected(state, ROOM_NOT_LIVE);
+  switch (intent.type) {
+    case "give-floor":
+      if (nicknameOf(state, intent.personId) === undefined) {
+        return rejected(state, PERSON_NOT_FOUND);
+      }
+      return withFloor(state, giveFloor(state.floor, intent.personId, now), now);
+    case "take-floor":
+      return withFloor(state, takeFloor(state.floor, intent.personId), now);
+    case "clear-floor":
+      return withFloor(state, clearFloor(state.floor), now);
+    case "set-floor-timer":
+      return withFloor(state, setFloorTimer(state.floor, intent.seconds), now);
+  }
+}
+
+/** Only Participants raise a hand: the Host gives the Floor, so can simply take it. */
+function moveOwnHand(state: RoomState, intent: HandIntent, actor: Actor, now: number): ApplyResult {
+  const you = identify(state, actor);
+  if (you.role === "host") {
+    return rejected(state, {
+      code: "not-participant",
+      message: "Only Participants raise a hand. As the Host, give yourself the Floor.",
+    });
+  }
+  if (you.role !== "participant") return rejected(state, NOT_IN_ROOM);
+  if (state.phase !== "live") return rejected(state, ROOM_NOT_LIVE);
+  return withFloor(state, moveHand(state.floor, you.personId, intent), now);
+}
+
+function withFloor(state: RoomState, outcome: FloorOutcome, now: number): ApplyResult {
+  if ("rejection" in outcome) return rejected(state, outcome.rejection);
+  return {
+    state: { ...state, floor: outcome.floor },
+    recapEvents: outcome.events.map((event) => ({ at: now, ...event })),
+  };
 }
 
 function withRound(state: RoomState, outcome: RoundOutcome, now: number): ApplyResult {
