@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { PACKS } from "../content/packs";
+import { INTENSITY_NAMES, PACKS, packsByTopic } from "../content/packs";
 import {
   defaultSetup,
   type Format,
@@ -18,7 +18,8 @@ const emit = defineEmits<{ send: [intent: LineupIntent] }>();
 
 const newFormat = ref<Format>("spectrum");
 const shortcutFormat = ref<Format>("middle-ground");
-const shortcutPack = ref(PACKS[0].id);
+const shortcutPack = ref(PACKS[0]?.id);
+const topics = packsByTopic(PACKS);
 
 function addRound() {
   emit("send", { type: "add-round", setup: defaultSetup(newFormat.value), prompts: [] });
@@ -89,7 +90,11 @@ function planWholeNight() {
           <label class="field">
             <span>Pack</span>
             <select v-model="shortcutPack">
-              <option v-for="p in PACKS" :key="p.id" :value="p.id">{{ p.title }}</option>
+              <optgroup v-for="group in topics" :key="group.topic" :label="group.topic">
+                <option v-for="p in group.packs" :key="p.id" :value="p.id">
+                  {{ p.title }} · {{ INTENSITY_NAMES[p.intensity] }}
+                </option>
+              </optgroup>
             </select>
           </label>
         </div>
