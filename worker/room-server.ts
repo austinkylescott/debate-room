@@ -1,16 +1,19 @@
 // The Durable Object adapter for one Room (docs/adr/0002). It holds no Room
-// rules: it maps connections to actors, persists state and the Recap, and sends
-// each connection its own view. All Room rules live in src/room/room.ts.
+// rules: it maps connections to actors, persists state and the Recap, sends
+// each connection its own view, and maps the Room's timers to an alarm. All
+// Room rules live in src/room/room.ts.
 import { type Connection, type ConnectionContext, Server, type WSMessage } from "partyserver";
 import {
   type Actor,
   apply,
+  type ApplyResult,
   createRoom,
   type CreateRoomInput,
   parseIntent,
   type RecapEvent,
   type Rejection,
   type RoomState,
+  tick,
   upgradeState,
   viewFor,
 } from "../src/room/room";
@@ -59,10 +62,23 @@ export class Room extends Server<Env> {
     if (result.rejection) {
       send(connection, { type: "rejected", rejection: result.rejection });
     }
+    await this.#settle(result);
+  }
+
+  /** A timer the Room asked for is due. */
+  async onAlarm() {
+    if (!this.#state) return;
+    await this.#settle(tick(this.#state, Date.now()));
+  }
+
+  /** Saves and broadcasts a change, and points the alarm at the Room's next timer. */
+  async #settle(result: ApplyResult) {
     if (result.state !== this.#state) {
       await this.#save(result.state, result.recapEvents);
       this.#broadcastViews();
     }
+    if (result.scheduled === undefined) await this.ctx.storage.deleteAlarm();
+    else await this.ctx.storage.setAlarm(result.scheduled);
   }
 
   async #save(state: RoomState, recapEvents: RecapEvent[]) {
