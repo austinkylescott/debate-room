@@ -170,6 +170,14 @@ function stageOf(state: RoomState, viewer: Actor): StageView {
 }
 
 /** Alex and Sam are Participants, Casey a Spectator; Alex has locked in at 80 and Sam hovers at 30. */
+/** Reveals, ends the Prompt and closes its Mood Check-in with Alex's and Sam's answers. */
+const finishPrompt: [Intent, Actor][] = [
+  [reveal, host],
+  [advance, host],
+  [{ type: "set-mood", mood: "happy" }, alex],
+  [{ type: "set-mood", mood: "thinking" }, sam],
+];
+
 function midPrompt(): RoomState {
   return run(
     liveRoom({}, ["Cats beat dogs", "Pineapple on pizza"]),
@@ -206,12 +214,14 @@ describe("what a Spectator sees on the Stage", () => {
   });
 
   it("shows the summary card like everyone else", () => {
-    const state = run(midPrompt(), [reveal, host], [advance, host]);
+    const state = run(midPrompt(), ...finishPrompt);
+    expect(stageOf(state, casey).spectrum.summary).not.toBeNull();
     expect(stageOf(state, casey).spectrum.summary).toEqual(stageOf(state, alex).spectrum.summary);
+    expect(stageOf(state, casey).checkIn).toEqual(stageOf(state, alex).checkIn);
   });
 
   it("doesn't make a Spectator Playing on the next Prompt", () => {
-    const state = run(midPrompt(), [reveal, host], [advance, host], [advance, host]);
+    const state = run(midPrompt(), ...finishPrompt, [advance, host]);
     expect(stageOf(state, casey).promptNumber).toBe(2);
     expect(stageOf(state, casey).playing).toBe(false);
     expect(stageOf(state, casey).spectrum.people.map((p) => p.nickname)).toEqual(["Alex", "Sam"]);
@@ -245,6 +255,24 @@ describe("what a Spectator can't do", () => {
       host,
     );
     expect(result.rejection?.code).toBe("setup-invalid");
+  });
+
+  it("refuses a Spectator's Mood, during the Prompt and in the Mood Check-in", () => {
+    const state = midPrompt();
+    const duringPrompt = attempt(state, { type: "set-mood", mood: "happy" }, casey);
+    expect(duringPrompt.rejection?.code).toBe("spectators-watch");
+    expect(stageOf(duringPrompt.state, alex).moods).toEqual({});
+    const checkingIn = run(state, [reveal, host], [advance, host]);
+    expect(stageOf(checkingIn, casey).checkIn?.status).toBe("open");
+    const inCheckIn = attempt(checkingIn, { type: "set-mood", mood: "happy" }, casey);
+    expect(inCheckIn.rejection?.code).toBe("spectators-watch");
+  });
+
+  it("doesn't wait for a Spectator to answer the Mood Check-in", () => {
+    const answered = run(midPrompt(), ...finishPrompt);
+    const checkIn = stageOf(answered, casey).checkIn;
+    expect(checkIn?.status).toBe("closed");
+    expect(checkIn?.status === "closed" && checkIn.tally.noMood).toBe(0);
   });
 
   it("refuses a Spectator's raised hand", () => {
@@ -346,15 +374,7 @@ describe("switching from Spectator to Participant", () => {
   it("is refused while a Round is being played, and allowed once it's over", () => {
     const state = midPrompt();
     expect(attempt(state, becomeParticipant, casey).rejection?.code).toBe("round-in-progress");
-    const over = run(
-      state,
-      [reveal, host],
-      [advance, host],
-      [advance, host],
-      [reveal, host],
-      [advance, host],
-      [advance, host],
-    );
+    const over = run(state, ...finishPrompt, [advance, host], ...finishPrompt, [advance, host]);
     expect(viewFor(over, casey).stage).toBeNull();
     expect(viewFor(run(over, [becomeParticipant, casey]), casey).you.role).toBe("participant");
   });
