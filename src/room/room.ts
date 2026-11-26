@@ -70,6 +70,8 @@ export type Intent =
   | { type: "claim-host"; hostSecret: string }
   | { type: "claim-host-pin"; pin: string }
   | { type: "open-room" }
+  /** Ends the Room for good. The Recap stays viewable until the Room expires. */
+  | { type: "end-room" }
   | { type: "set-participant-limit"; limit: number }
   | { type: "join"; nickname: string }
   | { type: "rename-person"; personId: string; nickname: string }
@@ -114,8 +116,16 @@ export interface Rejection {
   message: string;
 }
 
+/**
+ * One entry in the Recap: an append-only, timestamped log of what happened.
+ * Everyone who can see the Recap sees every event, so an event never carries
+ * hidden information (such as positions before a reveal). Derived views, such as
+ * Floor time, are computed from the events (./recap.ts), never stored.
+ */
 export type RecapEvent =
-  | { at: number; type: "room-opened" }
+  /** `hostNickname` is missing from events stored before it was added. */
+  | { at: number; type: "room-opened"; hostNickname?: string }
+  | { at: number; type: "room-ended" }
   | { at: number; type: "person-joined"; personId: string; nickname: string }
   | { at: number; type: "person-renamed"; personId: string; from: string; to: string }
   | { at: number; type: "person-removed"; personId: string; nickname: string }
@@ -154,14 +164,21 @@ export interface RoomState {
   playedRoundIds: string[];
   /** Who is speaking on the call. */
   floor: Floor;
+  /** When an intent last changed the Room. The Room expires {@link ROOM_EXPIRY_MS} later. */
+  lastActivityAt: number;
 }
 
 export interface ApplyResult {
   state: RoomState;
   recapEvents: RecapEvent[];
   rejection?: Rejection;
-  /** When `tick` next needs to run for a timer that is due then. Left out when no timer is running. */
+  /**
+   * When `tick` next needs to run: the soonest of the running timers and the
+   * Room's expiry. Left out only once the Room has expired.
+   */
   scheduled?: number;
+  /** The Room has expired: it is gone, with its Recap. */
+  expired?: true;
 }
 
 export const HOST_PERSON_ID = "host";
@@ -173,6 +190,8 @@ export const PIN_MIN_LENGTH = 4;
 export const PIN_MAX_LENGTH = 6;
 export const DEFAULT_PARTICIPANT_LIMIT = 15;
 export const MAX_PARTICIPANT_LIMIT = 50;
+/** A Room with no activity for this long expires, Recap and all. */
+export const ROOM_EXPIRY_MS = 7 * 24 * 60 * 60_000;
 
 export interface WaitingRoomPerson {
   id: string;
@@ -202,6 +221,14 @@ export interface View {
   nextRoundId: string | null;
   /** Who has the Floor, for people in the Room while it's Live. Null otherwise. */
   floor: FloorView | null;
+  /**
+   * Whether this viewer may see the Recap: everyone in the Room while it's Live,
+   * and anyone with the invite link once it has Ended. The Recap itself travels
+   * as its own stream (see ../room/protocol.ts).
+   */
+  seesRecap: boolean;
+  /** When the Room expires unless there's more activity. */
+  expiresAt: number;
 }
 
 /** What the Worker knows when a Host creates a Room. */
@@ -214,9 +241,11 @@ export interface CreateRoomInput {
   participantLimit?: number;
 }
 
+/** `now` starts the Room's expiry clock; `scheduled` is when `tick` first needs to run. */
 export function createRoom(
   input: CreateRoomInput,
-): { state: RoomState } | { rejection: Rejection } {
+  now: number,
+): { state: RoomState; scheduled: number } | { rejection: Rejection } {
   const nickname = normalizeNickname(input.hostNickname);
   if (nickname === null) return { rejection: INVALID_NICKNAME };
   if (!isValidPin(input.pin)) {
@@ -246,31 +275,62 @@ export function createRoom(
       round: null,
       playedRoundIds: [],
       floor: emptyFloor(),
+      lastActivityAt: now,
     },
+    scheduled: now + ROOM_EXPIRY_MS,
   };
 }
 
 export function apply(state: RoomState, intent: Intent, actor: Actor, now: number): ApplyResult {
-  return withSchedule(applyIntent(state, intent, actor, now));
+  if (isExpired(state, now)) return expired(state);
+  const result = applyIntent(state, intent, actor, now);
+  // Only an accepted intent that changed the Room counts as activity.
+  const active = !result.rejection && result.state !== state;
+  return withSchedule(
+    active ? { ...result, state: { ...result.state, lastActivityAt: now } } : result,
+  );
 }
 
-/** Handles the timers that are due by `now`. The Durable Object calls it from an alarm. */
+/**
+ * Handles the timers that are due by `now`, and expires the Room after
+ * {@link ROOM_EXPIRY_MS} without activity. The Durable Object calls it from an
+ * alarm. A timer running out isn't activity.
+ */
 export function tick(state: RoomState, now: number): ApplyResult {
+  if (isExpired(state, now)) return expired(state);
   const floor = tickFloor(state.floor, now);
   return withSchedule(
     floor.floor === state.floor ? unchanged(state) : withFloor(state, floor, now),
   );
 }
 
+/** The soonest due time wins: a Durable Object has a single alarm. */
 function withSchedule(result: ApplyResult): ApplyResult {
-  const scheduled = nextFloorTimeUp(result.state.floor);
-  return scheduled === null ? result : { ...result, scheduled };
+  const due = [expiresAt(result.state), nextFloorTimeUp(result.state.floor)];
+  const scheduled = Math.min(...due.filter((at): at is number => at !== null));
+  return { ...result, scheduled };
+}
+
+function expiresAt(state: RoomState): number {
+  return state.lastActivityAt + ROOM_EXPIRY_MS;
+}
+
+function isExpired(state: RoomState, now: number): boolean {
+  return now >= expiresAt(state);
+}
+
+function expired(state: RoomState): ApplyResult {
+  return { state, recapEvents: [], expired: true };
 }
 
 function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number): ApplyResult {
   // A removed device can do nothing in the Room (not even guess the PIN),
   // except present the Host link, which always grants the Host role.
   if (isRemoved(state, actor) && intent.type !== "claim-host") return rejected(state, REMOVED);
+  // An Ended Room is read-only: only the Host can still get back in.
+  if (state.phase === "ended" && intent.type !== "claim-host" && intent.type !== "claim-host-pin") {
+    return rejected(state, ROOM_ENDED);
+  }
   if (isLineupIntent(intent)) return changeLineup(state, intent, actor);
   if (isFloorControlIntent(intent)) return controlFloor(state, intent, actor, now);
   if (isHandIntent(intent)) return moveOwnHand(state, intent, actor, now);
@@ -281,6 +341,8 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
       return claimHostWithPin(state, intent.pin, actor, now);
     case "open-room":
       return openRoom(state, actor, now);
+    case "end-room":
+      return endRoom(state, actor, now);
     case "set-participant-limit":
       return setParticipantLimit(state, intent.limit, actor);
     case "join":
@@ -328,6 +390,8 @@ export function viewFor(state: RoomState, viewer: Actor): View {
       inRoom && state.phase === "live"
         ? viewFloor(state.floor, roundPeople(state).nicknames)
         : null,
+    seesRecap: state.phase === "ended" || (state.phase === "live" && inRoom),
+    expiresAt: expiresAt(state),
   };
 }
 
@@ -343,7 +407,8 @@ export function parseIntent(raw: unknown): Intent | null {
     case "claim-host-pin":
       return typeof value.pin === "string" ? { type: "claim-host-pin", pin: value.pin } : null;
     case "open-room":
-      return { type: "open-room" };
+    case "end-room":
+      return { type: value.type };
     case "set-participant-limit":
       return typeof value.limit === "number"
         ? { type: "set-participant-limit", limit: value.limit }
@@ -388,14 +453,18 @@ export function parseIntent(raw: unknown): Intent | null {
   }
 }
 
-/** Fills in what a Room stored by an earlier version of the app is missing. */
-export function upgradeState(stored: RoomState): RoomState {
+/**
+ * Fills in what a Room stored by an earlier version of the app is missing. A
+ * Room stored before expiry existed starts its expiry clock at `now`.
+ */
+export function upgradeState(stored: RoomState, now: number): RoomState {
   return {
     ...stored,
     lineup: stored.lineup ?? emptyLineup(),
     round: stored.round ?? null,
     playedRoundIds: stored.playedRoundIds ?? [],
     floor: stored.floor ?? emptyFloor(),
+    lastActivityAt: stored.lastActivityAt ?? now,
   };
 }
 
@@ -472,7 +541,23 @@ function openRoom(state: RoomState, actor: Actor, now: number): ApplyResult {
   if (state.phase !== "planning") return unchanged(state);
   return {
     state: { ...state, phase: "live" },
-    recapEvents: [{ at: now, type: "room-opened" }],
+    recapEvents: [{ at: now, type: "room-opened", hostNickname: state.hostNickname }],
+  };
+}
+
+/** Ends the Room: the Round in progress ends and the Floor is taken back from everyone. */
+function endRoom(state: RoomState, actor: Actor, now: number): ApplyResult {
+  if (!isHost(state, actor)) return rejected(state, notHost("end the Room"));
+  const floor = clearFloor(state.floor);
+  const roundEnded = state.round
+    ? [{ type: "round-ended" as const, roundId: state.round.roundId }]
+    : [];
+  return {
+    state: { ...state, phase: "ended", round: null, floor: floor.floor },
+    recapEvents: [
+      ...[...floor.events, ...roundEnded].map((event) => ({ at: now, ...event })),
+      { at: now, type: "room-ended" },
+    ],
   };
 }
 
@@ -503,9 +588,6 @@ function join(state: RoomState, rawNickname: string, actor: Actor, now: number):
       code: "room-not-open",
       message: "This Room isn't open yet. Check back soon.",
     });
-  }
-  if (state.phase === "ended") {
-    return rejected(state, ROOM_ENDED);
   }
   // Only Participants count for now. Once the Host can be Playing in a Round,
   // a Playing Host takes one of these places too.
@@ -591,7 +673,6 @@ function removePerson(state: RoomState, personId: string, actor: Actor, now: num
 
 function changeLineup(state: RoomState, intent: LineupIntent, actor: Actor): ApplyResult {
   if (!isHost(state, actor)) return rejected(state, notHost("edit the Lineup"));
-  if (state.phase === "ended") return rejected(state, ROOM_ENDED);
   const personIds = waitingRoomPeople(state).map((p) => p.id);
   const result = editLineup(state.lineup, intent, { personIds });
   if ("rejection" in result) return rejected(state, result.rejection);

@@ -64,6 +64,23 @@ export type RevealCause = "everyone-locked-in" | "host";
 export type RoundEvent =
   | { type: "round-started"; roundId: string; format: Format; hostPlaying: boolean }
   | {
+      type: "prompt-started";
+      roundId: string;
+      promptId: string;
+      /** 1-based. */
+      promptNumber: number;
+      text: string;
+    }
+  /** A move after the reveal. Hovering before it stays hidden, so isn't recorded. */
+  | {
+      type: "position-moved";
+      roundId: string;
+      promptId: string;
+      personId: string;
+      from: number | null;
+      to: number;
+    }
+  | {
       type: "positions-revealed";
       roundId: string;
       promptId: string;
@@ -114,16 +131,20 @@ export function startRound(round: Round, hostPlaying: boolean, people: RoundPeop
   if (round.prompts.length === 0) {
     return refuse("round-empty", "This Round has no Prompts yet. Add one to start it.");
   }
+  const current: CurrentRound = {
+    roundId: round.id,
+    format: "spectrum",
+    prompts: round.prompts,
+    hostPlaying,
+    promptIndex: 0,
+    spectrum: startSpectrumPrompt(playingIds(hostPlaying, people)),
+  };
   return {
-    round: {
-      roundId: round.id,
-      format: "spectrum",
-      prompts: round.prompts,
-      hostPlaying,
-      promptIndex: 0,
-      spectrum: startSpectrumPrompt(playingIds(hostPlaying, people)),
-    },
-    events: [{ type: "round-started", roundId: round.id, format: "spectrum", hostPlaying }],
+    round: current,
+    events: [
+      { type: "round-started", roundId: round.id, format: "spectrum", hostPlaying },
+      promptStarted(current),
+    ],
   };
 }
 
@@ -138,7 +159,19 @@ export function playRound(
       ? lockIn(current.spectrum, personId, intent.position)
       : movePosition(current.spectrum, personId, intent.position);
   if ("rejection" in outcome) return outcome;
-  return revealIfEveryoneLockedIn({ ...current, spectrum: outcome.prompt });
+  const moved = { ...current, spectrum: outcome.prompt };
+  if (current.spectrum.step === "revealed") {
+    const from = currentPositions(current.spectrum)[personId] ?? null;
+    const to = intent.position;
+    if (from === to) return { round: moved, events: [] };
+    const { roundId } = current;
+    const promptId = currentPrompt(current).id;
+    return {
+      round: moved,
+      events: [{ type: "position-moved", roundId, promptId, personId, from, to }],
+    };
+  }
+  return revealIfEveryoneLockedIn(moved);
 }
 
 /** The Host reveals the current Prompt's positions without waiting for everyone. */
@@ -178,14 +211,12 @@ export function advanceRound(current: CurrentRound, people: RoundPeople): RoundO
       if (promptIndex >= current.prompts.length) {
         return { round: null, events: [{ type: "round-ended", roundId }] };
       }
-      return {
-        round: {
-          ...current,
-          promptIndex,
-          spectrum: startSpectrumPrompt(playingIds(current.hostPlaying, people)),
-        },
-        events: [],
+      const next: CurrentRound = {
+        ...current,
+        promptIndex,
+        spectrum: startSpectrumPrompt(playingIds(current.hostPlaying, people)),
       };
+      return { round: next, events: [promptStarted(next)] };
     }
   }
 }
@@ -242,6 +273,17 @@ function revealed(current: CurrentRound, by: RevealCause): RoundOutcome {
         positions: currentPositions(spectrum),
       },
     ],
+  };
+}
+
+function promptStarted(current: CurrentRound): RoundEvent {
+  const prompt = currentPrompt(current);
+  return {
+    type: "prompt-started",
+    roundId: current.roundId,
+    promptId: prompt.id,
+    promptNumber: current.promptIndex + 1,
+    text: prompt.text,
   };
 }
 

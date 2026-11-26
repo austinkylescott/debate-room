@@ -7,6 +7,7 @@ import LineupPreview from "../components/LineupPreview.vue";
 import NicknameField from "../components/NicknameField.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
 import PinField from "../components/PinField.vue";
+import RecapPanel from "../components/RecapPanel.vue";
 import SpectrumStage from "../components/SpectrumStage.vue";
 import WaitingRoomList from "../components/WaitingRoomList.vue";
 import { inviteUrl, navigate } from "../lib/route";
@@ -15,7 +16,7 @@ import { FORMAT_NAMES } from "../room/lineup";
 import { DEFAULT_PARTICIPANT_LIMIT } from "../room/room";
 
 const props = defineProps<{ roomId: string }>();
-const { view, rejection, status, send } = useRoom(props.roomId);
+const { view, rejection, status, recap, send } = useRoom(props.roomId);
 
 const nickname = ref("");
 const pin = ref("");
@@ -49,6 +50,18 @@ watch(
   { immediate: true },
 );
 
+const expiresOn = computed(() =>
+  view.value
+    ? new Date(view.value.expiresAt).toLocaleDateString(undefined, { dateStyle: "long" })
+    : "",
+);
+
+function endRoom() {
+  if (confirm("End the Room for everyone? Nobody can join or play after this. The Recap stays.")) {
+    send({ type: "end-room" });
+  }
+}
+
 function claimHostWithPin() {
   send({ type: "claim-host-pin", pin: pin.value });
   pin.value = "";
@@ -58,7 +71,10 @@ function claimHostWithPin() {
 <template>
   <section v-if="status === 'missing'" class="card">
     <h1>Room not found</h1>
-    <p>This invite link doesn't match a Room. Check the link and try again.</p>
+    <p>
+      This invite link doesn't match a Room. Check the link and try again. Rooms expire after 7 days
+      without activity.
+    </p>
     <p><a href="/" @click.prevent="navigate('/')">Create a Room</a></p>
   </section>
 
@@ -74,8 +90,31 @@ function claimHostWithPin() {
   <template v-else>
     <p v-if="status === 'connecting'" class="banner">Reconnecting…</p>
 
+    <!-- Ended: everyone, whatever their role, sees the Recap -->
+    <template v-if="view.phase === 'ended'">
+      <section class="card">
+        <p class="eyebrow">Ended</p>
+        <h1>This Room has ended</h1>
+        <p>The Recap stays here until {{ expiresOn }}. Download it to keep it.</p>
+        <p v-if="view.you.role === 'visitor' && !hostFormOpen">
+          <button type="button" class="link" @click="hostFormOpen = true">I'm the Host</button>
+        </p>
+        <form
+          v-if="view.you.role === 'visitor' && hostFormOpen"
+          class="stack"
+          @submit.prevent="claimHostWithPin"
+        >
+          <PinField v-model="pin" label="Your Host PIN" />
+          <p v-if="rejection" class="error" role="alert">{{ rejection.message }}</p>
+          <button class="primary" type="submit">Continue as the Host</button>
+          <button type="button" @click="hostFormOpen = false">Back</button>
+        </form>
+      </section>
+      <RecapPanel v-if="recap" :room-id="roomId" :events="recap" />
+    </template>
+
     <!-- Host -->
-    <template v-if="view.you.role === 'host'">
+    <template v-else-if="view.you.role === 'host'">
       <section v-if="view.phase === 'planning'" class="card">
         <p class="eyebrow">Planning</p>
         <h1>Your Room isn't open yet</h1>
@@ -142,6 +181,9 @@ function claimHostWithPin() {
           <ParticipantLimitField v-model="limitDraft" />
           <button type="submit" :disabled="limitDraft === view.capacity.limit">Save</button>
         </form>
+        <p v-if="view.phase === 'live'">
+          <button type="button" class="danger" @click="endRoom">End the Room</button>
+        </p>
       </section>
     </template>
 
@@ -188,21 +230,22 @@ function claimHostWithPin() {
           <button class="primary" type="submit">Join</button>
         </form>
       </template>
-      <template v-else>
-        <h1>This Room has ended</h1>
-      </template>
 
       <p v-if="!hostFormOpen">
         <button type="button" class="link" @click="hostFormOpen = true">I'm the Host</button>
       </p>
     </section>
 
-    <p v-if="rejection && !rejectionInline" class="error card" role="alert">
+    <p
+      v-if="rejection && !rejectionInline && view.phase !== 'ended'"
+      class="error card"
+      role="alert"
+    >
       {{ rejection.message }}
     </p>
 
     <!-- Waiting Room, for everyone in the Room -->
-    <section v-if="view.waitingRoom" class="card">
+    <section v-if="view.waitingRoom && view.phase !== 'ended'" class="card">
       <h2>
         Waiting Room
         <span class="count">{{ view.capacity.joined }} of {{ view.capacity.limit }} joined</span>
@@ -220,5 +263,11 @@ function claimHostWithPin() {
         You're in. The Host will start the first Round soon.
       </p>
     </section>
+
+    <!-- The live Recap, for everyone in the Room -->
+    <details v-if="view.phase === 'live' && recap" class="recap-toggle">
+      <summary>Recap so far</summary>
+      <RecapPanel :room-id="roomId" :events="recap" />
+    </details>
   </template>
 </template>

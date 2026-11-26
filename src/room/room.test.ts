@@ -16,7 +16,10 @@ const alexDevice: Actor = { token: "alex-device" };
 const samDevice: Actor = { token: "sam-device" };
 
 function newRoom(hostNickname = "Jordan", options: Partial<CreateRoomInput> = {}): RoomState {
-  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname, pin: HOST_PIN, ...options });
+  const created = createRoom(
+    { hostSecret: HOST_SECRET, hostNickname, pin: HOST_PIN, ...options },
+    0,
+  );
   if ("rejection" in created) throw new Error(created.rejection.message);
   return created.state;
 }
@@ -73,20 +76,20 @@ describe("creating a Room", () => {
   });
 
   it("needs a Host nickname", () => {
-    const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "   ", pin: HOST_PIN });
+    const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "   ", pin: HOST_PIN }, 0);
     expect("rejection" in created && created.rejection.code).toBe("nickname-invalid");
   });
 
   it.each(["", "123", "1234567", "12a4", " 1234"])(
     "refuses a PIN that isn't 4 to 6 digits (%j)",
     (pin) => {
-      const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin });
+      const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin }, 0);
       expect("rejection" in created && created.rejection.code).toBe("pin-invalid");
     },
   );
 
   it.each(["1234", "123456"])("accepts a %s-digit PIN", (pin) => {
-    expect("state" in createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin })).toBe(
+    expect("state" in createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin }, 0)).toBe(
       true,
     );
   });
@@ -214,7 +217,9 @@ describe("opening the Room", () => {
   it("records the opening in the Recap", () => {
     const state = run(newRoom(), [claimHost(), hostDevice]);
     const result = apply(state, openRoom, hostDevice, 5_000);
-    expect(result.recapEvents).toEqual([{ at: 5_000, type: "room-opened" }]);
+    expect(result.recapEvents).toEqual([
+      { at: 5_000, type: "room-opened", hostNickname: "Jordan" },
+    ]);
   });
 });
 
@@ -296,12 +301,15 @@ describe("Participant limit", () => {
   });
 
   it.each([0, 51, 2.5, Number.NaN])("refuses a limit outside 1 to 50 at creation (%s)", (limit) => {
-    const created = createRoom({
-      hostSecret: HOST_SECRET,
-      hostNickname: "Jordan",
-      pin: HOST_PIN,
-      participantLimit: limit,
-    });
+    const created = createRoom(
+      {
+        hostSecret: HOST_SECRET,
+        hostNickname: "Jordan",
+        pin: HOST_PIN,
+        participantLimit: limit,
+      },
+      0,
+    );
     expect("rejection" in created && created.rejection.code).toBe("limit-invalid");
   });
 

@@ -216,7 +216,7 @@ function furthestApart(prompt: SpectrumPrompt): SpectrumCallingAids["furthestApa
 }
 
 /** Counts positions by nearest notch. A position halfway between two counts toward agreeing. */
-function distribution(positions: (number | null)[]): Distribution {
+export function distribution(positions: (number | null)[]): Distribution {
   const counts = SPECTRUM_NOTCHES.map(() => 0);
   for (const position of positions) {
     if (position !== null) counts[nearestNotch(position)]! += 1;
