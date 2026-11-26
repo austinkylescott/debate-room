@@ -141,7 +141,6 @@ describe("choosing the Center", () => {
     expect(result.recapEvents).toContainEqual(
       expect.objectContaining({ type: "center-chosen", personId: RILEY, by: "host" }),
     );
-    expect(attempt(result.state, chooseCenter(ALEX), host).rejection?.code).toBe("has-center");
   });
 
   it("refuses a Center pick from anyone but the Host", () => {
@@ -285,6 +284,82 @@ describe("the Host's chair controls", () => {
 
   it("never seats a Spectator", () => {
     expect(attempt(withCenter(), seat(CASEY), host).rejection?.code).toBe("spectators-watch");
+  });
+});
+
+describe("replacing the Center", () => {
+  it("lets the Host replace the Center, who plays on as a Challenger", () => {
+    const result = attempt(withCenter(), chooseCenter(SAM), host);
+    const surrounded = surroundedOf(result.state, riley);
+    expect(surrounded.center?.personId).toBe(SAM);
+    expect(surrounded.challengers.map((c) => c.personId)).toEqual([ALEX, RILEY]);
+    expect(attempt(result.state, takeChair, alex).rejection).toBeUndefined();
+  });
+
+  it("ends a running exchange by the Host", () => {
+    const state = run(withCenter(), [takeChair, sam]);
+    const result = attempt(state, chooseCenter(RILEY), host);
+    expect(surroundedOf(result.state, alex).chair).toBeNull();
+    expect(result.recapEvents).toContainEqual(
+      expect.objectContaining({ type: "exchange-ended", challengerId: SAM, endedBy: "host" }),
+    );
+  });
+
+  it("can make the Challenger in the chair the Center, ending their exchange", () => {
+    const state = run(withCenter(), [takeChair, sam]);
+    const result = attempt(state, chooseCenter(SAM), host);
+    const surrounded = surroundedOf(result.state, alex);
+    expect(surrounded.center?.personId).toBe(SAM);
+    expect(surrounded.chair).toBeNull();
+    expect(surrounded.cooldown).toBeNull();
+  });
+
+  it("moves the Floor to the new Center", () => {
+    const state = run(withCenter(), [takeChair, sam]);
+    const result = attempt(state, chooseCenter(RILEY), host);
+    expect(floorHolders(result.state)).toEqual([RILEY]);
+    expect(result.recapEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "floor-taken", personId: ALEX }),
+        expect.objectContaining({ type: "floor-taken", personId: SAM }),
+        expect.objectContaining({ type: "floor-given", personId: RILEY }),
+      ]),
+    );
+  });
+
+  it("records who replaced whom in the Recap", () => {
+    const result = attempt(withCenter(), chooseCenter(SAM), host);
+    expect(result.recapEvents).toContainEqual(
+      expect.objectContaining({
+        type: "center-chosen",
+        personId: SAM,
+        by: "host",
+        replacedId: ALEX,
+      }),
+    );
+  });
+
+  it("keeps the new Center for the following Prompts", () => {
+    const state = run(
+      withCenter(),
+      [chooseCenter(SAM), host],
+      [advance, host],
+      ...everyoneAnswersCheckIn(),
+      [advance, host],
+    );
+    expect(surroundedOf(state, alex).center?.personId).toBe(SAM);
+  });
+
+  it("needs the new Center to be Playing, and never a Spectator", () => {
+    const state = withCenter();
+    expect(attempt(state, chooseCenter("host"), host).rejection?.code).toBe("not-playing");
+    expect(attempt(state, chooseCenter(CASEY), host).rejection?.code).toBe("spectators-watch");
+  });
+
+  it("refuses a replacement from anyone but the Host, and from a volunteer", () => {
+    const state = withCenter();
+    expect(attempt(state, chooseCenter(SAM), riley).rejection?.code).toBe("not-host");
+    expect(attempt(state, volunteer, sam).rejection?.code).toBe("has-center");
   });
 });
 
@@ -652,6 +727,20 @@ describe("the Recap", () => {
     });
   });
 
+  it("lists each Center of the Round, with the one a replacement replaced", () => {
+    const events = recapOf(
+      newRoom(),
+      ...settingUp({ centerId: ALEX }),
+      [start(), host],
+      [chooseCenter(SAM), host],
+    );
+    const [round] = summarizeRecap(events, clock).rounds;
+    expect(round?.centers.map((c) => [c.nickname, c.by, c.replaced?.nickname ?? null])).toEqual([
+      ["Alex", "host", null],
+      ["Sam", "host", "Alex"],
+    ]);
+  });
+
   it("gives a Surrounded Prompt its Mood insights, with no position changes to link", () => {
     const events = recapOf(
       newRoom(),
@@ -744,6 +833,12 @@ describe("a Co-Host running a Surrounded Round", () => {
     const removed = run(oneVote, [voteRemove(), taylor]);
     expect(surroundedOf(removed, alex).chair).toBeNull();
     expect(attempt(removed, takeChair, riley).rejection).toBeUndefined();
+  });
+
+  it("lets a Co-Host replace the Center", () => {
+    const result = attempt(withCoHost(false), chooseCenter(TAYLOR), riley);
+    expect(surroundedOf(result.state, alex).center?.personId).toBe(TAYLOR);
+    expect(floorHolders(result.state)).toEqual([TAYLOR]);
   });
 
   it("refuses to start a Round whose Center is a Co-Host sitting it out", () => {

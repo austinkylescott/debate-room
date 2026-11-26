@@ -56,7 +56,14 @@ export interface RecapRound {
   /** Middle Ground: each Side someone picked, or was moved to by the Host, in order. */
   sides: { at: number; personId: string; nickname: string; side: string; from: string | null }[];
   /** Surrounded: each Center the Round had, in order (a new one only if the last left). */
-  centers: { at: number; personId: string; nickname: string; by: "host" | "volunteer" }[];
+  centers: {
+    at: number;
+    personId: string;
+    nickname: string;
+    by: "host" | "volunteer";
+    /** The Center this one replaced, if the Host replaced one mid-Round. */
+    replaced: { personId: string; nickname: string } | null;
+  }[];
   prompts: RecapPrompt[];
 }
 
@@ -299,6 +306,10 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
           personId: event.personId,
           nickname: nickname(event.personId),
           by: event.by,
+          replaced:
+            event.replacedId === undefined
+              ? null
+              : { personId: event.replacedId, nickname: nickname(event.replacedId) },
         });
         break;
       case "chair-taken":

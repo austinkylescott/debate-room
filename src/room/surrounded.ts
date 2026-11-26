@@ -155,6 +155,32 @@ export function becomeCenter(surrounded: Surrounded, personId: string): Outcome 
 }
 
 /**
+ * The Host (or a Co-Host) makes someone Playing the Center: while the Round
+ * has none, or in place of the Center it has. Replacing the Center ends any
+ * exchange running, by the Host; the old Center plays on as a Challenger.
+ */
+export function appointCenter(surrounded: Surrounded, personId: string): Outcome {
+  if (surrounded.centerId === null) return becomeCenter(surrounded, personId);
+  const { prompt } = surrounded;
+  if (!prompt.playing.includes(personId)) return NOT_PLAYING;
+  if (prompt.step === "summary") return EXCHANGES_OVER;
+  if (surrounded.centerId === personId) return unchangedExchanges(surrounded);
+  const ended = prompt.chair
+    ? endExchange(surrounded, { challengerId: prompt.chair.challengerId, endedBy: "host" })
+    : unchangedExchanges(surrounded);
+  const after = ended.surrounded.prompt;
+  return {
+    ...ended,
+    surrounded: {
+      ...ended.surrounded,
+      centerId: personId,
+      // The new Center has no turn in the chair to wait for.
+      prompt: { ...after, cooldownId: after.cooldownId === personId ? null : after.cooldownId },
+    },
+  };
+}
+
+/**
  * A Challenger takes the empty chair, starting an exchange. The first press
  * wins; the Challenger who just left waits until someone else has held it.
  */

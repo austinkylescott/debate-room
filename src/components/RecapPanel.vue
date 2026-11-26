@@ -153,7 +153,14 @@ function download() {
       <ul v-if="round.centers.length > 0" class="moves small">
         <li v-for="(center, i) in round.centers" :key="i">
           {{ center.nickname }}
-          {{ center.by === "volunteer" ? "stepped up as the Center" : "was picked as the Center" }}
+          <template v-if="center.replaced"
+            >replaced {{ center.replaced.nickname }} as the Center</template
+          >
+          <template v-else>
+            {{
+              center.by === "volunteer" ? "stepped up as the Center" : "was picked as the Center"
+            }}
+          </template>
         </li>
       </ul>
       <div v-for="prompt in round.prompts" :key="prompt.promptId" class="recap-prompt">

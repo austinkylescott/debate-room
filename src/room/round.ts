@@ -60,6 +60,7 @@ import {
   viewSpectrum,
 } from "./spectrum";
 import {
+  appointCenter,
   becomeCenter,
   dropFromSurrounded,
   type EndedExchange,
@@ -136,7 +137,7 @@ export type RoundIntent =
 
 /** What the Host does in a Surrounded Round. */
 export type SurroundedControl =
-  /** Makes someone Playing the Center, while the Round has none. */
+  /** Makes someone Playing the Center: while the Round has none, or in place of its Center. */
   | { type: "choose-center"; personId: string }
   /** Ends the exchange running now. */
   | { type: "end-exchange" }
@@ -235,7 +236,14 @@ export type RoundEvent =
       sides: { name: string; steppedIn: number; onSide: number }[];
     }
   /** Surrounded: the Round has its Center, picked by the Host or stepping up. */
-  | { type: "center-chosen"; roundId: string; personId: string; by: "host" | "volunteer" }
+  | {
+      type: "center-chosen";
+      roundId: string;
+      personId: string;
+      by: "host" | "volunteer";
+      /** The Center this one replaced, if the Host replaced one mid-Round. */
+      replacedId?: string;
+    }
   /** Surrounded: a Challenger is in the chair, by taking it or put there by the Host. */
   | {
       type: "chair-taken";
@@ -432,7 +440,7 @@ export function controlSurrounded(
 ): RoundOutcome {
   switch (control.type) {
     case "choose-center":
-      return inSurrounded(current, (s) => becomeCenter(s, control.personId), { centerBy: "host" });
+      return inSurrounded(current, (s) => appointCenter(s, control.personId), { centerBy: "host" });
     case "end-exchange":
       return inSurrounded(current, hostEndsExchange);
     case "seat-challenger":
@@ -944,12 +952,14 @@ function inSurrounded(
   if (outcome.vote) events.push({ type: "removal-vote", ...base, ...outcome.vote });
   if (outcome.ended) events.push({ type: "exchange-ended", ...base, ...outcome.ended });
   const { centerId } = outcome.surrounded;
-  if (record.centerBy && centerId !== null && centerId !== current.surrounded.centerId) {
+  const replacedId = current.surrounded.centerId;
+  if (record.centerBy && centerId !== null && centerId !== replacedId) {
     events.push({
       type: "center-chosen",
       roundId: current.roundId,
       personId: centerId,
       by: record.centerBy,
+      ...(replacedId === null ? {} : { replacedId }),
     });
   }
   if (record.chairBy && outcome.started !== null) {

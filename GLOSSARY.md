@@ -25,12 +25,20 @@ A person in a **Room** who watches the **Stage** and may react, but never takes 
 _Avoid_: Audience, viewer, observer
 
 **Center**:
-In a Surrounded **Round**, the **Participant** who defends the **Prompts** against everyone else.
+In a Surrounded **Round**, the **Participant** who defends the **Prompts** against everyone else. The Host may replace the Center during the Round.
 _Avoid_: Defender, hot seat
 
 **Challenger**:
-In a Surrounded **Round**, any **Participant** other than the **Center**, who may take the chair to argue against the Center.
+In a Surrounded **Round**, anyone **Playing** other than the **Center**, who may take the **Chair** to argue against the Center.
 _Avoid_: Opponent, attacker
+
+**Chair**:
+In a Surrounded **Round**, the single seat facing the **Center**. The **Challenger** who holds it is in an **Exchange** with the Center.
+_Avoid_: Hot seat, spot
+
+**Exchange**:
+In a Surrounded **Round**, one timed turn in which a **Challenger** holds the **Chair** and argues with the **Center**. It ends when its time runs out, when the other Challengers vote the Challenger out, when the Center or the Challenger yields, or when the **Host** ends it.
+_Avoid_: Duel, bout, turn
 
 **Side**:
 In a Middle Ground **Round**, one of two named groups (e.g. "Cat people / Dog people") that each **Participant** belongs to for the whole Round.

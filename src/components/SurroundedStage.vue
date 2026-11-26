@@ -184,8 +184,8 @@ const advanceLabel = computed(() => {
     <!-- Host controls -->
     <div v-if="isHost" class="host-controls stack">
       <template v-if="!over">
-        <label v-if="!surrounded.center" class="field">
-          <span>Pick the Center</span>
+        <label class="field">
+          <span>{{ surrounded.center ? "Replace the Center" : "Pick the Center" }}</span>
           <select
             @change="
               send({
@@ -204,7 +204,7 @@ const advanceLabel = computed(() => {
             </option>
           </select>
         </label>
-        <label v-else class="field">
+        <label v-if="surrounded.center" class="field">
           <span>Put in the chair</span>
           <select
             @change="
