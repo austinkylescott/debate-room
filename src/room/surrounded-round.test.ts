@@ -652,6 +652,29 @@ describe("the Recap", () => {
     });
   });
 
+  it("gives a Surrounded Prompt its Mood insights, with no position changes to link", () => {
+    const events = recapOf(
+      newRoom(),
+      ...settingUp({ centerId: ALEX }),
+      [start(), host],
+      [{ type: "set-mood", mood: "angry" }, alex],
+      [takeChair, sam],
+      [yieldChair, sam],
+      [advance, host],
+      ...everyoneAnswersCheckIn(),
+    );
+    const summary = summarizeRecap(events, clock);
+    const moods = summary.rounds[0]?.prompts[0]?.moods;
+    expect(moods?.timelines.map((t) => [t.nickname, t.changes.map((c) => c.mood)])).toEqual([
+      ["Alex", ["angry", "thinking"]],
+      ["Sam", ["thinking"]],
+      ["Riley", ["thinking"]],
+    ]);
+    expect(moods?.checkIn?.tally.moods.thinking).toBe(3);
+    expect(moods?.links).toEqual([]);
+    expect(summary.moodOverview[0]?.checkIn?.moods.thinking).toBe(3);
+  });
+
   it("leaves Spectrum and Middle Ground details off a Surrounded Prompt", () => {
     const events = recapOf(roomWith({ centerId: ALEX }), [start(), host]);
     const prompt = summarizeRecap(events, clock).rounds[0]?.prompts[0];

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed } from "vue";
+import { useCountdown } from "../lib/serverClock";
 import { type Mood, MOODS } from "../room/mood";
 import type { Intent, StageView } from "../room/room";
 
@@ -27,26 +28,13 @@ const canPick = computed(
   () => props.stage.playing && (!promptOver.value || checkIn.value?.status === "open"),
 );
 
-// A clock for the Check-in countdown, running only while it's open.
-const now = ref(Date.now());
-let timer: ReturnType<typeof setInterval> | undefined;
-watch(
-  () => checkIn.value?.status === "open",
-  (open) => {
-    clearInterval(timer);
-    if (open) {
-      now.value = Date.now();
-      timer = setInterval(() => (now.value = Date.now()), 250);
-    }
-  },
-  { immediate: true },
-);
-onBeforeUnmount(() => clearInterval(timer));
+// The Check-in countdown, on the server's clock, running only while it's open.
+const countdown = useCountdown(() => checkIn.value?.status === "open");
 
 const secondsLeft = computed(() => {
   const open = checkIn.value;
   if (open?.status !== "open") return 0;
-  return Math.max(0, Math.ceil((open.closesAt - now.value) / 1000));
+  return countdown(open.closesAt);
 });
 
 const tally = computed(() => (checkIn.value?.status === "closed" ? checkIn.value.tally : null));

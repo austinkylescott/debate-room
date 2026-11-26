@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed } from "vue";
+import { useCountdown } from "../lib/serverClock";
 import { MOODS } from "../room/mood";
 import type { Intent, StageView } from "../room/room";
 import type { ExchangeEnd, Yielder } from "../room/surrounded";
@@ -28,26 +29,12 @@ const canVote = computed(
 const over = computed(() => surrounded.value.step === "summary");
 const checkInOpen = computed(() => props.stage.checkIn?.status === "open");
 
-// A clock for the exchange countdown, running only while someone is in the chair.
-const now = ref(Date.now());
-let clock: ReturnType<typeof setInterval> | undefined;
-watch(
-  () => chair.value !== null,
-  (running) => {
-    clearInterval(clock);
-    clock = undefined;
-    if (running) {
-      now.value = Date.now();
-      clock = setInterval(() => (now.value = Date.now()), 250);
-    }
-  },
-  { immediate: true },
-);
-onBeforeUnmount(() => clearInterval(clock));
+// The exchange countdown runs on the server's clock, only while someone is in the chair.
+const secondsLeft = useCountdown(() => chair.value !== null);
 
 const timeLeft = computed(() => {
   if (!chair.value) return "";
-  const seconds = Math.max(0, Math.ceil((chair.value.endsAt - now.value) / 1000));
+  const seconds = secondsLeft(chair.value.endsAt);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 });
 

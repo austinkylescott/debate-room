@@ -5,9 +5,16 @@
 // or a downloaded copy. Pure and dependency-free like the rest of the Room module.
 
 import type { Format } from "./lineup";
+import {
+  type MoodOverviewEntry,
+  moodOverview,
+  type PositionChange,
+  type PromptMoodInsights,
+  promptMoodInsights,
+} from "./recap-moods";
 import { HOST_PERSON_ID, type JoinRole, type RecapEvent } from "./room";
 import type { RevealCause } from "./round";
-import { type Distribution, distribution } from "./spectrum";
+import { type Distribution, distribution, nearestNotch } from "./spectrum";
 import {
   type ExchangeEnd,
   summarizeExchanges,
@@ -21,6 +28,8 @@ export interface RecapSummary {
   /** Everyone who has had the Floor, most Floor time first. */
   floorTime: { personId: string; nickname: string; ms: number }[];
   rounds: RecapRound[];
+  /** Across the Room: every Prompt played, with its Moods at a glance. */
+  moodOverview: MoodOverviewEntry[];
   /** When the Host ended the Room, or null while it's Live. */
   endedAt: number | null;
 }
@@ -64,10 +73,11 @@ export interface RecapPrompt {
   /** Set for a Surrounded Prompt. */
   surrounded: RecapSurrounded | null;
   /**
-   * The Prompt's Mood changes and its Check-in close, as recorded. Mood insights
-   * (timelines, tallies, links to position changes) are built on these later.
+   * The Prompt's Mood changes and its Check-in close, as recorded. The Mood
+   * insights below are derived from these.
    */
   moodEvents: MoodRecapEvent[];
+  moods: PromptMoodInsights;
 }
 
 export interface RecapSpectrum {
@@ -134,6 +144,9 @@ export type MoodRecapEvent = Extract<
   { type: "mood-changed" } | { type: "mood-check-in-closed" }
 >;
 
+/** A Round as the events are read: its Prompts' Mood insights come once all are in. */
+type RoundSoFar = Omit<RecapRound, "prompts"> & { prompts: Omit<RecapPrompt, "moods">[] };
+
 /**
  * Builds the Recap's derived views from its events. Floor turns still running
  * count up to `now`, or up to the end of the Room once it has Ended. Events this
@@ -152,7 +165,7 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
     floorSince.delete(personId);
   };
 
-  const rounds: RecapRound[] = [];
+  const rounds: RoundSoFar[] = [];
   let endedAt: number | null = null;
   const currentRound = () => rounds.at(-1);
   const currentPrompt = () => currentRound()?.prompts.at(-1);
@@ -346,14 +359,46 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
 
   for (const personId of floorSince.keys()) endFloorTurn(personId, endedAt ?? now);
 
+  const recapRounds: RecapRound[] = rounds.map((round) => ({
+    ...round,
+    prompts: round.prompts.map((prompt) => ({
+      ...prompt,
+      moods: promptMoodInsights(prompt.moodEvents, positionChanges(prompt), nickname),
+    })),
+  }));
+
   return {
     people: people(events, nickname),
     floorTime: [...floorMs]
       .map(([personId, ms]) => ({ personId, nickname: nickname(personId), ms }))
       .sort((a, b) => b.ms - a.ms),
-    rounds,
+    rounds: recapRounds,
+    moodOverview: moodOverview(recapRounds),
     endedAt,
   };
+}
+
+/**
+ * What counts as someone changing where they stand on a Prompt, for its Mood
+ * links. Spectrum: each move after the reveal that ends nearest a different
+ * notch from where it started (so each notch crossed, and a settle that isn't
+ * mere jitter). Middle Ground: each step-in and step-back after the reveal.
+ * Surrounded: none. Nobody there takes a position on the Prompt (the Center
+ * defends it throughout), and taking the chair, yielding or a removal vote is
+ * about the exchange, not a change of stance, so its Prompts get Mood
+ * timelines and Check-ins but no Mood links.
+ */
+function positionChanges(prompt: Omit<RecapPrompt, "moods">): PositionChange[] {
+  const moved: PositionChange[] = (prompt.spectrum?.moves ?? [])
+    .filter((m) => m.from === null || nearestNotch(m.from) !== nearestNotch(m.to))
+    .map((m) => ({ at: m.at, personId: m.personId, kind: "moved", from: m.from, to: m.to }));
+  const stepped: PositionChange[] = (prompt.middleGround?.steps ?? []).map((step) => ({
+    at: step.at,
+    personId: step.personId,
+    kind: step.steppedIn ? "stepped-in" : "stepped-back",
+    side: step.side,
+  }));
+  return [...moved, ...stepped];
 }
 
 /** Who joined the Room and how, as the events tell it. */
