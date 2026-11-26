@@ -12,6 +12,7 @@ import {
   endMiddleGroundPrompt,
   everyoneChosen,
   type MiddleGround,
+  type MiddleGroundPrompt,
   type MiddleGroundRejectionCode,
   type MiddleGroundView,
   moveToSide,
@@ -260,8 +261,7 @@ export function moveSide(current: CurrentRound, personId: string, side: SideInde
 
 /** The Host reveals the current Prompt's positions or choices without waiting for everyone. */
 export function revealPositions(current: CurrentRound): RoundOutcome {
-  const step =
-    current.format === "spectrum" ? current.spectrum.step : current.middleGround.prompt.step;
+  const { step } = currentPromptState(current);
   if (step !== "positioning" && step !== "choosing") {
     return refuse("already-revealed", "Everyone's already out in the open.");
   }
@@ -275,9 +275,7 @@ export function revealPositions(current: CurrentRound): RoundOutcome {
  * from the next one.
  */
 export function advanceRound(current: CurrentRound, people: RoundPeople): RoundOutcome {
-  const step =
-    current.format === "spectrum" ? current.spectrum.step : current.middleGround.prompt.step;
-  switch (step) {
+  switch (currentPromptState(current).step) {
     case "positioning":
     case "choosing":
       return refuse("not-revealed", "Reveal before moving on.");
@@ -326,9 +324,7 @@ export function stageView(
 ): StageView {
   const viewerId = viewer.personId;
   const prompt = currentPrompt(current);
-  const playingNow =
-    current.format === "spectrum" ? current.spectrum.playing : current.middleGround.prompt.playing;
-  const playing = playingNow.includes(viewerId);
+  const playing = currentPromptState(current).playing.includes(viewerId);
   // Only those not Playing this Prompt see positions before the reveal. Each
   // Prompt starts fresh, so seeing this one gives a late joiner nothing for the next.
   const seesHidden = !playing;
@@ -471,6 +467,11 @@ function revealed(current: CurrentRound, by: RevealCause): RoundOutcome {
       },
     ],
   };
+}
+
+/** The Format's state for the current Prompt: its step and who is Playing it. */
+function currentPromptState(current: CurrentRound): SpectrumPrompt | MiddleGroundPrompt {
+  return current.format === "spectrum" ? current.spectrum : current.middleGround.prompt;
 }
 
 function currentPrompt(current: CurrentRound): Prompt {

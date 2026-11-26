@@ -251,7 +251,7 @@ export function apply(state: RoomState, intent: Intent, actor: Actor, now: numbe
         moveSide(round, intent.personId, intent.side),
       );
     case "reveal-positions":
-      return runCurrentRound(state, actor, "reveal the positions", now, revealPositions);
+      return runCurrentRound(state, actor, "reveal", now, revealPositions);
     case "advance":
       return runCurrentRound(state, actor, "move the Round on", now, (round) =>
         advanceRound(round, roundPeople(state)),
