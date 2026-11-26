@@ -75,6 +75,14 @@ export interface SurroundedChange {
   surrounded: Surrounded;
   ended: EndedExchange | null;
   started: string | null;
+  /** A removal vote cast or taken back, if this change was one. */
+  vote?: RemovalVote;
+}
+
+export interface RemovalVote {
+  personId: string;
+  challengerId: string;
+  remove: boolean;
 }
 
 type Outcome = SurroundedChange | { rejection: SurroundedRejection };
@@ -188,10 +196,12 @@ export function voteToRemove(surrounded: Surrounded, personId: string, remove: b
   if (!voters(surrounded).includes(personId)) {
     return refuse("cant-vote", "Only Challengers not in the chair vote to remove the Challenger.");
   }
+  if (chair.votes.includes(personId) === remove) return unchangedExchanges(surrounded);
   const votes = chair.votes.filter((id) => id !== personId);
   if (remove) votes.push(personId);
-  const voted = withChair(surrounded, { ...chair, votes });
-  return removeIfMajority(voted);
+  const outcome = removeIfMajority(withChair(surrounded, { ...chair, votes }));
+  if ("rejection" in outcome) return outcome;
+  return { ...outcome, vote: { personId, challengerId: chair.challengerId, remove } };
 }
 
 /** The Center or the Challenger in the chair yields, ending the exchange. */

@@ -395,17 +395,8 @@ export function playRound(
       return inSurrounded(current, (s) => becomeCenter(s, personId), { centerBy: "volunteer" });
     case "take-chair":
       return inSurrounded(current, (s) => takeChair(s, personId, now), { chairBy: "challenger" });
-    case "vote-remove": {
-      if (current.format !== "surrounded") return WRONG_FORMAT;
-      const chair = current.surrounded.prompt.chair;
-      const voted = chair?.votes.includes(personId) ?? false;
-      return inSurrounded(current, (s) => voteToRemove(s, personId, intent.remove), {
-        vote:
-          chair && voted !== intent.remove
-            ? { personId, challengerId: chair.challengerId, remove: intent.remove }
-            : undefined,
-      });
-    }
+    case "vote-remove":
+      return inSurrounded(current, (s) => voteToRemove(s, personId, intent.remove));
     case "yield-chair":
       return inSurrounded(current, (s) => yieldExchange(s, personId));
   }
@@ -908,7 +899,6 @@ function inSurrounded(
   record: {
     centerBy?: "host" | "volunteer";
     chairBy?: "challenger" | "host";
-    vote?: { personId: string; challengerId: string; remove: boolean };
   } = {},
 ): RoundOutcome {
   if (current.format !== "surrounded") return WRONG_FORMAT;
@@ -916,7 +906,7 @@ function inSurrounded(
   if ("rejection" in outcome) return outcome;
   const base = { roundId: current.roundId, promptId: currentPrompt(current).id };
   const events: RoundEvent[] = [];
-  if (record.vote) events.push({ type: "removal-vote", ...base, ...record.vote });
+  if (outcome.vote) events.push({ type: "removal-vote", ...base, ...outcome.vote });
   if (outcome.ended) events.push({ type: "exchange-ended", ...base, ...outcome.ended });
   const { centerId } = outcome.surrounded;
   if (record.centerBy && centerId !== null && centerId !== current.surrounded.centerId) {
