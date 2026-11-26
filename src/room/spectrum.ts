@@ -72,6 +72,19 @@ export interface SpectrumView {
   yours: { position: number | null; lockedPosition: number | null } | null;
   /** The summary card: where people locked in, and where they ended up. Only once the Prompt ends. */
   summary: { before: Distribution; after: Distribution } | null;
+  /** Calling aids for the Host. Null until the reveal. */
+  flags: SpectrumFlags | null;
+}
+
+/** Who the Host might call on once positions are out. */
+export interface SpectrumFlags {
+  /** Person ids now nearest a different notch from the one they locked in nearest, in Waiting Room order. */
+  changedMind: string[];
+  /**
+   * Whoever is lowest and highest now. On a tie, whoever comes first in Waiting
+   * Room order. Null with fewer than two positions, or everyone in one spot.
+   */
+  furthestApart: { low: string; high: string } | null;
 }
 
 export function startSpectrumPrompt(playing: string[]): SpectrumPrompt {
@@ -173,18 +186,48 @@ export function viewSpectrum(
             after: distribution(Object.values(currentPositions(prompt))),
           }
         : null,
+    flags: prompt.step === "positioning" ? null : flagsOf(prompt),
   };
+}
+
+function flagsOf(prompt: SpectrumPrompt): SpectrumFlags {
+  return {
+    changedMind: prompt.playing.filter((id) => {
+      const { current, locked } = positionOf(prompt, id);
+      return current !== null && locked !== null && nearestNotch(current) !== nearestNotch(locked);
+    }),
+    furthestApart: furthestApart(prompt),
+  };
+}
+
+function furthestApart(prompt: SpectrumPrompt): SpectrumFlags["furthestApart"] {
+  let low: { id: string; at: number } | null = null;
+  let high: { id: string; at: number } | null = null;
+  for (const id of prompt.playing) {
+    const at = positionOf(prompt, id).current;
+    if (at === null) continue;
+    if (!low || at < low.at) low = { id, at };
+    if (!high || at > high.at) high = { id, at };
+  }
+  return low && high && low.at < high.at ? { low: low.id, high: high.id } : null;
 }
 
 /** Counts positions by nearest notch. A position halfway between two counts toward agreeing. */
 function distribution(positions: (number | null)[]): Distribution {
   const counts = SPECTRUM_NOTCHES.map(() => 0);
-  const step = (SPECTRUM_MAX - SPECTRUM_MIN) / (SPECTRUM_NOTCHES.length - 1);
   for (const position of positions) {
-    if (position === null) continue;
-    counts[Math.round((position - SPECTRUM_MIN) / step)]! += 1;
+    if (position !== null) counts[nearestNotch(position)]! += 1;
   }
   return counts;
+}
+
+/**
+ * The index in {@link SPECTRUM_NOTCHES} of the notch nearest a position. The
+ * boundaries between notches sit halfway; a position on one counts toward agreeing.
+ */
+function nearestNotch(position: number): number {
+  const step = (SPECTRUM_MAX - SPECTRUM_MIN) / (SPECTRUM_NOTCHES.length - 1);
+  return Math.round((position - SPECTRUM_MIN) / step);
 }
 
 function checkMove(

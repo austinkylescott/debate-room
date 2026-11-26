@@ -489,6 +489,11 @@ h3 {
   transition: left 0.15s ease-out;
 }
 
+.marker.apart {
+  outline: 2px solid var(--text-h);
+  outline-offset: 1px;
+}
+
 .marker.hover {
   background: var(--surface);
   color: var(--accent);

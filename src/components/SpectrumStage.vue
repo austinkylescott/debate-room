@@ -65,6 +65,25 @@ const summaryMax = computed(() => {
   return summary ? Math.max(1, ...summary.before, ...summary.after) : 1;
 });
 
+/** The Host's calling aids: who changed their mind, and who stands furthest apart. */
+const callingAids = computed(() => {
+  const flags = spectrum.value.flags;
+  if (!props.isHost || !flags || spectrum.value.step !== "revealed") return null;
+  const apart = flags.furthestApart;
+  return spectrum.value.people
+    .map((person) => ({
+      ...person,
+      changedMind: flags.changedMind.includes(person.personId),
+      furthestApart: apart?.low === person.personId || apart?.high === person.personId,
+    }))
+    .filter((person) => person.changedMind || person.furthestApart);
+});
+
+const furthestIds = computed(() => {
+  const apart = callingAids.value ? spectrum.value.flags?.furthestApart : null;
+  return apart ? [apart.low, apart.high] : [];
+});
+
 function percent(position: number) {
   return `${((position - SPECTRUM_MIN) / (SPECTRUM_MAX - SPECTRUM_MIN)) * 100}%`;
 }
@@ -90,6 +109,7 @@ function percent(position: number) {
         <span
           v-else-if="person.position !== null"
           class="marker"
+          :class="{ apart: furthestIds.includes(person.personId) }"
           :style="{ left: percent(person.position) }"
         >
           {{ person.nickname }}
@@ -153,6 +173,19 @@ function percent(position: number) {
           <span v-else class="tag subtle">Deciding</span>
         </li>
       </ul>
+    </template>
+
+    <!-- Who the Host might call on, once positions are out -->
+    <template v-if="callingAids">
+      <h2>Who to call on</h2>
+      <ul v-if="callingAids.length" class="people">
+        <li v-for="person in callingAids" :key="person.personId">
+          <span class="name">{{ person.nickname }}</span>
+          <span v-if="person.changedMind" class="tag">Changed their mind</span>
+          <span v-if="person.furthestApart" class="tag subtle">Furthest apart</span>
+        </li>
+      </ul>
+      <p v-else class="muted">No one has changed their mind, and no one stands apart yet.</p>
     </template>
 
     <!-- Summary card -->
