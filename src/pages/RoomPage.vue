@@ -90,12 +90,14 @@ function claimHostWithPin() {
           v-if="view.stage?.format === 'spectrum'"
           :stage="view.stage"
           is-host
+          :person-id="personId"
           @send="send"
         />
         <MiddleGroundStage
           v-else-if="view.stage?.format === 'middle-ground'"
           :stage="view.stage"
           is-host
+          :person-id="personId"
           @send="send"
         />
         <section v-else-if="view.phase === 'live'" class="card">
@@ -163,12 +165,14 @@ function claimHostWithPin() {
         v-if="view.stage?.format === 'spectrum'"
         :stage="view.stage"
         :is-host="false"
+        :person-id="personId"
         @send="send"
       />
       <MiddleGroundStage
         v-else-if="view.stage?.format === 'middle-ground'"
         :stage="view.stage"
         :is-host="false"
+        :person-id="personId"
         @send="send"
       />
       <FloorPanel

@@ -8,8 +8,10 @@ import {
   type Intent,
   type RoomState,
   type StageView,
+  tick,
   viewFor,
 } from "./room";
+import { CHECK_IN_MS } from "./mood";
 import type { RoundSetup } from "./lineup";
 
 const HOST_SECRET = "host-secret-123";
@@ -28,9 +30,19 @@ function attempt(state: RoomState, intent: Intent, actor: Actor): ApplyResult {
   return apply(state, intent, actor, clock);
 }
 
+/** Lets the Mood Check-in that opens when a Prompt ends run out its time. */
+const waitOutCheckIn = "wait-out-check-in";
+
+type Step = [Intent, Actor] | typeof waitOutCheckIn;
+
 /** Applies intents in order, failing loudly if any is rejected. */
-function run(state: RoomState, ...steps: [Intent, Actor][]): RoomState {
-  return steps.reduce((current, [intent, actor], i) => {
+function run(state: RoomState, ...steps: Step[]): RoomState {
+  return steps.reduce((current, step, i) => {
+    if (step === waitOutCheckIn) {
+      clock += CHECK_IN_MS;
+      return tick(current, clock).state;
+    }
+    const [intent, actor] = step;
     const result = attempt(current, intent, actor);
     if (result.rejection) throw new Error(`step ${i} rejected: ${result.rejection.message}`);
     return result.state;
@@ -153,6 +165,7 @@ describe("hidden positions before the reveal", () => {
       [{ type: "join", nickname: "Riley" }, riley],
       [reveal, host],
       [advance, host],
+      waitOutCheckIn,
       [advance, host],
       [lockIn(40), alex],
     );
@@ -246,7 +259,7 @@ describe("advancing Prompts", () => {
     run(twoPrompts(), [lockIn(0), alex], [lockIn(60), sam], [move(80), alex]);
 
   it("ends a revealed Prompt with a summary of the distribution before and after", () => {
-    const spectrum = stageOf(run(revealedFirst(), [advance, host]), sam).spectrum;
+    const spectrum = stageOf(run(revealedFirst(), [advance, host], waitOutCheckIn), sam).spectrum;
     expect(spectrum.step).toBe("summary");
     // Notches: Strongly Disagree, Disagree, Neutral, Agree, Strongly Agree.
     // Before: Alex at 0 and Sam at 60 (nearest Neutral). After: Alex moved to 80 (nearest Agree).
@@ -259,7 +272,10 @@ describe("advancing Prompts", () => {
   });
 
   it("goes from the summary to the next Prompt, with everyone positioning again", () => {
-    const stage = stageOf(run(revealedFirst(), [advance, host], [advance, host]), alex);
+    const stage = stageOf(
+      run(revealedFirst(), [advance, host], waitOutCheckIn, [advance, host]),
+      alex,
+    );
     expect(stage.prompt.text).toBe("Pineapple on pizza");
     expect(stage.promptNumber).toBe(2);
     expect(stage.spectrum.step).toBe("positioning");
@@ -277,7 +293,7 @@ describe("advancing Prompts", () => {
 
   it("returns everyone to the Waiting Room after the last Prompt's summary", () => {
     const state = run(roomWith({ prompts: ["Cats beat dogs"] }), [start(), host], [reveal, host]);
-    const result = attempt(run(state, [advance, host]), advance, host);
+    const result = attempt(run(state, [advance, host], waitOutCheckIn), advance, host);
     for (const viewer of [host, alex, sam]) expect(viewFor(result.state, viewer).stage).toBeNull();
     expect(result.recapEvents).toContainEqual(expect.objectContaining({ type: "round-ended" }));
   });
@@ -299,13 +315,19 @@ describe("the Round lifecycle", () => {
     let state = roomWith({ prompts: ["First"] }, { prompts: ["Second"] });
     expect(viewFor(state, host).nextRoundId).toBe("r1");
     expect(viewFor(state, alex).nextRoundId).toBeNull();
-    state = run(state, [start(), host], [reveal, host], [advance, host], [advance, host]);
+    state = run(state, [start(), host], [reveal, host], [advance, host], waitOutCheckIn, [
+      advance,
+      host,
+    ]);
     expect(viewFor(state, host).nextRoundId).toBe("r3");
   });
 
   it("starts the next unplayed Round in the Lineup each time", () => {
     let state = roomWith({ prompts: ["First"] }, { prompts: ["Second"] });
-    state = run(state, [start(), host], [reveal, host], [advance, host], [advance, host]);
+    state = run(state, [start(), host], [reveal, host], [advance, host], waitOutCheckIn, [
+      advance,
+      host,
+    ]);
     expect(stageOf(run(state, [start(), host]), alex).prompt.text).toBe("Second");
   });
 
@@ -315,6 +337,7 @@ describe("the Round lifecycle", () => {
       [start(), host],
       [reveal, host],
       [advance, host],
+      waitOutCheckIn,
       [advance, host],
     );
     expect(attempt(state, start(), host).rejection?.code).toBe("no-round-to-start");
@@ -354,7 +377,7 @@ describe("the Round lifecycle", () => {
       [start(), host],
       [{ type: "remove-round", roundId: "r1" }, host],
     );
-    const next = run(state, [reveal, host], [advance, host], [advance, host]);
+    const next = run(state, [reveal, host], [advance, host], waitOutCheckIn, [advance, host]);
     expect(stageOf(next, alex).prompt.text).toBe("B");
   });
 });
@@ -372,7 +395,7 @@ describe("people coming and going mid-Round", () => {
     const revealed = run(state, [lockIn(10), alex], [lockIn(90), sam]);
     expect(stageOf(revealed, riley).spectrum.step).toBe("revealed");
 
-    const next = run(revealed, [advance, host], [advance, host]);
+    const next = run(revealed, [advance, host], waitOutCheckIn, [advance, host]);
     expect(stageOf(next, riley).playing).toBe(true);
     expect(stageOf(next, host).spectrum.people.map((p) => p.nickname)).toEqual([
       "Alex",
@@ -388,6 +411,7 @@ describe("people coming and going mid-Round", () => {
       [lockIn(0), alex],
       [lockIn(100), sam],
       [advance, host],
+      waitOutCheckIn,
     );
     const after = run(state, [{ type: "remove-person", personId: "p2" }, host]);
     expect(stageOf(after, alex).spectrum.summary).toEqual({

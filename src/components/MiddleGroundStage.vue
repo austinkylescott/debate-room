@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { SideIndex } from "../room/middle-ground";
+import { MOODS } from "../room/mood";
 import type { Intent, StageView } from "../room/room";
+import MoodPanel from "./MoodPanel.vue";
 
 const props = defineProps<{
   stage: Extract<StageView, { format: "middle-ground" }>;
   isHost: boolean;
+  personId: string;
 }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
@@ -48,6 +51,14 @@ function moveToOtherSide(personId: string, side: SideIndex) {
   emit("send", { type: "move-to-side", personId, side: side === 0 ? 1 : 0 });
 }
 
+/** The emoji for someone's current Mood, shown next to their name. Empty if they have none. */
+function moodOf(personId: string): string {
+  const mood = props.stage.moods[personId];
+  return MOODS.find((m) => m.id === mood)?.emoji ?? "";
+}
+
+const checkInOpen = computed(() => props.stage.checkIn?.status === "open");
+
 const advanceLabel = computed(() => {
   if (middle.value.step === "revealed") return "End this Prompt";
   return props.stage.promptNumber < props.stage.promptCount
@@ -69,7 +80,7 @@ const advanceLabel = computed(() => {
         <h2>{{ middle.sides[side] }}</h2>
         <ul class="people">
           <li v-for="person in columns.sides[side]" :key="person.personId">
-            <span class="name">{{ person.nickname }}</span>
+            <span class="name">{{ moodOf(person.personId) }} {{ person.nickname }}</span>
             <template v-if="middle.step === 'choosing' && person.playing">
               <span v-if="person.chosen && middle.choicesVisible" class="tag subtle">Staying</span>
               <span v-else-if="person.chosen" class="tag">Chosen</span>
@@ -93,7 +104,7 @@ const advanceLabel = computed(() => {
         </h2>
         <ul class="people">
           <li v-for="person in columns.inMiddle" :key="person.personId">
-            <span class="name">{{ person.nickname }}</span>
+            <span class="name">{{ moodOf(person.personId) }} {{ person.nickname }}</span>
             <span v-if="person.side !== null" class="tag subtle">{{
               middle.sides[person.side]
             }}</span>
@@ -158,6 +169,8 @@ const advanceLabel = computed(() => {
       You joined mid-Prompt: you'll be in from the next one.
     </p>
 
+    <MoodPanel :stage="stage" :person-id="personId" @send="emit('send', $event)" />
+
     <p v-if="middle.step === 'choosing'" class="muted">
       <span class="count">{{ chosenCount }} of {{ playingCount }} have chosen</span>
     </p>
@@ -186,7 +199,12 @@ const advanceLabel = computed(() => {
       >
         Reveal now
       </button>
-      <button v-else class="primary" type="button" @click="emit('send', { type: 'advance' })">
+      <button
+        v-else-if="!checkInOpen"
+        class="primary"
+        type="button"
+        @click="emit('send', { type: 'advance' })"
+      >
         {{ advanceLabel }}
       </button>
     </div>

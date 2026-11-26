@@ -8,8 +8,10 @@ import {
   type Intent,
   type RoomState,
   type StageView,
+  tick,
   viewFor,
 } from "./room";
+import { CHECK_IN_MS, type Mood } from "./mood";
 
 const HOST_SECRET = "host-secret-123";
 const host: Actor = { token: "host-device" };
@@ -24,9 +26,19 @@ function attempt(state: RoomState, intent: Intent, actor: Actor): ApplyResult {
   return apply(state, intent, actor, clock);
 }
 
+/** Lets the Mood Check-in that opens when a Prompt ends run out its time. */
+const waitOutCheckIn = "wait-out-check-in";
+
+type Step = [Intent, Actor] | typeof waitOutCheckIn;
+
 /** Applies intents in order, failing loudly if any is rejected. */
-function run(state: RoomState, ...steps: [Intent, Actor][]): RoomState {
-  return steps.reduce((current, [intent, actor], i) => {
+function run(state: RoomState, ...steps: Step[]): RoomState {
+  return steps.reduce((current, step, i) => {
+    if (step === waitOutCheckIn) {
+      clock += CHECK_IN_MS;
+      return tick(current, clock).state;
+    }
+    const [intent, actor] = step;
     const result = attempt(current, intent, actor);
     if (result.rejection) throw new Error(`step ${i} rejected: ${result.rejection.message}`);
     return result.state;
@@ -39,6 +51,7 @@ const stepIn: Intent = { type: "choose-middle", stepIn: true };
 const stay: Intent = { type: "choose-middle", stepIn: false };
 const reveal: Intent = { type: "reveal-positions" };
 const advance: Intent = { type: "advance" };
+const setMood = (mood: Mood): Intent => ({ type: "set-mood", mood });
 
 /** A Live Room with Alex and Sam in the Waiting Room and a Middle Ground Round in the Lineup. */
 function roomWith(prompts: string[] = ["Cats beat dogs", "Pineapple on pizza"]): RoomState {
@@ -266,7 +279,7 @@ describe("the summary card", () => {
     );
 
   it("counts how many stepped in from each Side when the Prompt ends", () => {
-    const state = run(revealedFirst(), [stay, riley], [advance, host]);
+    const state = run(revealedFirst(), [stay, riley], [advance, host], waitOutCheckIn);
     for (const viewer of [host, alex, riley]) {
       const view = middleOf(state, viewer);
       expect(view.step).toBe("summary");
@@ -279,6 +292,7 @@ describe("the summary card", () => {
       revealedFirst(),
       [{ type: "move-to-side", personId: "p1", side: 1 }, host],
       [advance, host],
+      waitOutCheckIn,
     );
     expect(middleOf(state, alex).summary).toEqual({ steppedIn: [0, 2], onSide: [1, 2] });
   });
@@ -303,16 +317,15 @@ describe("the summary card", () => {
   });
 
   it("keeps the summary as it was when someone is removed afterwards", () => {
-    const state = run(
-      revealedFirst(),
-      [advance, host],
-      [{ type: "remove-person", personId: "p1" }, host],
-    );
+    const state = run(revealedFirst(), [advance, host], waitOutCheckIn, [
+      { type: "remove-person", personId: "p1" },
+      host,
+    ]);
     expect(middleOf(state, sam).summary).toEqual({ steppedIn: [1, 1], onSide: [2, 1] });
   });
 
   it("starts the next Prompt with everyone choosing again on the same Sides", () => {
-    const state = run(revealedFirst(), [advance, host], [advance, host]);
+    const state = run(revealedFirst(), [advance, host], waitOutCheckIn, [advance, host]);
     const view = middleOf(state, alex);
     expect(viewFor(state, alex).stage?.prompt.text).toBe("Pineapple on pizza");
     expect(view.step).toBe("choosing");
@@ -327,9 +340,11 @@ describe("the summary card", () => {
     const state = run(
       revealedFirst(),
       [advance, host],
+      waitOutCheckIn,
       [advance, host],
       [reveal, host],
       [advance, host],
+      waitOutCheckIn,
       [advance, host],
     );
     expect(viewFor(state, alex).stage).toBeNull();
@@ -338,6 +353,75 @@ describe("the summary card", () => {
   it("can't skip the reveal", () => {
     const state = run(roomWith(), [start(), host]);
     expect(attempt(state, advance, host).rejection?.code).toBe("not-revealed");
+  });
+});
+
+describe("Moods in a Middle Ground Round", () => {
+  const revealed = () =>
+    run(
+      roomWith(),
+      [start(), host],
+      [pickSide(0), alex],
+      [pickSide(1), sam],
+      [stepIn, alex],
+      [stay, sam],
+    );
+
+  it("shows a Playing Participant's Mood live to everyone", () => {
+    const state = run(revealed(), [setMood("surprised"), sam]);
+    for (const viewer of [host, alex, sam]) {
+      expect(viewFor(state, viewer).stage?.moods).toEqual({ p2: "surprised" });
+    }
+  });
+
+  it("refuses a Mood from someone who joined mid-Prompt", () => {
+    const state = run(revealed(), [{ type: "join", nickname: "Riley" }, riley]);
+    expect(attempt(state, setMood("happy"), riley).rejection?.code).toBe("not-playing");
+  });
+
+  it("opens a Mood Check-in when the Prompt ends, holding back the summary card", () => {
+    const result = attempt(revealed(), advance, host);
+    const stage = viewFor(result.state, alex).stage;
+    expect(stage?.checkIn).toEqual({ status: "open", closesAt: clock + CHECK_IN_MS, answered: [] });
+    expect(middleOf(result.state, alex).summary).toBeNull();
+    expect(result.scheduled).toBe(clock + CHECK_IN_MS);
+    expect(attempt(result.state, advance, host).rejection?.code).toBe("check-in-open");
+  });
+
+  it("closes the Check-in once everyone Playing has answered, then shows the summary", () => {
+    const state = run(revealed(), [advance, host], [setMood("love"), alex]);
+    const result = attempt(state, setMood("angry"), sam);
+    expect(viewFor(result.state, host).stage?.checkIn).toMatchObject({ status: "closed" });
+    expect(middleOf(result.state, host).summary).toEqual({ steppedIn: [1, 0], onSide: [1, 1] });
+    expect(result.recapEvents).toContainEqual(
+      expect.objectContaining({
+        type: "mood-check-in-closed",
+        by: "everyone-answered",
+        moods: { p1: "love", p2: "angry" },
+      }),
+    );
+  });
+
+  it("closes the Check-in after 15 seconds, recording anyone silent as no Mood", () => {
+    const opened = attempt(revealed(), advance, host);
+    const answered = attempt(opened.state, setMood("happy"), alex);
+    const closed = tick(answered.state, opened.scheduled!);
+    expect(closed.recapEvents).toContainEqual(
+      expect.objectContaining({
+        type: "mood-check-in-closed",
+        by: "timeout",
+        moods: { p1: "happy", p2: null },
+      }),
+    );
+    expect(middleOf(closed.state, alex).summary).not.toBeNull();
+  });
+
+  it("starts the next Prompt with no Moods", () => {
+    const state = run(revealed(), [setMood("happy"), alex], [advance, host], waitOutCheckIn, [
+      advance,
+      host,
+    ]);
+    expect(viewFor(state, alex).stage?.moods).toEqual({});
   });
 });
 
@@ -353,7 +437,14 @@ describe("people coming and going mid-Round", () => {
     );
     expect(middleOf(state, riley).yours).toEqual({ side: 1, playing: false, inMiddle: null });
     expect(attempt(state, stepIn, riley).rejection?.code).toBe("not-playing");
-    const next = run(state, [stay, sam], [advance, host], [advance, host], [stepIn, riley]);
+    const next = run(
+      state,
+      [stay, sam],
+      [advance, host],
+      waitOutCheckIn,
+      [advance, host],
+      [stepIn, riley],
+    );
     expect(middleOf(next, riley).yours).toEqual({ side: 1, playing: true, inMiddle: true });
   });
 
