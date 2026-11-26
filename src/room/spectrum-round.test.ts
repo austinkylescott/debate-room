@@ -356,14 +356,6 @@ describe("the Round lifecycle", () => {
     expect(attempt(roomWith({ prompts: [] }), start(), host).rejection?.code).toBe("round-empty");
   });
 
-  it("doesn't play Surrounded Rounds yet", () => {
-    const state = roomWith({
-      setup: { format: "surrounded", centerId: null, exchangeSeconds: 120 },
-      prompts: ["A"],
-    });
-    expect(attempt(state, start(), host).rejection?.code).toBe("format-not-available");
-  });
-
   it("records the start in the Recap, with whether the Host is Playing", () => {
     const result = attempt(roomWith({ prompts: ["A"] }), start(true), host);
     expect(result.recapEvents).toContainEqual(
