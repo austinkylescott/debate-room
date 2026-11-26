@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import FloorPanel from "../components/FloorPanel.vue";
 import InviteCard from "../components/InviteCard.vue";
 import LineupEditor from "../components/LineupEditor.vue";
 import LineupPreview from "../components/LineupPreview.vue";
@@ -122,6 +123,14 @@ function claimHostWithPin() {
             <p class="muted">Add a Round to the Lineup to keep going.</p>
           </template>
         </section>
+        <FloorPanel
+          v-if="view.floor"
+          :floor="view.floor"
+          :people="view.waitingRoom?.people ?? []"
+          :you-id="personId"
+          is-host
+          @send="send"
+        />
         <section class="card">
           <p class="eyebrow">Live</p>
           <h2>Invite your friends</h2>
@@ -148,19 +157,29 @@ function claimHostWithPin() {
       </section>
     </template>
 
-    <!-- Participant: the Stage, while a Round is being played -->
-    <SpectrumStage
-      v-else-if="view.you.role === 'participant' && view.stage?.format === 'spectrum'"
-      :stage="view.stage"
-      :is-host="false"
-      @send="send"
-    />
-    <MiddleGroundStage
-      v-else-if="view.you.role === 'participant' && view.stage?.format === 'middle-ground'"
-      :stage="view.stage"
-      :is-host="false"
-      @send="send"
-    />
+    <!-- Participant: the Stage, while a Round is being played, and the Floor -->
+    <template v-else-if="view.you.role === 'participant'">
+      <SpectrumStage
+        v-if="view.stage?.format === 'spectrum'"
+        :stage="view.stage"
+        :is-host="false"
+        @send="send"
+      />
+      <MiddleGroundStage
+        v-else-if="view.stage?.format === 'middle-ground'"
+        :stage="view.stage"
+        :is-host="false"
+        @send="send"
+      />
+      <FloorPanel
+        v-if="view.floor"
+        :floor="view.floor"
+        :people="view.waitingRoom?.people ?? []"
+        :you-id="personId"
+        :is-host="false"
+        @send="send"
+      />
+    </template>
 
     <!-- Visitor: not in the Room yet -->
     <section v-else-if="view.you.role === 'visitor'" class="card">

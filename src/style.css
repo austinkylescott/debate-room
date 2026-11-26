@@ -555,6 +555,20 @@ h3 {
   margin-top: 16px;
 }
 
+.floor h3 {
+  margin: 16px 0 8px;
+}
+
+.floor .grow {
+  flex: 1;
+  margin: 0;
+}
+
+.tag.time-up {
+  background: var(--error);
+  color: var(--surface);
+}
+
 /* The Stage: a Middle Ground Round */
 .middle-ground {
   display: grid;

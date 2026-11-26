@@ -109,6 +109,9 @@ export const MIN_EXCHANGE_SECONDS = 15;
 export const MAX_EXCHANGE_SECONDS = 600;
 export const DEFAULT_EXCHANGE_SECONDS = 120;
 
+/** The placeholder Sides a new Middle Ground Round starts with. */
+export const DEFAULT_SIDES: readonly [string, string] = ["Side A", "Side B"];
+
 export function emptyLineup(): Lineup {
   return { rounds: [], nextId: 1 };
 }
@@ -119,7 +122,7 @@ export function defaultSetup(format: Format, sides?: [string, string]): RoundSet
     case "spectrum":
       return { format };
     case "middle-ground":
-      return { format, sides: sides ?? ["Side A", "Side B"] };
+      return { format, sides: sides ?? [...DEFAULT_SIDES] };
     case "surrounded":
       return { format, centerId: null, exchangeSeconds: DEFAULT_EXCHANGE_SECONDS };
   }
