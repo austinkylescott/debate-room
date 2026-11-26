@@ -1,8 +1,8 @@
 // Views derived from the Recap's events: Floor time per person, and each Round
-// with its Prompts, reveals, moves and summary cards. Nothing here is stored:
-// it's all computed from the append-only event list, so a client can rebuild it
-// from the Recap stream or a downloaded copy. Pure and dependency-free like the
-// rest of the Room module.
+// with its Prompts: reveals, moves (Spectrum) or step-ins (Middle Ground),
+// summary cards and Mood events. Nothing here is stored: it's all computed from
+// the append-only event list, so a client can rebuild it from the Recap stream
+// or a downloaded copy. Pure and dependency-free like the rest of the Room module.
 
 import type { Format } from "./lineup";
 import { HOST_PERSON_ID, type RecapEvent } from "./room";
@@ -22,6 +22,8 @@ export interface RecapRound {
   format: Format;
   startedAt: number;
   endedAt: number | null;
+  /** Middle Ground: each Side someone picked, or was moved to by the Host, in order. */
+  sides: { at: number; personId: string; nickname: string; side: string; from: string | null }[];
   prompts: RecapPrompt[];
 }
 
@@ -33,20 +35,52 @@ export interface RecapPrompt {
   startedAt: number;
   /** When the Prompt ended, or its Round did. Null while it's being played. */
   endedAt: number | null;
-  revealed: {
-    at: number;
-    by: RevealCause;
-    positions: { personId: string; nickname: string; position: number | null }[];
-  } | null;
-  /** Moves after the reveal, in order. */
-  moves: { at: number; personId: string; nickname: string; from: number | null; to: number }[];
-  /** The summary card: where people locked in, and where they ended up. Only once the Prompt ends. */
-  summary: { before: Distribution; after: Distribution } | null;
+  /** Set for a Spectrum Prompt. */
+  spectrum: RecapSpectrum | null;
+  /** Set for a Middle Ground Prompt. */
+  middleGround: RecapMiddleGround | null;
   /**
    * The Prompt's Mood changes and its Check-in close, as recorded. Mood insights
    * (timelines, tallies, links to position changes) are built on these later.
    */
   moodEvents: MoodRecapEvent[];
+}
+
+export interface RecapSpectrum {
+  revealed: {
+    at: number;
+    by: RevealCause;
+    positions: { personId: string; nickname: string; position: number | null }[];
+  } | null;
+  /** Moves after the reveal, in order: each notch crossed, and where the slider settled. */
+  moves: {
+    at: number;
+    personId: string;
+    nickname: string;
+    from: number | null;
+    to: number;
+    reason: "notch" | "settled";
+  }[];
+  /** The summary card: where people locked in, and where they ended up. Only once the Prompt ends. */
+  summary: { before: Distribution; after: Distribution } | null;
+}
+
+export interface RecapMiddleGround {
+  revealed: {
+    at: number;
+    by: RevealCause;
+    /** Each Playing person's Side, and whether they stepped in (null if they didn't choose). */
+    choices: {
+      personId: string;
+      nickname: string;
+      side: string | null;
+      steppedIn: boolean | null;
+    }[];
+  } | null;
+  /** Step-ins and step-backs after the reveal, in order. */
+  steps: { at: number; personId: string; nickname: string; side: string; steppedIn: boolean }[];
+  /** The summary card: how many stepped in from each Side. Only once the Prompt ends. */
+  summary: { sides: { name: string; steppedIn: number; onSide: number }[] } | null;
 }
 
 export type MoodRecapEvent = Extract<
@@ -76,6 +110,10 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
   let endedAt: number | null = null;
   const currentRound = () => rounds.at(-1);
   const currentPrompt = () => currentRound()?.prompts.at(-1);
+  /** Middle Ground: each person's Side in the current Round. */
+  let sideOf = new Map<string, string>();
+  /** Spectrum: each person's last known position on the current Prompt. */
+  let positionOf = new Map<string, number | null>();
 
   for (const event of events) {
     switch (event.type) {
@@ -91,33 +129,41 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
           format: event.format,
           startedAt: event.at,
           endedAt: null,
+          sides: [],
           prompts: [],
         });
+        sideOf = new Map();
         break;
-      case "prompt-started":
-        currentRound()?.prompts.push({
+      case "prompt-started": {
+        const round = currentRound();
+        if (!round) break;
+        round.prompts.push({
           promptId: event.promptId,
           promptNumber: event.promptNumber,
           text: event.text,
           startedAt: event.at,
           endedAt: null,
-          revealed: null,
-          moves: [],
-          summary: null,
+          spectrum:
+            round.format === "spectrum" ? { revealed: null, moves: [], summary: null } : null,
+          middleGround:
+            round.format === "middle-ground" ? { revealed: null, steps: [], summary: null } : null,
           moodEvents: [],
         });
+        positionOf = new Map();
         break;
+      }
       case "mood-changed":
       case "mood-check-in-closed":
         currentPrompt()?.moodEvents.push(event);
         break;
       case "positions-revealed": {
-        const prompt = currentPrompt();
-        if (!prompt) break;
-        prompt.revealed = {
+        const spectrum = currentPrompt()?.spectrum;
+        if (!spectrum) break;
+        positionOf = new Map(Object.entries(event.positions));
+        spectrum.revealed = {
           at: event.at,
           by: event.by,
-          positions: Object.entries(event.positions).map(([personId, position]) => ({
+          positions: [...positionOf].map(([personId, position]) => ({
             personId,
             nickname: nickname(personId),
             position,
@@ -125,23 +171,72 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
         };
         break;
       }
-      case "position-moved":
-        currentPrompt()?.moves.push({
+      case "position-moved": {
+        const spectrum = currentPrompt()?.spectrum;
+        if (!spectrum) break;
+        spectrum.moves.push({
           at: event.at,
           personId: event.personId,
           nickname: nickname(event.personId),
-          from: event.from,
-          to: event.to,
+          from: positionOf.get(event.personId) ?? null,
+          to: event.position,
+          reason: event.reason,
+        });
+        positionOf.set(event.personId, event.position);
+        break;
+      }
+      case "side-picked":
+      case "side-changed": {
+        const round = currentRound();
+        if (!round) break;
+        const side = event.type === "side-picked" ? event.side : event.to;
+        round.sides.push({
+          at: event.at,
+          personId: event.personId,
+          nickname: nickname(event.personId),
+          side,
+          from: event.type === "side-changed" ? event.from : null,
+        });
+        sideOf.set(event.personId, side);
+        break;
+      }
+      case "choices-revealed": {
+        const middleGround = currentPrompt()?.middleGround;
+        if (!middleGround) break;
+        middleGround.revealed = {
+          at: event.at,
+          by: event.by,
+          choices: Object.entries(event.choices).map(([personId, steppedIn]) => ({
+            personId,
+            nickname: nickname(personId),
+            side: sideOf.get(personId) ?? null,
+            steppedIn,
+          })),
+        };
+        break;
+      }
+      case "stepped-in":
+      case "stepped-back":
+        currentPrompt()?.middleGround?.steps.push({
+          at: event.at,
+          personId: event.personId,
+          nickname: nickname(event.personId),
+          side: event.side,
+          steppedIn: event.type === "stepped-in",
         });
         break;
       case "prompt-ended": {
         const prompt = currentPrompt();
         if (!prompt) break;
         prompt.endedAt = event.at;
-        prompt.summary = {
-          before: distribution(Object.values(event.before)),
-          after: distribution(Object.values(event.after)),
-        };
+        if (event.format === "spectrum" && prompt.spectrum) {
+          prompt.spectrum.summary = {
+            before: distribution(Object.values(event.before)),
+            after: distribution(Object.values(event.after)),
+          };
+        } else if (event.format === "middle-ground" && prompt.middleGround) {
+          prompt.middleGround.summary = { sides: event.sides };
+        }
         break;
       }
       case "round-ended": {

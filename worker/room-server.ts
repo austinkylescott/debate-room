@@ -87,7 +87,7 @@ export class Room extends Server<Env> {
 
   /** Saves and broadcasts a change, and points the alarm at the Room's next due time. */
   async #settle(result: ApplyResult) {
-    if (result.expired) return this.#expire();
+    if (result.gone) return this.#discard(result.gone);
     if (result.state !== this.#state) {
       await this.#save(result.state, result.recapEvents);
       for (const connection of this.getConnections<ConnectionState>()) {
@@ -98,15 +98,15 @@ export class Room extends Server<Env> {
     else await this.ctx.storage.setAlarm(result.scheduled);
   }
 
-  /** The Room is gone, Recap and all: everyone connected is told so. */
-  async #expire() {
+  /** The Room is gone (expired or cancelled), Recap and all: everyone connected is told so. */
+  async #discard(why: "expired" | "cancelled") {
     this.#state = null;
     this.#recap = [];
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
     for (const connection of this.getConnections()) {
       send(connection, { type: "missing" });
-      connection.close(4404, "Room expired");
+      connection.close(4404, why === "expired" ? "Room expired" : "Room cancelled");
     }
   }
 

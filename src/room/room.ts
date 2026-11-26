@@ -44,6 +44,7 @@ import {
   advanceRound,
   type CurrentRound,
   leaveRound,
+  moveSide,
   nextRound,
   playRound,
   revealPositions,
@@ -76,13 +77,18 @@ export type Intent =
   | { type: "open-room" }
   /** Ends the Room for good. The Recap stays viewable until the Room expires. */
   | { type: "end-room" }
+  /** Discards a Room still in Planning, as if it had never been made. */
+  | { type: "cancel-room" }
   | { type: "set-participant-limit"; limit: number }
   | { type: "join"; nickname: string }
   | { type: "rename-person"; personId: string; nickname: string }
   | { type: "remove-person"; personId: string }
   /** Starts the next Round in the Lineup. */
   | { type: "start-round"; hostPlaying: boolean }
+  /** Reveals the current Prompt's positions (Spectrum) or choices (Middle Ground). */
   | { type: "reveal-positions" }
+  /** Middle Ground: the Host moves someone to a Side. */
+  | { type: "move-to-side"; personId: string; side: 0 | 1 }
   /** Moves the Round on: to the Prompt's summary, the next Prompt or the Waiting Room. */
   | { type: "advance" }
   | RoundIntent
@@ -91,6 +97,7 @@ export type Intent =
   | LineupIntent;
 
 export type RejectionCode =
+  | "room-already-open"
   | "nickname-invalid"
   | "nickname-taken"
   | "pin-invalid"
@@ -178,11 +185,14 @@ export interface ApplyResult {
   rejection?: Rejection;
   /**
    * When `tick` next needs to run: the soonest of the running timers and the
-   * Room's expiry. Left out only once the Room has expired.
+   * Room's expiry. Left out only once the Room is gone.
    */
   scheduled?: number;
-  /** The Room has expired: it is gone, with its Recap. */
-  expired?: true;
+  /**
+   * The Room is gone, Recap and all: it expired after {@link ROOM_EXPIRY_MS}
+   * without activity, or the Host cancelled it while it was in Planning.
+   */
+  gone?: "expired" | "cancelled";
 }
 
 export const HOST_PERSON_ID = "host";
@@ -286,7 +296,7 @@ export function createRoom(
 }
 
 export function apply(state: RoomState, intent: Intent, actor: Actor, now: number): ApplyResult {
-  if (isExpired(state, now)) return expired(state);
+  if (isExpired(state, now)) return gone(state, "expired");
   const result = applyIntent(state, intent, actor, now);
   // Only an accepted intent that changed the Room counts as activity.
   const active = !result.rejection && result.state !== state;
@@ -301,7 +311,7 @@ export function apply(state: RoomState, intent: Intent, actor: Actor, now: numbe
  * alarm. A timer running out isn't activity.
  */
 export function tick(state: RoomState, now: number): ApplyResult {
-  if (isExpired(state, now)) return expired(state);
+  if (isExpired(state, now)) return gone(state, "expired");
   const floor = tickFloor(state.floor, now);
   const afterFloor = floor.floor === state.floor ? unchanged(state) : withFloor(state, floor, now);
   return withSchedule(tickCurrentRound(afterFloor, now));
@@ -325,6 +335,7 @@ function tickCurrentRound(result: ApplyResult, now: number): ApplyResult {
  * time it needs.
  */
 function withSchedule(result: ApplyResult): ApplyResult {
+  if (result.gone) return result;
   const round = result.state.round;
   const due = [
     expiresAt(result.state),
@@ -342,8 +353,8 @@ function isExpired(state: RoomState, now: number): boolean {
   return now >= expiresAt(state);
 }
 
-function expired(state: RoomState): ApplyResult {
-  return { state, recapEvents: [], expired: true };
+function gone(state: RoomState, why: "expired" | "cancelled"): ApplyResult {
+  return { state, recapEvents: [], gone: why };
 }
 
 function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number): ApplyResult {
@@ -366,6 +377,8 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
       return openRoom(state, actor, now);
     case "end-room":
       return endRoom(state, actor, now);
+    case "cancel-room":
+      return cancelRoom(state, actor);
     case "set-participant-limit":
       return setParticipantLimit(state, intent.limit, actor);
     case "join":
@@ -379,9 +392,15 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
     case "move-position":
     case "lock-in":
     case "set-mood":
+    case "pick-side":
+    case "choose-middle":
       return playCurrentRound(state, intent, actor, now);
+    case "move-to-side":
+      return runCurrentRound(state, actor, "move people between Sides", now, (round) =>
+        moveSide(round, intent.personId, intent.side),
+      );
     case "reveal-positions":
-      return runCurrentRound(state, actor, "reveal the positions", now, revealPositions);
+      return runCurrentRound(state, actor, "reveal", now, revealPositions);
     case "advance":
       return runCurrentRound(state, actor, "move the Round on", now, (round) =>
         advanceRound(round, roundPeople(state), now),
@@ -432,6 +451,7 @@ export function parseIntent(raw: unknown): Intent | null {
       return typeof value.pin === "string" ? { type: "claim-host-pin", pin: value.pin } : null;
     case "open-room":
     case "end-room":
+    case "cancel-room":
       return { type: value.type };
     case "set-participant-limit":
       return typeof value.limit === "number"
@@ -455,12 +475,26 @@ export function parseIntent(raw: unknown): Intent | null {
     case "advance":
       return { type: value.type };
     case "move-position":
+      if (typeof value.position !== "number") return null;
+      return value.settled === true
+        ? { type: "move-position", position: value.position, settled: true }
+        : { type: "move-position", position: value.position };
     case "lock-in":
       return typeof value.position === "number"
-        ? { type: value.type, position: value.position }
+        ? { type: "lock-in", position: value.position }
         : null;
     case "set-mood":
       return isMood(value.mood) ? { type: "set-mood", mood: value.mood } : null;
+    case "pick-side":
+      return value.side === 0 || value.side === 1 ? { type: "pick-side", side: value.side } : null;
+    case "move-to-side":
+      return typeof value.personId === "string" && (value.side === 0 || value.side === 1)
+        ? { type: "move-to-side", personId: value.personId, side: value.side }
+        : null;
+    case "choose-middle":
+      return typeof value.stepIn === "boolean"
+        ? { type: "choose-middle", stepIn: value.stepIn }
+        : null;
     case "give-floor":
     case "take-floor":
       return typeof value.personId === "string"
@@ -573,9 +607,27 @@ function openRoom(state: RoomState, actor: Actor, now: number): ApplyResult {
   };
 }
 
+/** Nothing has happened in a Room still in Planning, so cancelling it leaves no Recap. */
+function cancelRoom(state: RoomState, actor: Actor): ApplyResult {
+  if (!isHost(state, actor)) return rejected(state, notHost("cancel the Room"));
+  if (state.phase !== "planning") {
+    return rejected(state, {
+      code: "room-already-open",
+      message: "This Room is already open, so it can't be cancelled. End it instead.",
+    });
+  }
+  return gone(state, "cancelled");
+}
+
 /** Ends the Room: the Floor is taken back from everyone and the Round in progress ends. */
 function endRoom(state: RoomState, actor: Actor, now: number): ApplyResult {
   if (!isHost(state, actor)) return rejected(state, notHost("end the Room"));
+  if (state.phase === "planning") {
+    return rejected(state, {
+      code: "room-not-open",
+      message: "This Room hasn't opened yet. Cancel it instead.",
+    });
+  }
   const cleared = withFloor(state, clearFloor(state.floor), now);
   const ended = state.round
     ? withRound(cleared.state, abandonRound(state.round), now)
@@ -739,7 +791,7 @@ function playCurrentRound(
   const you = identify(state, actor);
   if (!("personId" in you)) return rejected(state, NOT_IN_ROOM);
   if (!state.round) return rejected(state, NO_ROUND);
-  return withRound(state, playRound(state.round, intent, you.personId), now);
+  return withRound(state, playRound(state.round, intent, you.personId, roundPeople(state)), now);
 }
 
 /** A Host control for the current Round. */

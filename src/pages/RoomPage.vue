@@ -4,12 +4,14 @@ import FloorPanel from "../components/FloorPanel.vue";
 import InviteCard from "../components/InviteCard.vue";
 import LineupEditor from "../components/LineupEditor.vue";
 import LineupPreview from "../components/LineupPreview.vue";
+import MiddleGroundStage from "../components/MiddleGroundStage.vue";
 import NicknameField from "../components/NicknameField.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
 import HostPinForm from "../components/HostPinForm.vue";
 import RecapPanel from "../components/RecapPanel.vue";
 import SpectrumStage from "../components/SpectrumStage.vue";
 import WaitingRoomList from "../components/WaitingRoomList.vue";
+import { forgetHostSecret } from "../lib/device";
 import { inviteUrl, navigate } from "../lib/route";
 import { useRoom } from "../lib/useRoom";
 import { FORMAT_NAMES } from "../room/lineup";
@@ -58,6 +60,15 @@ const expiresOn = computed(() =>
 function endRoom() {
   if (confirm("End the Room for everyone? Nobody can join or play after this. The Recap stays.")) {
     send({ type: "end-room" });
+  }
+}
+
+/** Nothing has happened in Planning, so cancelling discards the Room and goes home. */
+function cancelRoom() {
+  if (confirm("Cancel this Room? It will be deleted, along with its Lineup.")) {
+    send({ type: "cancel-room" });
+    forgetHostSecret(props.roomId);
+    navigate("/");
   }
 }
 
@@ -116,10 +127,20 @@ function claimHostWithPin(pin: string) {
         <button class="primary" type="button" @click="send({ type: 'open-room' })">
           Open the Room
         </button>
+        <p>
+          <button type="button" class="link danger" @click="cancelRoom">Cancel the Room</button>
+        </p>
       </section>
       <template v-else>
         <SpectrumStage
-          v-if="view.stage"
+          v-if="view.stage?.format === 'spectrum'"
+          :stage="view.stage"
+          is-host
+          :person-id="personId"
+          @send="send"
+        />
+        <MiddleGroundStage
+          v-else-if="view.stage?.format === 'middle-ground'"
           :stage="view.stage"
           is-host
           :person-id="personId"
@@ -190,7 +211,14 @@ function claimHostWithPin(pin: string) {
     <!-- Participant: the Stage, while a Round is being played, and the Floor -->
     <template v-else-if="view.you.role === 'participant'">
       <SpectrumStage
-        v-if="view.stage"
+        v-if="view.stage?.format === 'spectrum'"
+        :stage="view.stage"
+        :is-host="false"
+        :person-id="personId"
+        @send="send"
+      />
+      <MiddleGroundStage
+        v-else-if="view.stage?.format === 'middle-ground'"
         :stage="view.stage"
         :is-host="false"
         :person-id="personId"

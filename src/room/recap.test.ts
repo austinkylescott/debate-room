@@ -92,6 +92,7 @@ function wholeRecap(...steps: [Intent, Actor, number][]): RecapEvent[] {
 const start: Intent = { type: "start-round", hostPlaying: false };
 const lockIn = (position: number): Intent => ({ type: "lock-in", position });
 const move = (position: number): Intent => ({ type: "move-position", position });
+const settle = (position: number): Intent => ({ type: "move-position", position, settled: true });
 const advance: Intent = { type: "advance" };
 const endRoom: Intent = { type: "end-room" };
 const setMood = (mood: Mood): Intent => ({ type: "set-mood", mood });
@@ -122,19 +123,62 @@ describe("Round and Prompt boundaries in the Recap", () => {
 });
 
 describe("Spectrum moves in the Recap", () => {
-  it("records moves after the reveal, from where and to where", () => {
-    const events = recapOf(
+  /** Alex and Sam lock in at 10 and 90, which reveals; then Alex makes these moves. */
+  const movesAfterReveal = (...moves: Intent[]) =>
+    recapOf(
       liveRoom(),
       [start, host, 3_000],
       [lockIn(10), alex, 3_100],
       [lockIn(90), sam, 3_200],
-      [move(40), alex, 3_300],
-      [move(55), alex, 3_400],
-    );
-    expect(events.filter((e) => e.type === "position-moved")).toEqual([
-      expect.objectContaining({ at: 3_300, personId: ALEX, from: 10, to: 40 }),
-      expect.objectContaining({ at: 3_400, personId: ALEX, from: 40, to: 55 }),
+      ...moves.map((intent, i): [Intent, Actor, number] => [intent, alex, 3_300 + i * 100]),
+    ).filter((e) => e.type === "position-moved");
+
+  it("records each notch a move crosses, at the notch", () => {
+    // Notches sit at 0, 25, 50, 75 and 100.
+    expect(movesAfterReveal(move(30), move(60))).toEqual([
+      expect.objectContaining({ at: 3_300, personId: ALEX, position: 25, reason: "notch" }),
+      expect.objectContaining({ at: 3_400, personId: ALEX, position: 50, reason: "notch" }),
     ]);
+  });
+
+  it("records every notch crossed in one jump, in the order they're reached", () => {
+    expect(movesAfterReveal(move(80), move(5)).map((e) => "position" in e && e.position)).toEqual([
+      25, 50, 75, 75, 50, 25,
+    ]);
+  });
+
+  it("counts landing on a notch as crossing it, but not leaving it", () => {
+    expect(movesAfterReveal(move(25), move(30)).map((e) => "position" in e && e.position)).toEqual([
+      25,
+    ]);
+  });
+
+  it("records nothing for jitter between notches", () => {
+    expect(movesAfterReveal(move(12), move(18), move(14), move(20))).toEqual([]);
+  });
+
+  it("records where the slider settles, wherever it lands", () => {
+    expect(movesAfterReveal(move(12), settle(18))).toEqual([
+      expect.objectContaining({ at: 3_400, personId: ALEX, position: 18, reason: "settled" }),
+    ]);
+  });
+
+  it("records a settle on a notch once, as the notch", () => {
+    expect(movesAfterReveal(move(20), settle(50))).toEqual([
+      expect.objectContaining({ position: 25, reason: "notch" }),
+      expect.objectContaining({ position: 50, reason: "notch" }),
+    ]);
+  });
+
+  it("records the settle even when the last move while dragging already got there", () => {
+    expect(movesAfterReveal(move(18), settle(18))).toEqual([
+      expect.objectContaining({ at: 3_400, position: 18, reason: "settled" }),
+    ]);
+  });
+
+  it("accepts a settled move over the wire", () => {
+    expect(parseIntent({ type: "move-position", position: 40, settled: true })).toEqual(settle(40));
+    expect(parseIntent({ type: "move-position", position: 40, settled: "yes" })).toEqual(move(40));
   });
 
   it("never records hovering before the reveal, which stays hidden", () => {
@@ -296,25 +340,25 @@ describe("expiry after 7 days of inactivity", () => {
     const closed = tick(opened.state, 3_300 + 15_000);
     expect(closed.recapEvents.map((e) => e.type)).toEqual(["mood-check-in-closed"]);
     expect(closed.scheduled).toBe(3_300 + 7 * DAY);
-    expect(tick(closed.state, 3_300 + 7 * DAY).expired).toBe(true);
+    expect(tick(closed.state, 3_300 + 7 * DAY).gone).toBe("expired");
   });
 
   it("still applies once the Room has Ended", () => {
     const ended = run(liveRoom(), [endRoom, host, 3_000]);
-    expect(tick(ended, 3_000 + 7 * DAY).expired).toBe(true);
+    expect(tick(ended, 3_000 + 7 * DAY).gone).toBe("expired");
   });
 
   it("removes the Room once 7 days pass with no activity", () => {
     const state = liveRoom();
-    expect(tick(state, 2_000 + 7 * DAY - 1).expired).toBeUndefined();
+    expect(tick(state, 2_000 + 7 * DAY - 1).gone).toBeUndefined();
     const expired: ApplyResult = tick(state, 2_000 + 7 * DAY);
-    expect(expired.expired).toBe(true);
+    expect(expired.gone).toBe("expired");
     expect(expired.scheduled).toBeUndefined();
   });
 
   it("refuses to bring an expired Room back, even if its alarm is late", () => {
     const result = apply(liveRoom(), give(ALEX), host, 2_000 + 8 * DAY);
-    expect(result.expired).toBe(true);
+    expect(result.gone).toBe("expired");
     expect(result.recapEvents).toEqual([]);
   });
 });
@@ -412,6 +456,7 @@ describe("Rounds and Prompts in the Recap", () => {
       [lockIn(10), alex, 3_100],
       [lockIn(90), sam, 3_200],
       [move(60), alex, 3_300],
+      [settle(60), alex, 3_305],
       [advance, host, 3_400],
       [setMood("happy"), alex, 3_410],
       [setMood("thinking"), sam, 3_420],
@@ -443,7 +488,7 @@ describe("Rounds and Prompts in the Recap", () => {
 
   it("shows the revealed positions and the moves after the reveal", () => {
     const [first] = summarizeRecap(playedRound(), 9_000).rounds[0]!.prompts;
-    expect(first!.revealed).toEqual({
+    expect(first!.spectrum!.revealed).toEqual({
       at: 3_200,
       by: "everyone-locked-in",
       positions: [
@@ -451,16 +496,18 @@ describe("Rounds and Prompts in the Recap", () => {
         { personId: SAM, nickname: "Sam", position: 90 },
       ],
     });
-    expect(first!.moves).toEqual([
-      { at: 3_300, personId: ALEX, nickname: "Alex", from: 10, to: 60 },
+    expect(first!.spectrum!.moves).toEqual([
+      { at: 3_300, personId: ALEX, nickname: "Alex", from: 10, to: 25, reason: "notch" },
+      { at: 3_300, personId: ALEX, nickname: "Alex", from: 25, to: 50, reason: "notch" },
+      { at: 3_305, personId: ALEX, nickname: "Alex", from: 50, to: 60, reason: "settled" },
     ]);
   });
 
   it("gives each ended Prompt its summary card: where people locked in, and where they ended up", () => {
     const [first, second] = summarizeRecap(playedRound(), 9_000).rounds[0]!.prompts;
     // Notches: Strongly Disagree, Disagree, Neutral, Agree, Strongly Agree.
-    expect(first!.summary).toEqual({ before: [1, 0, 0, 0, 1], after: [0, 0, 1, 0, 1] });
-    expect(second!.summary).toEqual({ before: [0, 0, 1, 0, 0], after: [0, 0, 1, 0, 0] });
+    expect(first!.spectrum!.summary).toEqual({ before: [1, 0, 0, 0, 1], after: [0, 0, 1, 0, 1] });
+    expect(second!.spectrum!.summary).toEqual({ before: [0, 0, 1, 0, 0], after: [0, 0, 1, 0, 0] });
   });
 
   it("keeps each Prompt's Mood events as they were recorded", () => {
@@ -482,7 +529,192 @@ describe("Rounds and Prompts in the Recap", () => {
     const summary = summarizeRecap(events, 9_000);
     const [prompt] = summary.rounds[0]!.prompts;
     expect(summary.rounds[0]!.endedAt).toBe(4_000);
-    expect(prompt).toMatchObject({ endedAt: 4_000, revealed: null, summary: null });
+    expect(prompt).toMatchObject({ endedAt: 4_000, spectrum: { revealed: null, summary: null } });
     expect(summary.endedAt).toBe(4_000);
+  });
+
+  it("gives a revealed Prompt cut short by the end of the Room its summary card", () => {
+    const events = wholeRecap(
+      [start, host, 3_000],
+      [lockIn(10), alex, 3_100],
+      [lockIn(90), sam, 3_200],
+      [endRoom, host, 4_000],
+    );
+    expect(events.slice(-3).map((e) => e.type)).toEqual([
+      "prompt-ended",
+      "round-ended",
+      "room-ended",
+    ]);
+    const [prompt] = summarizeRecap(events, 9_000).rounds[0]!.prompts;
+    expect(prompt!.spectrum!.summary).toEqual({
+      before: [1, 0, 0, 0, 1],
+      after: [1, 0, 0, 0, 1],
+    });
+  });
+});
+
+describe("cancelling a Room in Planning", () => {
+  const cancel: Intent = { type: "cancel-room" };
+
+  it("discards the Room, leaving no Recap", () => {
+    const result = apply(plannedRoom(), cancel, host, 3_000);
+    expect(result.gone).toBe("cancelled");
+    expect(result.recapEvents).toEqual([]);
+    expect(result.scheduled).toBeUndefined();
+  });
+
+  it("is for the Host only", () => {
+    expect(apply(plannedRoom(), cancel, visitor, 3_000).rejection?.code).toBe("not-host");
+  });
+
+  it("is refused once the Room is open: it has to be ended instead", () => {
+    const result = apply(liveRoom(), cancel, host, 3_000);
+    expect(result.rejection?.code).toBe("room-already-open");
+    expect(result.gone).toBeUndefined();
+  });
+
+  it("is the only way out of Planning: ending is for an open Room", () => {
+    expect(apply(plannedRoom(), endRoom, host, 3_000).rejection?.code).toBe("room-not-open");
+  });
+
+  it("is accepted over the wire", () => {
+    expect(parseIntent({ type: "cancel-room" })).toEqual(cancel);
+  });
+});
+
+describe("Middle Ground in the Recap", () => {
+  const pickSide = (side: 0 | 1): Intent => ({ type: "pick-side", side });
+  const choose = (stepIn: boolean): Intent => ({ type: "choose-middle", stepIn });
+  const moveToSide = (personId: string, side: 0 | 1): Intent => ({
+    type: "move-to-side",
+    personId,
+    side,
+  });
+
+  /** A Room in Planning with one Middle Ground Round: Cat people vs Dog people. */
+  function plannedMiddleGround(): RoomState {
+    const created = createRoom(
+      { hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" },
+      CREATED_AT,
+    );
+    if ("rejection" in created) throw new Error(created.rejection.message);
+    return run(
+      created.state,
+      [{ type: "claim-host", hostSecret: HOST_SECRET }, host, 1_100],
+      [
+        {
+          type: "add-round",
+          setup: { format: "middle-ground", sides: ["Cat people", "Dog people"] },
+          prompts: [{ text: "Cats beat dogs", surprise: false }],
+        },
+        host,
+        1_200,
+      ],
+    );
+  }
+
+  const middleGroundRoom = () => run(plannedMiddleGround(), ...GOING_LIVE);
+  const wholeMiddleGroundRecap = (...steps: [Intent, Actor, number][]) =>
+    recapOf(plannedMiddleGround(), ...GOING_LIVE, ...steps);
+
+  /** Alex and Sam pick Cat people, the Host moves Sam to Dog people; Alex steps in, Sam stays. */
+  const chosen: [Intent, Actor, number][] = [
+    [start, host, 3_000],
+    [pickSide(0), alex, 3_100],
+    [pickSide(0), sam, 3_150],
+    [moveToSide(SAM, 1), host, 3_200],
+    [choose(true), alex, 3_300],
+    [choose(false), sam, 3_400],
+  ];
+
+  it("records Sides, the reveal, step-ins and step-backs, and the per-Side summary", () => {
+    const events = recapOf(
+      middleGroundRoom(),
+      ...chosen,
+      [choose(true), sam, 3_500],
+      [choose(false), alex, 3_600],
+      [advance, host, 3_700],
+    );
+    expect(events.map((e) => e.type)).toEqual([
+      "round-started",
+      "prompt-started",
+      "side-picked",
+      "side-picked",
+      "side-changed",
+      "choices-revealed",
+      "stepped-in",
+      "stepped-back",
+      "prompt-ended",
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      format: "middle-ground",
+      sides: [
+        { name: "Cat people", steppedIn: 0, onSide: 1 },
+        { name: "Dog people", steppedIn: 1, onSide: 1 },
+      ],
+    });
+  });
+
+  it("shows the Sides, each Prompt's choices by Side, the steps after the reveal and its summary card", () => {
+    const events = wholeMiddleGroundRecap(
+      ...chosen,
+      [choose(true), sam, 3_500],
+      [advance, host, 3_700],
+    );
+    const [round] = summarizeRecap(events, 9_000).rounds;
+    expect(round!.format).toBe("middle-ground");
+    expect(round!.sides.map(({ nickname, side, from }) => [nickname, side, from])).toEqual([
+      ["Alex", "Cat people", null],
+      ["Sam", "Cat people", null],
+      ["Sam", "Dog people", "Cat people"],
+    ]);
+    const middleGround = round!.prompts[0]!.middleGround!;
+    expect(middleGround.revealed).toEqual({
+      at: 3_400,
+      by: "everyone-chose",
+      choices: [
+        { personId: ALEX, nickname: "Alex", side: "Cat people", steppedIn: true },
+        { personId: SAM, nickname: "Sam", side: "Dog people", steppedIn: false },
+      ],
+    });
+    expect(middleGround.steps).toEqual([
+      { at: 3_500, personId: SAM, nickname: "Sam", side: "Dog people", steppedIn: true },
+    ]);
+    expect(middleGround.summary).toEqual({
+      sides: [
+        { name: "Cat people", steppedIn: 1, onSide: 1 },
+        { name: "Dog people", steppedIn: 1, onSide: 1 },
+      ],
+    });
+  });
+
+  it("ends a Prompt still hidden without giving away anyone's choice when the Room ends", () => {
+    const state = run(middleGroundRoom(), ...chosen.slice(0, 5));
+    const result = apply(state, endRoom, host, 4_000);
+    expect(result.recapEvents.map((e) => e.type)).toEqual(["round-ended", "room-ended"]);
+  });
+
+  it("gives a revealed Prompt its summary card when the Room ends", () => {
+    const state = run(middleGroundRoom(), ...chosen);
+    const result = apply(state, endRoom, host, 4_000);
+    expect(result.recapEvents).toEqual([
+      expect.objectContaining({ at: 4_000, type: "prompt-ended", format: "middle-ground" }),
+      expect.objectContaining({ at: 4_000, type: "round-ended" }),
+      { at: 4_000, type: "room-ended" },
+    ]);
+  });
+
+  it("closes the Prompt's open Mood Check-in when the Room ends", () => {
+    const state = run(middleGroundRoom(), ...chosen, [advance, host, 3_700]);
+    const result = apply(state, endRoom, host, 4_000);
+    expect(result.recapEvents).toEqual([
+      expect.objectContaining({
+        type: "mood-check-in-closed",
+        by: "room-ended",
+        moods: { [ALEX]: null, [SAM]: null },
+      }),
+      expect.objectContaining({ type: "round-ended" }),
+      { at: 4_000, type: "room-ended" },
+    ]);
   });
 });

@@ -2,11 +2,15 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { Intent, StageView } from "../room/room";
 import { MOODS } from "../room/mood";
-import { SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
+import { notchesCrossed, SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
 import MoodPanel from "./MoodPanel.vue";
 import SpectrumSummary from "./SpectrumSummary.vue";
 
-const props = defineProps<{ stage: StageView; isHost: boolean; personId: string }>();
+const props = defineProps<{
+  stage: Extract<StageView, { format: "spectrum" }>;
+  isHost: boolean;
+  personId: string;
+}>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
 /** How often slider moves go to the Room while dragging. */
@@ -49,12 +53,66 @@ function sendMove() {
   emit("send", { type: "move-position", position: draft.value });
 }
 
+/** The slider was let go: the Room records where it settled (after the reveal). */
+function onSettle() {
+  clearTimeout(pending);
+  lastSent = Date.now();
+  emit("send", { type: "move-position", position: draft.value, settled: true });
+}
+
+// After the reveal, a marker or notch label briefly lights up when a position
+// crosses a notch, so everyone can see people moving. See `.crossed` in style.css.
+const CROSSED_MS = 600;
+const crossedPeople = ref<string[]>([]);
+const crossedNotch = ref<number | null>(null);
+const flashTimers: ReturnType<typeof setTimeout>[] = [];
+
+function flash(apply: () => void, clear: () => void) {
+  apply();
+  flashTimers.push(setTimeout(clear, CROSSED_MS));
+}
+
+watch(
+  () =>
+    spectrum.value.step === "revealed"
+      ? spectrum.value.people.map((p) => [p.personId, p.position] as const)
+      : [],
+  (positions, before) => {
+    const was = new Map(before);
+    for (const [personId, position] of positions) {
+      const from = was.get(personId);
+      if (from == null || position === null || notchesCrossed(from, position).length === 0) {
+        continue;
+      }
+      flash(
+        () => (crossedPeople.value = [...crossedPeople.value, personId]),
+        () => (crossedPeople.value = crossedPeople.value.filter((id) => id !== personId)),
+      );
+    }
+  },
+);
+
+watch(draft, (to, from) => {
+  if (spectrum.value.step !== "revealed") return;
+  const notch = notchesCrossed(from, to).at(-1);
+  if (notch === undefined) return;
+  flash(
+    () => (crossedNotch.value = notch),
+    () => {
+      if (crossedNotch.value === notch) crossedNotch.value = null;
+    },
+  );
+});
+
 function lock() {
   clearTimeout(pending);
   emit("send", { type: "lock-in", position: draft.value });
 }
 
-onBeforeUnmount(() => clearTimeout(pending));
+onBeforeUnmount(() => {
+  clearTimeout(pending);
+  flashTimers.forEach(clearTimeout);
+});
 
 /** The emoji for someone's current Mood, shown next to their name. Empty if they have none. */
 function moodOf(personId: string): string {
@@ -115,7 +173,10 @@ function percent(position: number) {
         <span
           v-else-if="person.position !== null"
           class="marker"
-          :class="{ apart: furthestIds.includes(person.personId) }"
+          :class="{
+            apart: furthestIds.includes(person.personId),
+            crossed: crossedPeople.includes(person.personId),
+          }"
           :style="{ left: percent(person.position) }"
         >
           {{ moodOf(person.personId) }} {{ person.nickname }}
@@ -123,7 +184,13 @@ function percent(position: number) {
       </template>
     </div>
     <div v-if="spectrum.step !== 'summary'" class="notch-labels" aria-hidden="true">
-      <span v-for="notch in SPECTRUM_NOTCHES" :key="notch.value">{{ notch.label }}</span>
+      <span
+        v-for="notch in SPECTRUM_NOTCHES"
+        :key="notch.value"
+        :class="{ crossed: crossedNotch === notch.value }"
+      >
+        {{ notch.label }}
+      </span>
     </div>
 
     <!-- Your own slider -->
@@ -139,6 +206,7 @@ function percent(position: number) {
           step="1"
           :disabled="!canMove"
           @input="onSlide"
+          @change="onSettle"
         />
       </label>
       <datalist id="spectrum-notches">
