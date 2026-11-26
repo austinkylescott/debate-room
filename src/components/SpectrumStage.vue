@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { Intent, StageView } from "../room/room";
+import { MOODS } from "../room/mood";
 import { SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
+import MoodPanel from "./MoodPanel.vue";
 
-const props = defineProps<{ stage: StageView; isHost: boolean }>();
+const props = defineProps<{ stage: StageView; isHost: boolean; personId: string }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
 /** How often slider moves go to the Room while dragging. */
@@ -52,6 +54,14 @@ function lock() {
 }
 
 onBeforeUnmount(() => clearTimeout(pending));
+
+/** The emoji for someone's current Mood, shown next to their name. Empty if they have none. */
+function moodOf(personId: string): string {
+  const mood = props.stage.moods[personId];
+  return MOODS.find((m) => m.id === mood)?.emoji ?? "";
+}
+
+const checkInOpen = computed(() => props.stage.checkIn?.status === "open");
 
 const advanceLabel = computed(() => {
   if (spectrum.value.step === "revealed") return "End this Prompt";
@@ -104,7 +114,7 @@ function percent(position: number) {
           :style="{ left: percent(person.position) }"
           :title="`${person.nickname} (hovering)`"
         >
-          {{ person.nickname }}
+          {{ moodOf(person.personId) }} {{ person.nickname }}
         </span>
         <span
           v-else-if="person.position !== null"
@@ -112,7 +122,7 @@ function percent(position: number) {
           :class="{ apart: furthestIds.includes(person.personId) }"
           :style="{ left: percent(person.position) }"
         >
-          {{ person.nickname }}
+          {{ moodOf(person.personId) }} {{ person.nickname }}
         </span>
       </template>
     </div>
@@ -160,6 +170,8 @@ function percent(position: number) {
       You joined mid-Prompt: you'll be in from the next one.
     </p>
 
+    <MoodPanel :stage="stage" :person-id="personId" @send="emit('send', $event)" />
+
     <!-- Who has locked in, before the reveal -->
     <template v-if="spectrum.step === 'positioning'">
       <h2>
@@ -168,7 +180,7 @@ function percent(position: number) {
       </h2>
       <ul class="people">
         <li v-for="person in spectrum.people" :key="person.personId">
-          <span class="name">{{ person.nickname }}</span>
+          <span class="name">{{ moodOf(person.personId) }} {{ person.nickname }}</span>
           <span v-if="person.lockedIn" class="tag">Locked in</span>
           <span v-else class="tag subtle">Deciding</span>
         </li>
@@ -230,7 +242,12 @@ function percent(position: number) {
       >
         Reveal now
       </button>
-      <button v-else class="primary" type="button" @click="emit('send', { type: 'advance' })">
+      <button
+        v-else-if="!checkInOpen"
+        class="primary"
+        type="button"
+        @click="emit('send', { type: 'advance' })"
+      >
         {{ advanceLabel }}
       </button>
     </div>
