@@ -13,6 +13,7 @@ import {
   tick,
   viewFor,
 } from "./room";
+import type { Mood } from "./mood";
 import { summarizeRecap } from "./recap";
 
 const HOST_SECRET = "host-secret-123";
@@ -93,6 +94,12 @@ const lockIn = (position: number): Intent => ({ type: "lock-in", position });
 const move = (position: number): Intent => ({ type: "move-position", position });
 const advance: Intent = { type: "advance" };
 const endRoom: Intent = { type: "end-room" };
+const setMood = (mood: Mood): Intent => ({ type: "set-mood", mood });
+/** Alex and Sam answer the Mood Check-in, which closes it. */
+const checkIn = (at: number): [Intent, Actor, number][] => [
+  [setMood("happy"), alex, at],
+  [setMood("sad"), sam, at + 1],
+];
 const give = (personId: string): Intent => ({ type: "give-floor", personId });
 const take = (personId: string): Intent => ({ type: "take-floor", personId });
 
@@ -104,6 +111,7 @@ describe("Round and Prompt boundaries in the Recap", () => {
       [lockIn(10), alex, 3_100],
       [lockIn(90), sam, 3_200],
       [advance, host, 3_300],
+      ...checkIn(3_310),
       [advance, host, 3_400],
     );
     expect(events.filter((e) => e.type === "prompt-started")).toEqual([
@@ -177,6 +185,30 @@ describe("ending the Room", () => {
     expect(viewFor(result.state, alex).floor).toBeNull();
   });
 
+  it("closes an open Mood Check-in, recording anyone who hadn't answered as no Mood", () => {
+    const state = run(
+      liveRoom(),
+      [start, host, 3_000],
+      [lockIn(10), alex, 3_100],
+      [lockIn(90), sam, 3_200],
+      [advance, host, 3_300],
+      [setMood("happy"), alex, 3_400],
+    );
+    const result = apply(state, endRoom, host, 4_000);
+    expect(result.recapEvents).toEqual([
+      expect.objectContaining({
+        at: 4_000,
+        type: "mood-check-in-closed",
+        by: "room-ended",
+        moods: { [ALEX]: "happy", [SAM]: null },
+      }),
+      expect.objectContaining({ at: 4_000, type: "round-ended" }),
+      { at: 4_000, type: "room-ended" },
+    ]);
+    // Its close no longer needs a tick: only the expiry is left.
+    expect(result.scheduled).toBe(4_000 + 7 * DAY);
+  });
+
   it("stops the Room: nobody can join, play or edit any more", () => {
     const ended = run(liveRoom(), [endRoom, host, 3_000]);
     for (const [intent, actor] of [
@@ -246,6 +278,25 @@ describe("expiry after 7 days of inactivity", () => {
   it("gives way to a timer that is due sooner", () => {
     const state = run(liveRoom(), [{ type: "set-floor-timer", seconds: 60 }, host, 3_000]);
     expect(apply(state, give(ALEX), host, 4_000).scheduled).toBe(64_000);
+  });
+
+  it("shares the one alarm with the Mood Check-in: neither masks the other", () => {
+    const state = run(
+      liveRoom(),
+      [start, host, 3_000],
+      [lockIn(10), alex, 3_100],
+      [lockIn(90), sam, 3_200],
+    );
+    // Opening the Check-in is activity, so the Check-in's close is due long
+    // before the expiry: it is what the alarm is set for.
+    const opened = apply(state, advance, host, 3_300);
+    expect(opened.scheduled).toBe(3_300 + 15_000);
+    // Once it closes on its own, the expiry is back, still counted from the
+    // last activity (closing on a timer isn't activity).
+    const closed = tick(opened.state, 3_300 + 15_000);
+    expect(closed.recapEvents.map((e) => e.type)).toEqual(["mood-check-in-closed"]);
+    expect(closed.scheduled).toBe(3_300 + 7 * DAY);
+    expect(tick(closed.state, 3_300 + 7 * DAY).expired).toBe(true);
   });
 
   it("still applies once the Room has Ended", () => {
@@ -362,10 +413,13 @@ describe("Rounds and Prompts in the Recap", () => {
       [lockIn(90), sam, 3_200],
       [move(60), alex, 3_300],
       [advance, host, 3_400],
+      [setMood("happy"), alex, 3_410],
+      [setMood("thinking"), sam, 3_420],
       [advance, host, 3_500],
       [lockIn(50), alex, 3_600],
       [{ type: "reveal-positions" }, host, 3_700],
       [advance, host, 3_800],
+      ...checkIn(3_810),
       [advance, host, 3_900],
     );
   }
@@ -407,6 +461,20 @@ describe("Rounds and Prompts in the Recap", () => {
     // Notches: Strongly Disagree, Disagree, Neutral, Agree, Strongly Agree.
     expect(first!.summary).toEqual({ before: [1, 0, 0, 0, 1], after: [0, 0, 1, 0, 1] });
     expect(second!.summary).toEqual({ before: [0, 0, 1, 0, 0], after: [0, 0, 1, 0, 0] });
+  });
+
+  it("keeps each Prompt's Mood events as they were recorded", () => {
+    const [first] = summarizeRecap(playedRound(), 9_000).rounds[0]!.prompts;
+    expect(first!.moodEvents).toEqual([
+      expect.objectContaining({ at: 3_410, type: "mood-changed", personId: ALEX, mood: "happy" }),
+      expect.objectContaining({ at: 3_420, type: "mood-changed", personId: SAM, mood: "thinking" }),
+      expect.objectContaining({
+        at: 3_420,
+        type: "mood-check-in-closed",
+        by: "everyone-answered",
+        moods: { [ALEX]: "happy", [SAM]: "thinking" },
+      }),
+    ]);
   });
 
   it("leaves a Prompt cut short by the end of the Room without a summary card", () => {

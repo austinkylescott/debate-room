@@ -42,7 +42,17 @@ export interface RecapPrompt {
   moves: { at: number; personId: string; nickname: string; from: number | null; to: number }[];
   /** The summary card: where people locked in, and where they ended up. Only once the Prompt ends. */
   summary: { before: Distribution; after: Distribution } | null;
+  /**
+   * The Prompt's Mood changes and its Check-in close, as recorded. Mood insights
+   * (timelines, tallies, links to position changes) are built on these later.
+   */
+  moodEvents: MoodRecapEvent[];
 }
+
+export type MoodRecapEvent = Extract<
+  RecapEvent,
+  { type: "mood-changed" } | { type: "mood-check-in-closed" }
+>;
 
 /**
  * Builds the Recap's derived views from its events. Floor turns still running
@@ -94,7 +104,12 @@ export function summarizeRecap(events: RecapEvent[], now: number): RecapSummary 
           revealed: null,
           moves: [],
           summary: null,
+          moodEvents: [],
         });
+        break;
+      case "mood-changed":
+      case "mood-check-in-closed":
+        currentPrompt()?.moodEvents.push(event);
         break;
       case "positions-revealed": {
         const prompt = currentPrompt();

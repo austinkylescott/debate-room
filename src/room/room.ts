@@ -55,7 +55,10 @@ import {
   stageView,
   startRound,
   type StageView,
+  nextRoundTimer,
+  tickRound,
 } from "./round";
+import { isMood, startPromptMoods } from "./mood";
 
 export type { StageView } from "./round";
 export type { FloorView } from "./floor";
@@ -300,16 +303,35 @@ export function apply(state: RoomState, intent: Intent, actor: Actor, now: numbe
 export function tick(state: RoomState, now: number): ApplyResult {
   if (isExpired(state, now)) return expired(state);
   const floor = tickFloor(state.floor, now);
-  return withSchedule(
-    floor.floor === state.floor ? unchanged(state) : withFloor(state, floor, now),
-  );
+  const afterFloor = floor.floor === state.floor ? unchanged(state) : withFloor(state, floor, now);
+  return withSchedule(tickCurrentRound(afterFloor, now));
 }
 
-/** The soonest due time wins: a Durable Object has a single alarm. */
+/** Runs the current Round's timers (the Mood Check-in closing) on top of an earlier change. */
+function tickCurrentRound(result: ApplyResult, now: number): ApplyResult {
+  const round = result.state.round;
+  if (!round) return result;
+  const outcome = tickRound(round, now);
+  // Nothing due: keep the same state, so the adapter has nothing to save or send.
+  if ("round" in outcome && outcome.round === round) return result;
+  const ticked = withRound(result.state, outcome, now);
+  return { state: ticked.state, recapEvents: [...result.recapEvents, ...ticked.recapEvents] };
+}
+
+/**
+ * Points `scheduled` at the Room's next due time, worked out from the state
+ * after the change: the earliest of the Floor timers, the Mood Check-in's close
+ * and the Room's expiry. A Durable Object has one alarm, so this is the only
+ * time it needs.
+ */
 function withSchedule(result: ApplyResult): ApplyResult {
-  const due = [expiresAt(result.state), nextFloorTimeUp(result.state.floor)];
-  const scheduled = Math.min(...due.filter((at): at is number => at !== null));
-  return { ...result, scheduled };
+  const round = result.state.round;
+  const due = [
+    expiresAt(result.state),
+    nextFloorTimeUp(result.state.floor),
+    round ? nextRoundTimer(round) : null,
+  ].filter((at): at is number => at !== null);
+  return { ...result, scheduled: Math.min(...due) };
 }
 
 function expiresAt(state: RoomState): number {
@@ -356,12 +378,13 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
       return beginRound(state, intent.hostPlaying, actor, now);
     case "move-position":
     case "lock-in":
+    case "set-mood":
       return playCurrentRound(state, intent, actor, now);
     case "reveal-positions":
       return runCurrentRound(state, actor, "reveal the positions", now, revealPositions);
     case "advance":
       return runCurrentRound(state, actor, "move the Round on", now, (round) =>
-        advanceRound(round, roundPeople(state)),
+        advanceRound(round, roundPeople(state), now),
       );
   }
 }
@@ -436,6 +459,8 @@ export function parseIntent(raw: unknown): Intent | null {
       return typeof value.position === "number"
         ? { type: value.type, position: value.position }
         : null;
+    case "set-mood":
+      return isMood(value.mood) ? { type: "set-mood", mood: value.mood } : null;
     case "give-floor":
     case "take-floor":
       return typeof value.personId === "string"
@@ -462,7 +487,9 @@ export function upgradeState(stored: RoomState, now: number): RoomState {
   return {
     ...stored,
     lineup: stored.lineup ?? emptyLineup(),
-    round: stored.round ?? null,
+    round: stored.round
+      ? { ...stored.round, moods: stored.round.moods ?? startPromptMoods() }
+      : null,
     playedRoundIds: stored.playedRoundIds ?? [],
     floor: stored.floor ?? emptyFloor(),
     lastActivityAt: stored.lastActivityAt ?? now,
