@@ -2,7 +2,8 @@
 //
 // The Durable Object (worker/room-server.ts) only adapts this module: it maps
 // connections to actors, persists state and sends each connection its own
-// `viewFor` result. Tests drive `createRoom`, `apply` and `viewFor` directly.
+// `viewFor` result, and calls `tick` when a timer the Room scheduled is due.
+// Tests drive `createRoom`, `apply`, `tick` and `viewFor` directly.
 
 import {
   clearFloor,

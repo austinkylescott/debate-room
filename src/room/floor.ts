@@ -173,7 +173,6 @@ export function nextFloorTimeUp(floor: Floor): number | null {
 
 /** Raises or lowers a hand. A hand raised again keeps its place. */
 export function moveHand(floor: Floor, personId: string, intent: HandIntent): FloorOutcome {
-  const raised = floor.raisedHands.includes(personId);
   if (intent.type === "lower-hand") {
     return {
       floor: { ...floor, raisedHands: floor.raisedHands.filter((id) => id !== personId) },
@@ -183,7 +182,7 @@ export function moveHand(floor: Floor, personId: string, intent: HandIntent): Fl
   if (hasFloor(floor, personId)) {
     return { rejection: { code: "has-floor", message: "You already have the Floor." } };
   }
-  if (raised) return { floor, events: [] };
+  if (floor.raisedHands.includes(personId)) return { floor, events: [] };
   return { floor: { ...floor, raisedHands: [...floor.raisedHands, personId] }, events: [] };
 }
 
