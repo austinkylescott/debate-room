@@ -13,8 +13,13 @@ const youAnswered = computed(
   () => checkIn.value?.status === "open" && checkIn.value.answered.includes(props.personId),
 );
 const promptOver = computed(() => {
+  const { stage } = props;
   const step =
-    props.stage.format === "spectrum" ? props.stage.spectrum.step : props.stage.middleGround.step;
+    stage.format === "spectrum"
+      ? stage.spectrum.step
+      : stage.format === "middle-ground"
+        ? stage.middleGround.step
+        : stage.surrounded.step;
   return step === "summary";
 });
 /** Playing people pick a Mood during the Prompt and while the Check-in is open. */

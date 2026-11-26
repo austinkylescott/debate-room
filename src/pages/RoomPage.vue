@@ -10,6 +10,7 @@ import ParticipantLimitField from "../components/ParticipantLimitField.vue";
 import HostPinForm from "../components/HostPinForm.vue";
 import RecapPanel from "../components/RecapPanel.vue";
 import SpectrumStage from "../components/SpectrumStage.vue";
+import SurroundedStage from "../components/SurroundedStage.vue";
 import WaitingRoomList from "../components/WaitingRoomList.vue";
 import { forgetHostSecret } from "../lib/device";
 import { inviteUrl, navigate } from "../lib/route";
@@ -32,6 +33,11 @@ const isFull = (capacity: { joined: number; limit: number } | undefined) =>
 const participantsFull = computed(() => isFull(view.value?.capacity));
 const spectatorsFull = computed(() => isFull(view.value?.spectatorCapacity));
 const joinAs = ref<JoinRole>("participant");
+/** Whether the Host is the Center of the next Round, and so has to be Playing it. */
+const hostIsNextCenter = computed(() => {
+  const setup = nextRound.value?.round.setup;
+  return setup?.format === "surrounded" && setup.centerId === personId.value;
+});
 const nextRound = computed(() => {
   const id = view.value?.nextRoundId;
   if (!id) return null;
@@ -164,6 +170,13 @@ function claimHostWithPin(pin: string) {
           :person-id="personId"
           @send="send"
         />
+        <SurroundedStage
+          v-else-if="view.stage?.format === 'surrounded'"
+          :stage="view.stage"
+          is-host
+          :person-id="personId"
+          @send="send"
+        />
         <section v-else-if="view.phase === 'live'" class="card">
           <p class="eyebrow">Waiting Room</p>
           <template v-if="nextRound">
@@ -178,7 +191,10 @@ function claimHostWithPin(pin: string) {
                 <input v-model="hostPlaying" type="checkbox" />
                 I'm Playing this Round
               </label>
-              <p class="muted small">
+              <p v-if="hostIsNextCenter" class="muted small">
+                You're this Round's Center, so you need to be Playing it.
+              </p>
+              <p v-else class="muted small">
                 If you're not Playing, you'll see where people are leaning before the reveal.
               </p>
               <button class="primary" type="submit">Start the Round</button>
@@ -238,6 +254,14 @@ function claimHostWithPin(pin: string) {
       />
       <MiddleGroundStage
         v-else-if="view.stage?.format === 'middle-ground'"
+        :stage="view.stage"
+        :is-host="false"
+        :person-id="personId"
+        :is-spectator="view.you.role === 'spectator'"
+        @send="send"
+      />
+      <SurroundedStage
+        v-else-if="view.stage?.format === 'surrounded'"
         :stage="view.stage"
         :is-host="false"
         :person-id="personId"

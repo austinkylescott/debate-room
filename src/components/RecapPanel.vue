@@ -5,6 +5,7 @@ import { summarizeRecap } from "../room/recap";
 import type { RecapEvent } from "../room/room";
 import type { RevealCause } from "../room/round";
 import { SPECTRUM_NOTCHES } from "../room/spectrum";
+import type { ExchangeEnd, Yielder } from "../room/surrounded";
 import SpectrumSummary from "./SpectrumSummary.vue";
 
 const props = defineProps<{ roomId: string; events: RecapEvent[] }>();
@@ -36,6 +37,22 @@ function inTheMiddle(
     .filter((c) => c.steppedIn)
     .map((c) => (c.side ? `${c.nickname} (${c.side})` : c.nickname))
     .join(", ");
+}
+
+const EXCHANGE_ENDED: Record<ExchangeEnd, string> = {
+  timer: "time ran out",
+  vote: "voted out",
+  yield: "yielded",
+  host: "ended by the Host",
+  left: "left the Room",
+};
+
+function exchangeEnded(endedBy: ExchangeEnd | null, yieldedBy: Yielder | null): string {
+  if (endedBy === null) return "in the chair";
+  if (endedBy === "yield" && yieldedBy) {
+    return yieldedBy === "center" ? "the Center yielded" : "yielded the chair";
+  }
+  return EXCHANGE_ENDED[endedBy];
 }
 
 function notchLabel(position: number | null): string {
@@ -92,6 +109,12 @@ function download() {
           }}
         </li>
       </ul>
+      <ul v-if="round.centers.length > 0" class="moves small">
+        <li v-for="(center, i) in round.centers" :key="i">
+          {{ center.nickname }}
+          {{ center.by === "volunteer" ? "stepped up as the Center" : "was picked as the Center" }}
+        </li>
+      </ul>
       <div v-for="prompt in round.prompts" :key="prompt.promptId" class="recap-prompt">
         <p class="eyebrow">Prompt {{ prompt.promptNumber }}</p>
         <p class="prompt-text">{{ prompt.text }}</p>
@@ -141,6 +164,31 @@ function download() {
               {{ side.name }}: {{ side.steppedIn }} of {{ side.onSide }} stepped in
             </li>
           </ul>
+        </template>
+        <template v-if="prompt.surrounded">
+          <p v-if="prompt.surrounded.exchanges.length === 0" class="muted small">
+            Nobody took the chair.
+          </p>
+          <ul v-else class="moves small">
+            <li v-for="(exchange, i) in prompt.surrounded.exchanges" :key="i">
+              {{ exchange.nickname }}
+              {{ exchange.takenBy === "host" ? "was put in the chair" : "took the chair" }}:
+              {{ exchangeEnded(exchange.endedBy, exchange.yieldedBy) }}
+              <template v-if="exchange.votes.some((v) => v.remove)">
+                (votes to remove:
+                {{
+                  exchange.votes
+                    .filter((v) => v.remove)
+                    .map((v) => v.nickname)
+                    .join(", ")
+                }})
+              </template>
+            </li>
+          </ul>
+          <p v-if="prompt.surrounded.summary" class="small">
+            {{ prompt.surrounded.summary.exchanges }}
+            {{ prompt.surrounded.summary.exchanges === 1 ? "exchange" : "exchanges" }}
+          </p>
         </template>
       </div>
     </article>

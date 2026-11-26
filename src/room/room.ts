@@ -434,7 +434,7 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
     case "choose-center":
     case "seat-challenger":
       // Spectators watch: they're never the Center or in the chair.
-      if (isHost(state, actor) && state.spectators.some((s) => s.id === intent.personId)) {
+      if (runsRounds(state, actor) && state.spectators.some((s) => s.id === intent.personId)) {
         return rejected(state, SPECTATORS_WATCH);
       }
       return runCurrentRound(state, actor, "run the chair", now, (round) =>
@@ -446,7 +446,7 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
       );
     case "move-to-side":
       // Spectators never have a Side, so there's nothing to move them to.
-      if (isHost(state, actor) && state.spectators.some((s) => s.id === intent.personId)) {
+      if (runsRounds(state, actor) && state.spectators.some((s) => s.id === intent.personId)) {
         return rejected(state, SPECTATORS_WATCH);
       }
       return runCurrentRound(state, actor, "move people between Sides", now, (round) =>
@@ -944,7 +944,7 @@ function runCurrentRound(
   now: number,
   control: (round: CurrentRound) => RoundOutcome,
 ): ApplyResult {
-  if (!isHost(state, actor)) return rejected(state, notHost(action));
+  if (!runsRounds(state, actor)) return rejected(state, notHost(action));
   if (!state.round) return rejected(state, NO_ROUND);
   return withRound(state, control(state.round), now);
 }
@@ -955,7 +955,7 @@ function controlFloor(
   actor: Actor,
   now: number,
 ): ApplyResult {
-  if (!isHost(state, actor)) return rejected(state, notHost("give and take the Floor"));
+  if (!runsRounds(state, actor)) return rejected(state, notHost("give and take the Floor"));
   if (state.phase !== "live") return rejected(state, ROOM_NOT_LIVE);
   switch (intent.type) {
     case "give-floor":
@@ -1062,6 +1062,15 @@ function asWaitingRoomPerson(person: Person): WaitingRoomPerson {
 
 function isHost(state: RoomState, actor: Actor): boolean {
   return state.hostTokens.includes(actor.token);
+}
+
+/**
+ * Whether the actor may use the controls for running Rounds: the current
+ * Round's controls (reveals, advancing, Sides, the Surrounded Center and chair)
+ * and the Floor. Only the Host for now; Co-Hosts will widen this one check.
+ */
+function runsRounds(state: RoomState, actor: Actor): boolean {
+  return isHost(state, actor);
 }
 
 function notHost(action: string): Rejection {
