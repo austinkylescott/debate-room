@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watchEffect } from "vue";
+import { computed } from "vue";
+import { useCountdown } from "../lib/serverClock";
 import type { FloorView, Intent, WaitingRoomPerson } from "../room/room";
 
 const props = defineProps<{
@@ -21,20 +22,10 @@ const TIMER_CHOICES: { seconds: number | null; label: string }[] = [
   { seconds: 300, label: "5 minutes" },
 ];
 
-// A clock for the countdowns, running only while a speaking timer is.
-const now = ref(Date.now());
-let clock: ReturnType<typeof setInterval> | undefined;
-watchEffect(() => {
-  const running = props.floor.holders.some((h) => h.endsAt !== null && !h.timeUp);
-  if (running && clock === undefined) {
-    now.value = Date.now();
-    clock = setInterval(() => (now.value = Date.now()), 250);
-  } else if (!running && clock !== undefined) {
-    clearInterval(clock);
-    clock = undefined;
-  }
-});
-onBeforeUnmount(() => clearInterval(clock));
+// The countdowns, on the server's clock, running only while a speaking timer is.
+const secondsLeft = useCountdown(() =>
+  props.floor.holders.some((h) => h.endsAt !== null && !h.timeUp),
+);
 
 const holderIds = computed(() => props.floor.holders.map((h) => h.personId));
 const youHaveFloor = computed(() => holderIds.value.includes(props.youId));
@@ -53,7 +44,7 @@ const candidates = computed(() => {
 });
 
 function timeLeft(endsAt: number): string {
-  const seconds = Math.max(0, Math.ceil((endsAt - now.value) / 1000));
+  const seconds = secondsLeft(endsAt);
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")} left`;
 }
 

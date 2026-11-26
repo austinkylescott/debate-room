@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from "vue";
+import { serverClock } from "../lib/serverClock";
 import { FORMAT_NAMES } from "../room/lineup";
 import { summarizeRecap } from "../room/recap";
 import type { RecapEvent } from "../room/room";
@@ -10,8 +11,9 @@ import SpectrumSummary from "./SpectrumSummary.vue";
 const props = defineProps<{ roomId: string; events: RecapEvent[] }>();
 
 // Floor turns still running count up to now, so keep now moving while the Room is Live.
-const now = ref(Date.now());
-const clock = setInterval(() => (now.value = Date.now()), 1000);
+// Recap times are the server's, so now is too.
+const now = ref(serverClock.now());
+const clock = setInterval(() => (now.value = serverClock.now()), 1000);
 onBeforeUnmount(() => clearInterval(clock));
 
 const recap = computed(() => summarizeRecap(props.events, now.value));
