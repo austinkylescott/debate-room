@@ -684,6 +684,83 @@ describe("the Recap", () => {
   });
 });
 
+describe("a Co-Host running a Surrounded Round", () => {
+  const taylor: Actor = { token: "taylor-device" };
+  const TAYLOR = "p5";
+
+  /** Riley is a Co-Host, Playing or sitting the Round out; Taylor is a Participant. */
+  const withCoHost = (rileyPlaying: boolean, centerId: string | null = ALEX) =>
+    run(
+      roomWith({ centerId }),
+      [{ type: "join", nickname: "Taylor" }, taylor],
+      [{ type: "grant-co-host", personIds: [RILEY] }, host],
+      [{ type: "set-playing", playing: rileyPlaying }, riley],
+      [start(), host],
+    );
+
+  it("lets a Co-Host pick the Center, seat and end exchanges, and override the Floor", () => {
+    const state = run(
+      withCoHost(false, null),
+      [chooseCenter(ALEX), riley],
+      [seat(SAM), riley],
+      [{ type: "give-floor", personId: TAYLOR }, riley],
+    );
+    expect(surroundedOf(state, alex).center?.personId).toBe(ALEX);
+    expect(surroundedOf(state, alex).chair?.challenger.personId).toBe(SAM);
+    expect(floorHolders(state)).toEqual([ALEX, SAM, TAYLOR]);
+    const ended = attempt(state, endExchange, riley);
+    expect(ended.recapEvents).toContainEqual(
+      expect.objectContaining({ type: "exchange-ended", challengerId: SAM, endedBy: "host" }),
+    );
+  });
+
+  it("never lets a Co-Host seat a Spectator or make one the Center", () => {
+    const state = withCoHost(false, null);
+    expect(attempt(state, chooseCenter(CASEY), riley).rejection?.code).toBe("spectators-watch");
+    const withCenterChosen = run(state, [chooseCenter(ALEX), riley]);
+    expect(attempt(withCenterChosen, seat(CASEY), riley).rejection?.code).toBe("spectators-watch");
+  });
+
+  it("doesn't count a Co-Host who sits out as a Challenger or a voter", () => {
+    const state = run(withCoHost(false), [takeChair, sam]);
+    const surrounded = surroundedOf(state, riley);
+    expect(surrounded.challengers.map((c) => c.personId)).toEqual([SAM, TAYLOR]);
+    // Only Taylor votes, so one vote is a majority.
+    expect(surrounded.chair?.votesNeeded).toBe(1);
+    expect(attempt(state, voteRemove(), riley).rejection?.code).toBe("cant-vote");
+    expect(attempt(state, yieldChair, riley).rejection?.code).toBe("cant-yield");
+    expect(viewFor(state, riley).stage?.playing).toBe(false);
+    const free = run(state, [yieldChair, sam]);
+    expect(attempt(free, takeChair, riley).rejection?.code).toBe("not-playing");
+  });
+
+  it("counts a Playing Co-Host as a Challenger and a voter", () => {
+    const state = run(withCoHost(true), [takeChair, sam]);
+    expect(viewFor(state, riley).stage?.playing).toBe(true);
+    // Riley and Taylor vote: it takes both.
+    expect(surroundedOf(state, riley).chair?.votesNeeded).toBe(2);
+    const oneVote = run(state, [voteRemove(), riley]);
+    expect(surroundedOf(oneVote, alex).chair).not.toBeNull();
+    const removed = run(oneVote, [voteRemove(), taylor]);
+    expect(surroundedOf(removed, alex).chair).toBeNull();
+    expect(attempt(removed, takeChair, riley).rejection).toBeUndefined();
+  });
+
+  it("refuses to start a Round whose Center is a Co-Host sitting it out", () => {
+    const state = run(
+      roomWith({ centerId: RILEY }),
+      [{ type: "grant-co-host", personIds: [RILEY] }, host],
+      [{ type: "set-playing", playing: false }, riley],
+    );
+    expect(attempt(state, start(), host).rejection?.code).toBe("center-not-playing");
+  });
+
+  it("refuses the chair controls once the Co-Host steps down", () => {
+    const state = run(withCoHost(false), [takeChair, sam], [{ type: "step-down" }, riley]);
+    expect(attempt(state, endExchange, riley).rejection?.code).toBe("not-host");
+  });
+});
+
 describe("Surrounded intents over the wire", () => {
   it.each<Intent>([
     volunteer,

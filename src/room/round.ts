@@ -92,6 +92,8 @@ interface RoundBase {
   /** A copy of the Prompts taken at the start, so Lineup edits don't change a Round mid-play. */
   prompts: Prompt[];
   hostPlaying: boolean;
+  /** Co-Hosts who chose not to Play this Round. Fixed when it starts, so nobody can peek mid-Round. */
+  sittingOut: string[];
   promptIndex: number;
   /** The current Prompt's Moods. */
   moods: PromptMoods;
@@ -159,7 +161,7 @@ export interface RoundRejection {
   message: string;
 }
 
-/** What set off a reveal: everyone Playing locking in (or choosing), or the Host. */
+/** What set off a reveal: everyone Playing locking in (or choosing), or the Host or a Co-Host. */
 export type RevealCause = "everyone-locked-in" | "everyone-chose" | "host";
 
 /** What happened in a Round, for the Recap. The Room adds the time. */
@@ -304,7 +306,16 @@ export function nextRound(lineup: Lineup, playedRoundIds: string[]): Round | und
   return lineup.rounds.find((r) => !playedRoundIds.includes(r.id));
 }
 
-export function startRound(round: Round, hostPlaying: boolean, people: RoundPeople): RoundOutcome {
+/**
+ * @param hostPlaying whether the Host Plays this Round.
+ * @param sittingOut the Co-Hosts who chose not to Play it.
+ */
+export function startRound(
+  round: Round,
+  hostPlaying: boolean,
+  sittingOut: string[],
+  people: RoundPeople,
+): RoundOutcome {
   const { setup } = round;
   if (round.prompts.length === 0) {
     return refuse("round-empty", "This Round has no Prompts yet. Add one to start it.");
@@ -313,12 +324,23 @@ export function startRound(round: Round, hostPlaying: boolean, people: RoundPeop
     roundId: round.id,
     prompts: round.prompts,
     hostPlaying,
+    sittingOut,
     promptIndex: 0,
     moods: startPromptMoods(),
   };
-  const playing = playingIds(hostPlaying, people);
-  if (setup.format === "surrounded" && setup.centerId === people.hostId && !hostPlaying) {
-    return refuse("center-not-playing", "You're this Round's Center, so you need to be Playing.");
+  const playing = playingIds(base, people);
+  // The Center defends every Prompt, so they have to be Playing the Round.
+  if (
+    setup.format === "surrounded" &&
+    setup.centerId !== null &&
+    !playing.includes(setup.centerId)
+  ) {
+    return refuse(
+      "center-not-playing",
+      setup.centerId === people.hostId
+        ? "You're this Round's Center, so you need to be Playing."
+        : "This Round's Center is sitting it out. Pick another Center or ask them to Play.",
+    );
   }
   const current: CurrentRound =
     setup.format === "spectrum"
@@ -374,7 +396,7 @@ export function playRound(
     }
     case "pick-side": {
       if (current.format !== "middle-ground") return WRONG_FORMAT;
-      if (!playingIds(current.hostPlaying, people).includes(personId)) return NOT_IN_ROUND;
+      if (!playingIds(current, people).includes(personId)) return NOT_IN_ROUND;
       const outcome = pickSide(current.middleGround, personId, intent.side);
       if ("rejection" in outcome) return outcome;
       return {
@@ -495,7 +517,7 @@ export function advanceRound(
       if (promptIndex >= current.prompts.length) {
         return { round: null, events: [{ type: "round-ended", roundId: current.roundId }] };
       }
-      const nextPlaying = playingIds(current.hostPlaying, people);
+      const nextPlaying = playingIds(current, people);
       const next = { promptIndex, moods: startPromptMoods() };
       const nextRound: CurrentRound =
         current.format === "spectrum"
@@ -561,7 +583,8 @@ export function abandonRound(current: CurrentRound): RoundOutcome {
  * Someone left the Room. If they were the last to lock in or choose, the reveal
  * happens; if they were the last to answer the Mood Check-in, it closes.
  */
-export function leaveRound(current: CurrentRound, personId: string): RoundOutcome {
+export function leaveRound(round: CurrentRound, personId: string): RoundOutcome {
+  const current = stopSittingOut(round, personId);
   if (current.format === "spectrum") {
     if (!current.spectrum.playing.includes(personId)) return { round: current, events: [] };
     const left: SpectrumRound = {
@@ -588,9 +611,21 @@ export function leaveRound(current: CurrentRound, personId: string): RoundOutcom
   return checkInOpen(current.moods) ? closeIfEveryoneAnswered(left) : revealIfEveryoneChose(left);
 }
 
+/**
+ * Someone sitting out the Round (a Co-Host who stepped down, was revoked or
+ * left) no longer is: they Play from the next Prompt, like someone who joined
+ * mid-Round (and in Middle Ground can pick a Side straight away). Whatever they
+ * saw of this Prompt, the next starts fresh.
+ */
+export function stopSittingOut(current: CurrentRound, personId: string): CurrentRound {
+  if (!current.sittingOut.includes(personId)) return current;
+  return { ...current, sittingOut: current.sittingOut.filter((id) => id !== personId) };
+}
+
+/** @param viewer.runsRoom whether the viewer is the Host or a Co-Host, who see calling aids. */
 export function stageView(
   current: CurrentRound,
-  viewer: { personId: string; isHost: boolean; isSpectator: boolean },
+  viewer: { personId: string; runsRoom: boolean; isSpectator: boolean },
   people: RoundPeople,
 ): StageView {
   const viewerId = viewer.personId;
@@ -616,7 +651,7 @@ export function stageView(
   if (current.format === "spectrum") {
     const spectrum = viewSpectrum(
       current.spectrum,
-      { personId: playing ? viewerId : null, seesHidden, seesCallingAids: viewer.isHost },
+      { personId: playing ? viewerId : null, seesHidden, seesCallingAids: viewer.runsRoom },
       people.nicknames,
     );
     return {
@@ -633,7 +668,7 @@ export function stageView(
       surrounded: summaryHeld ? { ...surrounded, summary: null } : surrounded,
     };
   }
-  const inRound = playingIds(current.hostPlaying, people);
+  const inRound = playingIds(current, people);
   const middleGround = viewMiddleGround(
     current.middleGround,
     { personId: inRound.includes(viewerId) ? viewerId : null, seesHidden },
@@ -927,8 +962,13 @@ function currentPrompt(current: CurrentRound): Prompt {
   return current.prompts[current.promptIndex]!;
 }
 
-function playingIds(hostPlaying: boolean, people: RoundPeople): string[] {
-  return hostPlaying ? [people.hostId, ...people.participantIds] : people.participantIds;
+/** Who Plays a Prompt as it starts: the Participants, less any Co-Host sitting out, and the Host if Playing. */
+function playingIds(
+  round: Pick<RoundBase, "hostPlaying" | "sittingOut">,
+  people: RoundPeople,
+): string[] {
+  const participants = people.participantIds.filter((id) => !round.sittingOut.includes(id));
+  return round.hostPlaying ? [people.hostId, ...participants] : participants;
 }
 
 function refuse(code: RoundRejectionCode, message: string): RoundOutcome {
