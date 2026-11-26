@@ -143,9 +143,11 @@ describe("Spectator limit", () => {
     expect(viewFor(joined, { token: "S-device-25" }).you.role).toBe("spectator");
   });
 
-  it("still lets a Spectator join when the Participant limit is full", () => {
+  it("offers Spectator instead when the Participant limit is full", () => {
     const full = withJoined(liveRoom({ participantLimit: 2 }), "participant", 2);
-    expect(attempt(full, joinAsParticipant("Casey"), casey).rejection?.code).toBe("room-full");
+    const refused = attempt(full, joinAsParticipant("Casey"), casey);
+    expect(refused.rejection?.code).toBe("room-full");
+    expect(refused.rejection?.message).toContain("join as a Spectator");
     const state = run(full, [joinAsSpectator("Casey"), casey]);
     expect(viewFor(state, casey).you.role).toBe("spectator");
   });
@@ -223,7 +225,7 @@ describe("what a Spectator can't do", () => {
   ])("refuses a Spectator's Round intent (%j)", (intent) => {
     const state = midPrompt();
     const result = attempt(state, intent, casey);
-    expect(result.rejection?.code).toBe("spectator");
+    expect(result.rejection?.code).toBe("spectators-watch");
     expect(result.state).toBe(state);
   });
 
@@ -237,7 +239,7 @@ describe("what a Spectator can't do", () => {
       state,
       {
         type: "add-round",
-        setup: { format: "surrounded", centerId: spectatorIdOf(state, casey), exchangeSeconds: 60 },
+        setup: { format: "surrounded", centerId: personIdOf(state, casey), exchangeSeconds: 60 },
         prompts: [{ text: "Cats beat dogs", surprise: false }],
       },
       host,
@@ -247,7 +249,7 @@ describe("what a Spectator can't do", () => {
 
   it("refuses a Spectator's raised hand", () => {
     const state = run(liveRoom(), [joinAsSpectator("Casey"), casey]);
-    expect(attempt(state, { type: "raise-hand" }, casey).rejection?.code).toBe("spectator");
+    expect(attempt(state, { type: "raise-hand" }, casey).rejection?.code).toBe("spectators-watch");
   });
 
   it("can't give a Spectator the Floor, but shows them who has it", () => {
@@ -258,15 +260,11 @@ describe("what a Spectator can't do", () => {
     );
     const giveCasey = attempt(
       state,
-      { type: "give-floor", personId: spectatorIdOf(state, casey) },
+      { type: "give-floor", personId: personIdOf(state, casey) },
       host,
     );
     expect(giveCasey.rejection?.code).toBe("person-not-found");
-    const alexId = viewFor(state, alex).you;
-    const given = run(state, [
-      { type: "give-floor", personId: "personId" in alexId ? alexId.personId : "" },
-      host,
-    ]);
+    const given = run(state, [{ type: "give-floor", personId: personIdOf(state, alex) }, host]);
     expect(viewFor(given, casey).floor?.holders.map((h) => h.nickname)).toEqual(["Alex"]);
   });
 
@@ -276,9 +274,9 @@ describe("what a Spectator can't do", () => {
   });
 });
 
-function spectatorIdOf(state: RoomState, viewer: Actor): string {
+function personIdOf(state: RoomState, viewer: Actor): string {
   const you = viewFor(state, viewer).you;
-  if (you.role !== "spectator") throw new Error("not a Spectator");
+  if (!("personId" in you)) throw new Error("not in the Room");
   return you.personId;
 }
 
@@ -286,7 +284,7 @@ describe("the Host and Spectators", () => {
   it("lets the Host rename a Spectator, and everyone sees the new nickname", () => {
     const state = run(liveRoom(), [joinAsSpectator("Casey"), casey]);
     const renamed = run(state, [
-      { type: "rename-person", personId: spectatorIdOf(state, casey), nickname: "Case" },
+      { type: "rename-person", personId: personIdOf(state, casey), nickname: "Case" },
       host,
     ]);
     expect(viewFor(renamed, casey).you).toMatchObject({ role: "spectator", nickname: "Case" });
@@ -296,7 +294,7 @@ describe("the Host and Spectators", () => {
   it("lets the Host remove a Spectator, who can't join again", () => {
     const state = run(liveRoom(), [joinAsSpectator("Casey"), casey]);
     const removed = run(state, [
-      { type: "remove-person", personId: spectatorIdOf(state, casey) },
+      { type: "remove-person", personId: personIdOf(state, casey) },
       host,
     ]);
     expect(viewFor(removed, casey).you.role).toBe("removed");
@@ -329,20 +327,18 @@ describe("switching from Spectator to Participant", () => {
 
   it("keeps the same person id, so the Recap follows them across the switch", () => {
     const state = run(liveRoom(), [joinAsSpectator("Casey"), casey]);
-    const before = viewFor(state, casey).you;
-    const after = viewFor(run(state, [becomeParticipant, casey]), casey).you;
-    expect("personId" in after && after.personId).toBe("personId" in before && before.personId);
+    const after = run(state, [becomeParticipant, casey]);
+    expect(personIdOf(after, casey)).toBe(personIdOf(state, casey));
   });
 
   it("records the switch in the Recap", () => {
     const state = run(liveRoom(), [joinAsSpectator("Casey"), casey]);
-    const you = viewFor(state, casey).you;
     const result = attempt(state, becomeParticipant, casey);
     expect(result.recapEvents).toEqual([
       {
         at: clock,
         type: "spectator-became-participant",
-        personId: "personId" in you ? you.personId : "",
+        personId: personIdOf(state, casey),
       },
     ]);
   });

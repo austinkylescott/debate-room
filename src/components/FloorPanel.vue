@@ -91,11 +91,9 @@ function setTimer(event: Event) {
     <p v-else class="muted">No one has the Floor.</p>
 
     <!-- Participants ask for the Floor; Spectators only watch -->
-    <p v-if="isSpectator && floor.raisedHands.length" class="muted small">
-      Hands up: {{ floor.raisedHands.map((h) => h.nickname).join(", ") }}
-    </p>
-    <template v-else-if="!isHost && !isSpectator">
-      <p v-if="youHaveFloor" class="muted">You have the Floor.</p>
+    <template v-if="!isHost">
+      <p v-if="isSpectator" class="muted small">Spectators watch: they don't raise hands.</p>
+      <p v-else-if="youHaveFloor" class="muted">You have the Floor.</p>
       <button
         v-else-if="yourHand === null"
         class="primary"

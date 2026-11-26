@@ -59,6 +59,14 @@ watch(
   { immediate: true },
 );
 
+function renamePerson(personId: string, newNickname: string) {
+  send({ type: "rename-person", personId, nickname: newNickname });
+}
+
+function removePerson(personId: string) {
+  send({ type: "remove-person", personId });
+}
+
 function claimHostWithPin() {
   send({ type: "claim-host-pin", pin: pin.value });
   pin.value = "";
@@ -271,10 +279,8 @@ function claimHostWithPin() {
         :people="view.waitingRoom.people"
         :you-id="personId"
         :can-manage="view.you.role === 'host'"
-        @rename="
-          (id, newNickname) => send({ type: 'rename-person', personId: id, nickname: newNickname })
-        "
-        @remove="(id) => send({ type: 'remove-person', personId: id })"
+        @rename="renamePerson"
+        @remove="removePerson"
       />
       <p v-if="view.you.role === 'participant' && !view.stage" class="muted">
         You're in. The Host will start the first Round soon.
@@ -291,10 +297,8 @@ function claimHostWithPin() {
         :people="view.waitingRoom.spectators"
         :you-id="personId"
         :can-manage="view.you.role === 'host'"
-        @rename="
-          (id, newNickname) => send({ type: 'rename-person', personId: id, nickname: newNickname })
-        "
-        @remove="(id) => send({ type: 'remove-person', personId: id })"
+        @rename="renamePerson"
+        @remove="removePerson"
       />
       <p v-else class="muted small">No one is watching yet.</p>
 

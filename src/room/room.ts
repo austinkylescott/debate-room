@@ -112,7 +112,7 @@ export type RejectionCode =
   | "no-round"
   | "not-in-room"
   | "not-participant"
-  | "spectator"
+  | "spectators-watch"
   | "not-spectator"
   | RoundRejectionCode
   | FloorRejectionCode
@@ -558,8 +558,15 @@ function join(
   }
   // Only Participants count for now. Once the Host can be Playing in a Round,
   // a Playing Host takes one of these places too.
+  // A full Participant limit offers Spectator instead, if there's room to watch.
   if (role === "participant" && isParticipantLimitFull(state)) {
-    return rejected(state, roomFull(state));
+    const full = roomFull(state);
+    return rejected(
+      state,
+      state.spectators.length < SPECTATOR_LIMIT
+        ? { ...full, message: `${full.message} You can join as a Spectator instead.` }
+        : full,
+    );
   }
   if (role === "spectator" && state.spectators.length >= SPECTATOR_LIMIT) {
     return rejected(state, {
@@ -881,7 +888,7 @@ const NO_ROUND: Rejection = { code: "no-round", message: "No Round is being play
 const NOT_IN_ROOM: Rejection = { code: "not-in-room", message: "Join the Room to take part." };
 
 const SPECTATORS_WATCH: Rejection = {
-  code: "spectator",
+  code: "spectators-watch",
   message: "Spectators watch the Stage but don't take part in Rounds.",
 };
 
