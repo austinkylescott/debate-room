@@ -32,7 +32,9 @@ import {
   stageView,
   startRound,
   type StageView,
+  tickRound,
 } from "./round";
+import { isMood, startPromptMoods } from "./mood";
 
 export type { StageView } from "./round";
 
@@ -130,6 +132,8 @@ export interface ApplyResult {
   state: RoomState;
   recapEvents: RecapEvent[];
   rejection?: Rejection;
+  /** When a timer started by this change is due: the Room should `tick` at this time. */
+  scheduled?: number;
 }
 
 export const HOST_PERSON_ID = "host";
@@ -239,14 +243,28 @@ export function apply(state: RoomState, intent: Intent, actor: Actor, now: numbe
       return beginRound(state, intent.hostPlaying, actor, now);
     case "move-position":
     case "lock-in":
+    case "set-mood":
       return playCurrentRound(state, intent, actor, now);
     case "reveal-positions":
       return runCurrentRound(state, actor, "reveal the positions", now, revealPositions);
     case "advance":
       return runCurrentRound(state, actor, "move the Round on", now, (round) =>
-        advanceRound(round, roundPeople(state)),
+        advanceRound(round, roundPeople(state), now),
       );
   }
+}
+
+/** Handles any timers that are due by `now`, such as the Mood Check-in closing. */
+export function tick(state: RoomState, now: number): ApplyResult {
+  if (!state.round) return unchanged(state);
+  const outcome = tickRound(state.round, now);
+  // Nothing due: the same state, so the adapter has nothing to save or send.
+  if ("round" in outcome && outcome.round === state.round) {
+    return outcome.scheduled === undefined
+      ? unchanged(state)
+      : { ...unchanged(state), scheduled: outcome.scheduled };
+  }
+  return withRound(state, outcome, now);
 }
 
 export function viewFor(state: RoomState, viewer: Actor): View {
@@ -312,6 +330,8 @@ export function parseIntent(raw: unknown): Intent | null {
       return typeof value.position === "number"
         ? { type: value.type, position: value.position }
         : null;
+    case "set-mood":
+      return isMood(value.mood) ? { type: "set-mood", mood: value.mood } : null;
     default:
       return parseLineupIntent(value);
   }
@@ -322,7 +342,9 @@ export function upgradeState(stored: RoomState): RoomState {
   return {
     ...stored,
     lineup: stored.lineup ?? emptyLineup(),
-    round: stored.round ?? null,
+    round: stored.round
+      ? { ...stored.round, moods: stored.round.moods ?? startPromptMoods() }
+      : null,
     playedRoundIds: stored.playedRoundIds ?? [],
   };
 }
@@ -574,10 +596,11 @@ function runCurrentRound(
 
 function withRound(state: RoomState, outcome: RoundOutcome, now: number): ApplyResult {
   if ("rejection" in outcome) return rejected(state, outcome.rejection);
-  return {
+  const result: ApplyResult = {
     state: { ...state, round: outcome.round },
     recapEvents: outcome.events.map((event) => ({ at: now, ...event })),
   };
+  return outcome.scheduled === undefined ? result : { ...result, scheduled: outcome.scheduled };
 }
 
 function roundPeople(state: RoomState): RoundPeople {

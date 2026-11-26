@@ -84,7 +84,13 @@ function claimHostWithPin() {
         </button>
       </section>
       <template v-else>
-        <SpectrumStage v-if="view.stage" :stage="view.stage" is-host @send="send" />
+        <SpectrumStage
+          v-if="view.stage"
+          :stage="view.stage"
+          is-host
+          :person-id="personId"
+          @send="send"
+        />
         <section v-else-if="view.phase === 'live'" class="card">
           <p class="eyebrow">Waiting Room</p>
           <template v-if="nextRound">
@@ -141,6 +147,7 @@ function claimHostWithPin() {
       v-else-if="view.you.role === 'participant' && view.stage"
       :stage="view.stage"
       :is-host="false"
+      :person-id="personId"
       @send="send"
     />
 

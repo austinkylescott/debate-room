@@ -1,16 +1,19 @@
 // The Durable Object adapter for one Room (docs/adr/0002). It holds no Room
-// rules: it maps connections to actors, persists state and the Recap, and sends
-// each connection its own view. All Room rules live in src/room/room.ts.
+// rules: it maps connections to actors, persists state and the Recap, sends
+// each connection its own view and maps the Room's timers to the Durable
+// Object's alarm. All Room rules live in src/room/room.ts.
 import { type Connection, type ConnectionContext, Server, type WSMessage } from "partyserver";
 import {
   type Actor,
   apply,
+  type ApplyResult,
   createRoom,
   type CreateRoomInput,
   parseIntent,
   type RecapEvent,
   type Rejection,
   type RoomState,
+  tick,
   upgradeState,
   viewFor,
 } from "../src/room/room";
@@ -59,10 +62,29 @@ export class Room extends Server<Env> {
     if (result.rejection) {
       send(connection, { type: "rejected", rejection: result.rejection });
     }
-    if (result.state !== this.#state) {
-      await this.#save(result.state, result.recapEvents);
-      this.#broadcastViews();
-    }
+    await this.#commit(result);
+  }
+
+  /** A timer the Room asked for is due (or the alarm fired early): let the Room handle it. */
+  async onAlarm() {
+    if (!this.#state) return;
+    await this.#commit(tick(this.#state, Date.now()));
+  }
+
+  async #commit(result: ApplyResult) {
+    if (result.scheduled !== undefined) await this.#scheduleAlarm(result.scheduled);
+    if (result.state === this.#state) return;
+    await this.#save(result.state, result.recapEvents);
+    this.#broadcastViews();
+  }
+
+  /**
+   * A Durable Object has one alarm, so keep whichever is sooner. An alarm that
+   * fires with nothing due is harmless: `tick` leaves the Room as it was.
+   */
+  async #scheduleAlarm(at: number) {
+    const current = await this.ctx.storage.getAlarm();
+    if (current === null || at < current) await this.ctx.storage.setAlarm(at);
   }
 
   async #save(state: RoomState, recapEvents: RecapEvent[]) {
