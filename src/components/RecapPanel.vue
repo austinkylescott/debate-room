@@ -4,7 +4,9 @@ import { FORMAT_NAMES } from "../room/lineup";
 import { summarizeRecap } from "../room/recap";
 import type { RecapEvent } from "../room/room";
 import type { RevealCause } from "../room/round";
-import { SPECTRUM_NOTCHES } from "../room/spectrum";
+import { MOODS } from "../room/mood";
+import { notchLabel as labelOf } from "../room/spectrum";
+import RecapMoods from "./RecapMoods.vue";
 import SpectrumSummary from "./SpectrumSummary.vue";
 
 const props = defineProps<{ roomId: string; events: RecapEvent[] }>();
@@ -39,12 +41,17 @@ function inTheMiddle(
 }
 
 function notchLabel(position: number | null): string {
-  if (position === null) return "no position";
-  const nearest = SPECTRUM_NOTCHES.reduce((best, notch) =>
-    Math.abs(notch.value - position) < Math.abs(best.value - position) ? notch : best,
-  );
-  return nearest.label;
+  return position === null ? "no position" : labelOf(position);
 }
+
+/** The Room-wide overview only lists Prompts where someone had a Mood. */
+const moodOverview = computed(() =>
+  recap.value.moodOverview.filter(
+    (entry) =>
+      Object.values(entry.moodChanges).some((n) => n > 0) ||
+      (entry.checkIn !== null && Object.values(entry.checkIn.moods).some((n) => n > 0)),
+  ),
+);
 
 function download() {
   const file = {
@@ -80,6 +87,38 @@ function download() {
         <span class="small">{{ duration(person.ms) }}</span>
       </li>
     </ul>
+
+    <template v-if="moodOverview.length > 0">
+      <h3>Moods by Prompt</h3>
+      <table class="mood-overview small">
+        <thead>
+          <tr>
+            <th scope="col">Prompt</th>
+            <th v-for="mood in MOODS" :key="mood.id" scope="col" :title="mood.label">
+              {{ mood.emoji }}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="entry in moodOverview" :key="`${entry.roundNumber}-${entry.promptNumber}`">
+            <th scope="row" :title="entry.text">
+              R{{ entry.roundNumber }}·P{{ entry.promptNumber }}
+              <span class="muted">{{ entry.text }}</span>
+            </th>
+            <td
+              v-for="mood in MOODS"
+              :key="mood.id"
+              :class="{ muted: !(entry.checkIn?.moods[mood.id] ?? entry.moodChanges[mood.id]) }"
+            >
+              {{ entry.checkIn ? entry.checkIn.moods[mood.id] : entry.moodChanges[mood.id] }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted small">
+        The Check-in tally for each Prompt, or the Mood changes so far until its Check-in closes.
+      </p>
+    </template>
 
     <p v-if="recap.rounds.length === 0" class="muted small">No Rounds have been played yet.</p>
     <article v-for="(round, r) in recap.rounds" :key="round.roundId" class="recap-round">
@@ -142,6 +181,7 @@ function download() {
             </li>
           </ul>
         </template>
+        <RecapMoods :moods="prompt.moods" :started-at="prompt.startedAt" />
       </div>
     </article>
   </section>

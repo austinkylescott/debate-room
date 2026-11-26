@@ -239,9 +239,14 @@ export function distribution(positions: (number | null)[]): Distribution {
  * The index in {@link SPECTRUM_NOTCHES} of the notch nearest a position. The
  * boundaries between notches sit halfway; a position on one counts toward agreeing.
  */
-function nearestNotch(position: number): number {
+export function nearestNotch(position: number): number {
   const step = (SPECTRUM_MAX - SPECTRUM_MIN) / (SPECTRUM_NOTCHES.length - 1);
   return Math.round((position - SPECTRUM_MIN) / step);
+}
+
+/** The label of the notch nearest a position, such as "Disagree". */
+export function notchLabel(position: number): string {
+  return SPECTRUM_NOTCHES[nearestNotch(position)]!.label;
 }
 
 function checkMove(

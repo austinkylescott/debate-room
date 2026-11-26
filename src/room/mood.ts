@@ -141,10 +141,11 @@ export function viewCheckIn(moods: PromptMoods): CheckInView | null {
       answered: checkIn.asked.filter((id) => checkIn.answers[id] !== undefined),
     };
   }
-  return { status: "closed", tally: tally(Object.values(checkIn.result)) };
+  return { status: "closed", tally: tallyCheckIn(Object.values(checkIn.result)) };
 }
 
-function tally(answers: (Mood | null)[]): CheckInTally {
+/** Counts each Mood answered, and the "no Mood"s. */
+export function tallyCheckIn(answers: (Mood | null)[]): CheckInTally {
   const moods = Object.fromEntries(MOODS.map((m) => [m.id, 0])) as Record<Mood, number>;
   let noMood = 0;
   for (const answer of answers) {
