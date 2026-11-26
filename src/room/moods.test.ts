@@ -65,9 +65,10 @@ function roomWith(...prompts: string[]): RoomState {
   );
 }
 
-function stageOf(state: RoomState, viewer: Actor): StageView {
+function stageOf(state: RoomState, viewer: Actor): Extract<StageView, { format: "spectrum" }> {
   const stage = viewFor(state, viewer).stage;
   if (!stage) throw new Error("no Stage in this view");
+  if (stage.format !== "spectrum") throw new Error("not a Spectrum Stage");
   return stage;
 }
 

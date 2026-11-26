@@ -43,6 +43,7 @@ import {
   advanceRound,
   type CurrentRound,
   leaveRound,
+  moveSide,
   nextRound,
   playRound,
   revealPositions,
@@ -79,7 +80,10 @@ export type Intent =
   | { type: "remove-person"; personId: string }
   /** Starts the next Round in the Lineup. */
   | { type: "start-round"; hostPlaying: boolean }
+  /** Reveals the current Prompt's positions (Spectrum) or choices (Middle Ground). */
   | { type: "reveal-positions" }
+  /** Middle Ground: the Host moves someone to a Side. */
+  | { type: "move-to-side"; personId: string; side: 0 | 1 }
   /** Moves the Round on: to the Prompt's summary, the next Prompt or the Waiting Room. */
   | { type: "advance" }
   | RoundIntent
@@ -316,9 +320,15 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
     case "move-position":
     case "lock-in":
     case "set-mood":
+    case "pick-side":
+    case "choose-middle":
       return playCurrentRound(state, intent, actor, now);
+    case "move-to-side":
+      return runCurrentRound(state, actor, "move people between Sides", now, (round) =>
+        moveSide(round, intent.personId, intent.side),
+      );
     case "reveal-positions":
-      return runCurrentRound(state, actor, "reveal the positions", now, revealPositions);
+      return runCurrentRound(state, actor, "reveal", now, revealPositions);
     case "advance":
       return runCurrentRound(state, actor, "move the Round on", now, (round) =>
         advanceRound(round, roundPeople(state), now),
@@ -395,6 +405,16 @@ export function parseIntent(raw: unknown): Intent | null {
         : null;
     case "set-mood":
       return isMood(value.mood) ? { type: "set-mood", mood: value.mood } : null;
+    case "pick-side":
+      return value.side === 0 || value.side === 1 ? { type: "pick-side", side: value.side } : null;
+    case "move-to-side":
+      return typeof value.personId === "string" && (value.side === 0 || value.side === 1)
+        ? { type: "move-to-side", personId: value.personId, side: value.side }
+        : null;
+    case "choose-middle":
+      return typeof value.stepIn === "boolean"
+        ? { type: "choose-middle", stepIn: value.stepIn }
+        : null;
     case "give-floor":
     case "take-floor":
       return typeof value.personId === "string"
@@ -660,7 +680,7 @@ function playCurrentRound(
   const you = identify(state, actor);
   if (!("personId" in you)) return rejected(state, NOT_IN_ROOM);
   if (!state.round) return rejected(state, NO_ROUND);
-  return withRound(state, playRound(state.round, intent, you.personId), now);
+  return withRound(state, playRound(state.round, intent, you.personId, roundPeople(state)), now);
 }
 
 /** A Host control for the current Round. */

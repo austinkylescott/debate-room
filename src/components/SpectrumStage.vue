@@ -5,7 +5,11 @@ import { MOODS } from "../room/mood";
 import { SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
 import MoodPanel from "./MoodPanel.vue";
 
-const props = defineProps<{ stage: StageView; isHost: boolean; personId: string }>();
+const props = defineProps<{
+  stage: Extract<StageView, { format: "spectrum" }>;
+  isHost: boolean;
+  personId: string;
+}>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
 /** How often slider moves go to the Room while dragging. */

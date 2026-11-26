@@ -4,6 +4,7 @@ import FloorPanel from "../components/FloorPanel.vue";
 import InviteCard from "../components/InviteCard.vue";
 import LineupEditor from "../components/LineupEditor.vue";
 import LineupPreview from "../components/LineupPreview.vue";
+import MiddleGroundStage from "../components/MiddleGroundStage.vue";
 import NicknameField from "../components/NicknameField.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
 import PinField from "../components/PinField.vue";
@@ -86,7 +87,14 @@ function claimHostWithPin() {
       </section>
       <template v-else>
         <SpectrumStage
-          v-if="view.stage"
+          v-if="view.stage?.format === 'spectrum'"
+          :stage="view.stage"
+          is-host
+          :person-id="personId"
+          @send="send"
+        />
+        <MiddleGroundStage
+          v-else-if="view.stage?.format === 'middle-ground'"
           :stage="view.stage"
           is-host
           :person-id="personId"
@@ -154,7 +162,14 @@ function claimHostWithPin() {
     <!-- Participant: the Stage, while a Round is being played, and the Floor -->
     <template v-else-if="view.you.role === 'participant'">
       <SpectrumStage
-        v-if="view.stage"
+        v-if="view.stage?.format === 'spectrum'"
+        :stage="view.stage"
+        :is-host="false"
+        :person-id="personId"
+        @send="send"
+      />
+      <MiddleGroundStage
+        v-else-if="view.stage?.format === 'middle-ground'"
         :stage="view.stage"
         :is-host="false"
         :person-id="personId"
