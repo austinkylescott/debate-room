@@ -8,6 +8,7 @@ const emit = defineEmits<{ send: [intent: Intent] }>();
 
 const checkIn = computed(() => props.stage.checkIn);
 const yours = computed<Mood | null>(() => props.stage.moods[props.personId] ?? null);
+const yoursMood = computed(() => MOODS.find((m) => m.id === yours.value));
 const youAnswered = computed(
   () => checkIn.value?.status === "open" && checkIn.value.answered.includes(props.personId),
 );
@@ -65,6 +66,14 @@ function pick(mood: Mood) {
       <template v-else>Everyone Playing is picking a Mood for that Prompt.</template>
       {{ checkIn.answered.length }} answered.
     </p>
+    <button
+      v-if="stage.playing && !youAnswered && yoursMood"
+      class="primary"
+      type="button"
+      @click="pick(yoursMood.id)"
+    >
+      Keep {{ yoursMood.emoji }} {{ yoursMood.label }}
+    </button>
   </template>
 
   <!-- Your Mood -->

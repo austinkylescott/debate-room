@@ -24,6 +24,7 @@ import {
   askedInCheckIn,
   changeMood,
   type CheckInClose,
+  checkInClosesAt,
   checkInDue,
   checkInOpen,
   checkInResult,
@@ -223,7 +224,7 @@ export function advanceRound(
       return {
         round: outcome.round,
         events: [ended, ...outcome.events],
-        scheduled: checkInOpen(moods) ? moods.checkIn!.closesAt : undefined,
+        scheduled: checkInClosesAt(outcome.round.moods),
       };
     }
     case "summary": {
@@ -251,9 +252,7 @@ export function advanceRound(
 export function tickRound(current: CurrentRound, now: number): RoundOutcome {
   if (checkInDue(current.moods, now)) return checkInClosed(current, "timeout");
   // Not due yet: say when it will be, so an early tick never loses the close.
-  return checkInOpen(current.moods)
-    ? { round: current, events: [], scheduled: current.moods.checkIn!.closesAt }
-    : { round: current, events: [] };
+  return { round: current, events: [], scheduled: checkInClosesAt(current.moods) };
 }
 
 /**
@@ -338,19 +337,19 @@ function setMood(current: CurrentRound, personId: string, mood: Mood): RoundOutc
   return { round: outcome.round, events: [...events, ...outcome.events] };
 }
 
-function closeIfEveryoneAnswered(current: CurrentRound): {
+/** A change to a Round that is still being played. */
+interface RoundChange {
   round: CurrentRound;
   events: RoundEvent[];
-} {
+}
+
+function closeIfEveryoneAnswered(current: CurrentRound): RoundChange {
   return checkInOpen(current.moods) && everyoneAnswered(current.moods)
     ? checkInClosed(current, "everyone-answered")
     : { round: current, events: [] };
 }
 
-function checkInClosed(
-  current: CurrentRound,
-  by: CheckInClose,
-): { round: CurrentRound; events: RoundEvent[] } {
+function checkInClosed(current: CurrentRound, by: CheckInClose): RoundChange {
   const moods = closeCheckIn(current.moods);
   return {
     round: { ...current, moods },

@@ -260,9 +260,7 @@ export function tick(state: RoomState, now: number): ApplyResult {
   const outcome = tickRound(state.round, now);
   // Nothing due: the same state, so the adapter has nothing to save or send.
   if ("round" in outcome && outcome.round === state.round) {
-    return outcome.scheduled === undefined
-      ? unchanged(state)
-      : { ...unchanged(state), scheduled: outcome.scheduled };
+    return { ...unchanged(state), scheduled: outcome.scheduled };
   }
   return withRound(state, outcome, now);
 }
@@ -596,11 +594,11 @@ function runCurrentRound(
 
 function withRound(state: RoomState, outcome: RoundOutcome, now: number): ApplyResult {
   if ("rejection" in outcome) return rejected(state, outcome.rejection);
-  const result: ApplyResult = {
+  return {
     state: { ...state, round: outcome.round },
     recapEvents: outcome.events.map((event) => ({ at: now, ...event })),
+    scheduled: outcome.scheduled,
   };
-  return outcome.scheduled === undefined ? result : { ...result, scheduled: outcome.scheduled };
 }
 
 function roundPeople(state: RoomState): RoundPeople {

@@ -60,12 +60,17 @@ export function startPromptMoods(): PromptMoods {
 }
 
 export function checkInOpen(moods: PromptMoods): boolean {
-  return moods.checkIn !== null && moods.checkIn.result === null;
+  return openOf(moods) !== null;
+}
+
+/** When the open Check-in closes if not everyone answers. Undefined if none is open. */
+export function checkInClosesAt(moods: PromptMoods): number | undefined {
+  return openOf(moods)?.closesAt;
 }
 
 /** Whether `personId` may answer the open Check-in. */
 export function askedInCheckIn(moods: PromptMoods, personId: string): boolean {
-  return checkInOpen(moods) && moods.checkIn!.asked.includes(personId);
+  return openOf(moods)?.asked.includes(personId) ?? false;
 }
 
 /**
@@ -74,8 +79,9 @@ export function askedInCheckIn(moods: PromptMoods, personId: string): boolean {
  */
 export function changeMood(moods: PromptMoods, personId: string, mood: Mood): PromptMoods {
   const current = { ...moods.current, [personId]: mood };
-  const checkIn = checkInOpen(moods)
-    ? { ...moods.checkIn!, answers: { ...moods.checkIn!.answers, [personId]: mood } }
+  const open = openOf(moods);
+  const checkIn = open
+    ? { ...open, answers: { ...open.answers, [personId]: mood } }
     : moods.checkIn;
   return { current, checkIn };
 }
@@ -90,14 +96,16 @@ export function everyoneAnswered(moods: PromptMoods): boolean {
 }
 
 export function checkInDue(moods: PromptMoods, now: number): boolean {
-  return checkInOpen(moods) && now >= moods.checkIn!.closesAt;
+  const open = openOf(moods);
+  return open !== null && now >= open.closesAt;
 }
 
-/** Closes the Check-in. Anyone asked who didn't answer is recorded as "no Mood". */
+/** Closes the open Check-in. Anyone asked who didn't answer is recorded as "no Mood". */
 export function closeCheckIn(moods: PromptMoods): PromptMoods {
-  const checkIn = moods.checkIn!;
-  const result = Object.fromEntries(checkIn.asked.map((id) => [id, checkIn.answers[id] ?? null]));
-  return { ...moods, checkIn: { ...checkIn, result } };
+  const open = openOf(moods);
+  if (!open) return moods;
+  const result = Object.fromEntries(open.asked.map((id) => [id, open.answers[id] ?? null]));
+  return { ...moods, checkIn: { ...open, result } };
 }
 
 /** The closed Check-in's answers, by person id (null for "no Mood"). */
@@ -108,11 +116,16 @@ export function checkInResult(moods: PromptMoods): Record<string, Mood | null> {
 /** Forgets someone who left the Room. A closed Check-in stays as it was. */
 export function dropFromMoods(moods: PromptMoods, personId: string): PromptMoods {
   const { [personId]: _dropped, ...current } = moods.current;
-  const checkIn =
-    moods.checkIn && checkInOpen(moods)
-      ? { ...moods.checkIn, asked: moods.checkIn.asked.filter((id) => id !== personId) }
-      : moods.checkIn;
+  const open = openOf(moods);
+  const checkIn = open
+    ? { ...open, asked: open.asked.filter((id) => id !== personId) }
+    : moods.checkIn;
   return { current, checkIn };
+}
+
+/** The Check-in, if it's open. */
+function openOf(moods: PromptMoods): CheckIn | null {
+  return moods.checkIn?.result === null ? moods.checkIn : null;
 }
 
 export function viewCheckIn(moods: PromptMoods): CheckInView | null {
