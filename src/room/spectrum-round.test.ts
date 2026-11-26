@@ -64,9 +64,10 @@ function roomWith(...rounds: { setup?: RoundSetup; prompts: string[] }[]): RoomS
   );
 }
 
-function stageOf(state: RoomState, viewer: Actor): StageView {
+function stageOf(state: RoomState, viewer: Actor): Extract<StageView, { format: "spectrum" }> {
   const stage = viewFor(state, viewer).stage;
   if (!stage) throw new Error("no Stage in this view");
+  if (stage.format !== "spectrum") throw new Error("not a Spectrum Stage");
   return stage;
 }
 
@@ -332,9 +333,9 @@ describe("the Round lifecycle", () => {
     expect(attempt(roomWith({ prompts: [] }), start(), host).rejection?.code).toBe("round-empty");
   });
 
-  it("only plays Spectrum Rounds for now", () => {
+  it("doesn't play Surrounded Rounds yet", () => {
     const state = roomWith({
-      setup: { format: "middle-ground", sides: ["Cats", "Dogs"] },
+      setup: { format: "surrounded", centerId: null, exchangeSeconds: 120 },
       prompts: ["A"],
     });
     expect(attempt(state, start(), host).rejection?.code).toBe("format-not-available");

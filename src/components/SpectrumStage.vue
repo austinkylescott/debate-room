@@ -3,7 +3,10 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { Intent, StageView } from "../room/room";
 import { SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
 
-const props = defineProps<{ stage: StageView; isHost: boolean }>();
+const props = defineProps<{
+  stage: Extract<StageView, { format: "spectrum" }>;
+  isHost: boolean;
+}>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
 /** How often slider moves go to the Room while dragging. */

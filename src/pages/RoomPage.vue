@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import InviteCard from "../components/InviteCard.vue";
 import LineupEditor from "../components/LineupEditor.vue";
 import LineupPreview from "../components/LineupPreview.vue";
+import MiddleGroundStage from "../components/MiddleGroundStage.vue";
 import NicknameField from "../components/NicknameField.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
 import PinField from "../components/PinField.vue";
@@ -84,7 +85,18 @@ function claimHostWithPin() {
         </button>
       </section>
       <template v-else>
-        <SpectrumStage v-if="view.stage" :stage="view.stage" is-host @send="send" />
+        <SpectrumStage
+          v-if="view.stage?.format === 'spectrum'"
+          :stage="view.stage"
+          is-host
+          @send="send"
+        />
+        <MiddleGroundStage
+          v-else-if="view.stage?.format === 'middle-ground'"
+          :stage="view.stage"
+          is-host
+          @send="send"
+        />
         <section v-else-if="view.phase === 'live'" class="card">
           <p class="eyebrow">Waiting Room</p>
           <template v-if="nextRound">
@@ -138,7 +150,13 @@ function claimHostWithPin() {
 
     <!-- Participant: the Stage, while a Round is being played -->
     <SpectrumStage
-      v-else-if="view.you.role === 'participant' && view.stage"
+      v-else-if="view.you.role === 'participant' && view.stage?.format === 'spectrum'"
+      :stage="view.stage"
+      :is-host="false"
+      @send="send"
+    />
+    <MiddleGroundStage
+      v-else-if="view.you.role === 'participant' && view.stage?.format === 'middle-ground'"
       :stage="view.stage"
       :is-host="false"
       @send="send"
