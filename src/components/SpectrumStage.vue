@@ -65,23 +65,23 @@ const summaryMax = computed(() => {
   return summary ? Math.max(1, ...summary.before, ...summary.after) : 1;
 });
 
-/** The Host's calling aids: who changed their mind, and who stands furthest apart. */
-const callingAids = computed(() => {
-  const flags = spectrum.value.flags;
-  if (!props.isHost || !flags || spectrum.value.step !== "revealed") return null;
-  const apart = flags.furthestApart;
+/** Ids of the two people furthest apart, highlighted for the Host. */
+const furthestIds = computed(() => {
+  const apart = spectrum.value.callingAids?.furthestApart;
+  return apart ? [apart.low, apart.high] : [];
+});
+
+/** Who the Host might call on, and why: changed their mind, or furthest apart. */
+const callOn = computed(() => {
+  const aids = spectrum.value.callingAids;
+  if (!aids) return null;
   return spectrum.value.people
     .map((person) => ({
       ...person,
-      changedMind: flags.changedMind.includes(person.personId),
-      furthestApart: apart?.low === person.personId || apart?.high === person.personId,
+      changedMind: aids.changedMind.includes(person.personId),
+      furthestApart: furthestIds.value.includes(person.personId),
     }))
     .filter((person) => person.changedMind || person.furthestApart);
-});
-
-const furthestIds = computed(() => {
-  const apart = callingAids.value ? spectrum.value.flags?.furthestApart : null;
-  return apart ? [apart.low, apart.high] : [];
 });
 
 function percent(position: number) {
@@ -176,10 +176,10 @@ function percent(position: number) {
     </template>
 
     <!-- Who the Host might call on, once positions are out -->
-    <template v-if="callingAids">
+    <template v-if="callOn">
       <h2>Who to call on</h2>
-      <ul v-if="callingAids.length" class="people">
-        <li v-for="person in callingAids" :key="person.personId">
+      <ul v-if="callOn.length" class="people">
+        <li v-for="person in callOn" :key="person.personId">
           <span class="name">{{ person.nickname }}</span>
           <span v-if="person.changedMind" class="tag">Changed their mind</span>
           <span v-if="person.furthestApart" class="tag subtle">Furthest apart</span>

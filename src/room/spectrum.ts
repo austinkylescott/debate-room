@@ -72,12 +72,12 @@ export interface SpectrumView {
   yours: { position: number | null; lockedPosition: number | null } | null;
   /** The summary card: where people locked in, and where they ended up. Only once the Prompt ends. */
   summary: { before: Distribution; after: Distribution } | null;
-  /** Calling aids for the Host. Null until the reveal. */
-  flags: SpectrumFlags | null;
+  /** Who the Host might call on. Only for the Host, and only while positions are out and moving. */
+  callingAids: SpectrumCallingAids | null;
 }
 
 /** Who the Host might call on once positions are out. */
-export interface SpectrumFlags {
+export interface SpectrumCallingAids {
   /** Person ids now nearest a different notch from the one they locked in nearest, in Waiting Room order. */
   changedMind: string[];
   /**
@@ -160,7 +160,7 @@ export function currentPositions(prompt: SpectrumPrompt): Record<string, number 
 
 export function viewSpectrum(
   prompt: SpectrumPrompt,
-  viewer: { personId: string | null; seesHidden: boolean },
+  viewer: { personId: string | null; seesHidden: boolean; seesCallingAids: boolean },
   nicknames: Map<string, string>,
 ): SpectrumView {
   const positionsVisible = prompt.step !== "positioning" || viewer.seesHidden;
@@ -186,21 +186,24 @@ export function viewSpectrum(
             after: distribution(Object.values(currentPositions(prompt))),
           }
         : null,
-    flags: prompt.step === "positioning" ? null : flagsOf(prompt),
+    callingAids:
+      viewer.seesCallingAids && prompt.step === "revealed" ? callingAidsFor(prompt) : null,
   };
 }
 
-function flagsOf(prompt: SpectrumPrompt): SpectrumFlags {
+function callingAidsFor(prompt: SpectrumPrompt): SpectrumCallingAids {
   return {
-    changedMind: prompt.playing.filter((id) => {
-      const { current, locked } = positionOf(prompt, id);
-      return current !== null && locked !== null && nearestNotch(current) !== nearestNotch(locked);
-    }),
+    changedMind: prompt.playing.filter((id) => changedMind(positionOf(prompt, id))),
     furthestApart: furthestApart(prompt),
   };
 }
 
-function furthestApart(prompt: SpectrumPrompt): SpectrumFlags["furthestApart"] {
+/** Whether someone is now nearest a different notch from the one they locked in nearest. */
+function changedMind({ current, locked }: SpectrumPosition): boolean {
+  return current !== null && locked !== null && nearestNotch(current) !== nearestNotch(locked);
+}
+
+function furthestApart(prompt: SpectrumPrompt): SpectrumCallingAids["furthestApart"] {
   let low: { id: string; at: number } | null = null;
   let high: { id: string; at: number } | null = null;
   for (const id of prompt.playing) {

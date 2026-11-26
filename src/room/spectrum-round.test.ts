@@ -417,7 +417,7 @@ describe("calling aids after the reveal", () => {
       [{ type: "join", nickname: "Riley" }, riley],
       [start(), host],
     );
-  const flagsOf = (state: RoomState) => stageOf(state, host).spectrum.flags;
+  const aidsOf = (state: RoomState) => stageOf(state, host).spectrum.callingAids;
 
   it("flags someone who moved past a notch boundary from where they locked in", () => {
     // Notches sit every 25; the boundaries between them are halfway, at 12.5, 37.5, 62.5 and 87.5.
@@ -429,7 +429,7 @@ describe("calling aids after the reveal", () => {
       [move(40), alex],
       [move(62), sam],
     );
-    expect(flagsOf(state)?.changedMind).toEqual(["p1"]);
+    expect(aidsOf(state)?.changedMind).toEqual(["p1"]);
   });
 
   it("clears the flag once they move back within their notch", () => {
@@ -441,7 +441,7 @@ describe("calling aids after the reveal", () => {
       [move(90), alex],
       [move(26), alex],
     );
-    expect(flagsOf(state)?.changedMind).toEqual([]);
+    expect(aidsOf(state)?.changedMind).toEqual([]);
   });
 
   it("counts a position exactly on a boundary toward agreeing", () => {
@@ -453,16 +453,27 @@ describe("calling aids after the reveal", () => {
       [move(37.5), alex],
       [move(37.5), sam],
     );
-    expect(flagsOf(state)?.changedMind).toEqual(["p1"]);
+    expect(aidsOf(state)?.changedMind).toEqual(["p1"]);
+  });
+
+  it("flags a move across several notches, end to end", () => {
+    const state = run(
+      threePlaying(),
+      [lockIn(0), alex],
+      [lockIn(100), sam],
+      [lockIn(50), riley],
+      [move(100), alex],
+    );
+    expect(aidsOf(state)?.changedMind).toEqual(["p1"]);
   });
 
   it("doesn't flag someone who never locked in", () => {
     const state = run(threePlaying(), [lockIn(10), alex], [reveal, host], [move(90), sam]);
-    expect(flagsOf(state)?.changedMind).toEqual([]);
+    expect(aidsOf(state)?.changedMind).toEqual([]);
   });
 
   it("shows no flags before the reveal", () => {
-    expect(flagsOf(run(threePlaying(), [lockIn(10), alex]))).toBeNull();
+    expect(aidsOf(run(threePlaying(), [lockIn(10), alex]))).toBeNull();
   });
 
   it("highlights the lowest and highest positions as furthest apart", () => {
@@ -473,28 +484,40 @@ describe("calling aids after the reveal", () => {
       [lockIn(70), riley],
       [move(95), alex],
     );
-    expect(flagsOf(state)?.furthestApart).toEqual({ low: "p2", high: "p1" });
+    expect(aidsOf(state)?.furthestApart).toEqual({ low: "p2", high: "p1" });
   });
 
   it("breaks a tie for furthest apart by Waiting Room order", () => {
     const state = run(threePlaying(), [lockIn(80), alex], [lockIn(10), sam], [lockIn(10), riley]);
-    expect(flagsOf(state)?.furthestApart).toEqual({ low: "p2", high: "p1" });
+    expect(aidsOf(state)?.furthestApart).toEqual({ low: "p2", high: "p1" });
     const moved = run(state, [move(10), alex], [move(80), riley]);
-    expect(flagsOf(moved)?.furthestApart).toEqual({ low: "p1", high: "p3" });
+    expect(aidsOf(moved)?.furthestApart).toEqual({ low: "p1", high: "p3" });
   });
 
   it("leaves out anyone with no position when picking furthest apart", () => {
     const state = run(threePlaying(), [lockIn(40), alex], [lockIn(60), sam], [reveal, host]);
-    expect(flagsOf(state)?.furthestApart).toEqual({ low: "p1", high: "p2" });
+    expect(aidsOf(state)?.furthestApart).toEqual({ low: "p1", high: "p2" });
   });
 
   it("has no one furthest apart when everyone stands in one spot", () => {
     const state = run(threePlaying(), [lockIn(50), alex], [lockIn(50), sam], [lockIn(50), riley]);
-    expect(flagsOf(state)?.furthestApart).toBeNull();
+    expect(aidsOf(state)?.furthestApart).toBeNull();
   });
 
   it("has no one furthest apart with only one position", () => {
     const state = run(threePlaying(), [lockIn(50), alex], [reveal, host]);
-    expect(flagsOf(state)?.furthestApart).toBeNull();
+    expect(aidsOf(state)?.furthestApart).toBeNull();
+  });
+
+  it("shows the calling aids to the Host only", () => {
+    const state = run(threePlaying(), [lockIn(10), alex], [lockIn(90), sam], [lockIn(50), riley]);
+    expect(aidsOf(state)).not.toBeNull();
+    for (const viewer of [alex, sam, riley])
+      expect(stageOf(state, viewer).spectrum.callingAids).toBeNull();
+  });
+
+  it("takes the calling aids down once the Prompt ends", () => {
+    const state = run(threePlaying(), [lockIn(10), alex], [reveal, host], [advance, host]);
+    expect(aidsOf(state)).toBeNull();
   });
 });

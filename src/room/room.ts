@@ -260,7 +260,14 @@ export function viewFor(state: RoomState, viewer: Actor): View {
     lineup: you.role === "host" ? state.lineup.rounds : null,
     preview:
       state.phase === "planning" && you.role === "visitor" ? previewLineup(state.lineup) : null,
-    stage: inRoom && state.round ? stageView(state.round, you.personId, roundPeople(state)) : null,
+    stage:
+      inRoom && state.round
+        ? stageView(
+            state.round,
+            { personId: you.personId, isHost: you.role === "host" },
+            roundPeople(state),
+          )
+        : null,
     nextRoundId:
       you.role === "host" ? (nextRound(state.lineup, state.playedRoundIds)?.id ?? null) : null,
   };
