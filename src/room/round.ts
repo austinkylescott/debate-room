@@ -196,7 +196,12 @@ export function leaveRound(current: CurrentRound, personId: string): RoundOutcom
   return revealIfEveryoneLockedIn({ ...current, spectrum: dropPerson(current.spectrum, personId) });
 }
 
-export function stageView(current: CurrentRound, viewerId: string, people: RoundPeople): StageView {
+export function stageView(
+  current: CurrentRound,
+  viewer: { personId: string; isHost: boolean },
+  people: RoundPeople,
+): StageView {
+  const viewerId = viewer.personId;
   const prompt = currentPrompt(current);
   const playing = current.spectrum.playing.includes(viewerId);
   // Only those not Playing this Prompt see positions before the reveal. Each
@@ -212,7 +217,7 @@ export function stageView(current: CurrentRound, viewerId: string, people: Round
     playing,
     spectrum: viewSpectrum(
       current.spectrum,
-      { personId: playing ? viewerId : null, seesHidden },
+      { personId: playing ? viewerId : null, seesHidden, seesCallingAids: viewer.isHost },
       people.nicknames,
     ),
   };

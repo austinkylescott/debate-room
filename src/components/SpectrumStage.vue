@@ -65,6 +65,25 @@ const summaryMax = computed(() => {
   return summary ? Math.max(1, ...summary.before, ...summary.after) : 1;
 });
 
+/** Ids of the two people furthest apart, highlighted for the Host. */
+const furthestIds = computed(() => {
+  const apart = spectrum.value.callingAids?.furthestApart;
+  return apart ? [apart.low, apart.high] : [];
+});
+
+/** Who the Host might call on, and why: changed their mind, or furthest apart. */
+const callOn = computed(() => {
+  const aids = spectrum.value.callingAids;
+  if (!aids) return null;
+  return spectrum.value.people
+    .map((person) => ({
+      ...person,
+      changedMind: aids.changedMind.includes(person.personId),
+      furthestApart: furthestIds.value.includes(person.personId),
+    }))
+    .filter((person) => person.changedMind || person.furthestApart);
+});
+
 function percent(position: number) {
   return `${((position - SPECTRUM_MIN) / (SPECTRUM_MAX - SPECTRUM_MIN)) * 100}%`;
 }
@@ -90,6 +109,7 @@ function percent(position: number) {
         <span
           v-else-if="person.position !== null"
           class="marker"
+          :class="{ apart: furthestIds.includes(person.personId) }"
           :style="{ left: percent(person.position) }"
         >
           {{ person.nickname }}
@@ -153,6 +173,19 @@ function percent(position: number) {
           <span v-else class="tag subtle">Deciding</span>
         </li>
       </ul>
+    </template>
+
+    <!-- Who the Host might call on, once positions are out -->
+    <template v-if="callOn">
+      <h2>Who to call on</h2>
+      <ul v-if="callOn.length" class="people">
+        <li v-for="person in callOn" :key="person.personId">
+          <span class="name">{{ person.nickname }}</span>
+          <span v-if="person.changedMind" class="tag">Changed their mind</span>
+          <span v-if="person.furthestApart" class="tag subtle">Furthest apart</span>
+        </li>
+      </ul>
+      <p v-else class="muted">No one has changed their mind, and no one stands apart yet.</p>
     </template>
 
     <!-- Summary card -->

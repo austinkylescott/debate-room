@@ -72,6 +72,19 @@ export interface SpectrumView {
   yours: { position: number | null; lockedPosition: number | null } | null;
   /** The summary card: where people locked in, and where they ended up. Only once the Prompt ends. */
   summary: { before: Distribution; after: Distribution } | null;
+  /** Who the Host might call on. Only for the Host, and only while positions are out and moving. */
+  callingAids: SpectrumCallingAids | null;
+}
+
+/** Who the Host might call on once positions are out. */
+export interface SpectrumCallingAids {
+  /** Person ids now nearest a different notch from the one they locked in nearest, in Waiting Room order. */
+  changedMind: string[];
+  /**
+   * Whoever is lowest and highest now. On a tie, whoever comes first in Waiting
+   * Room order. Null with fewer than two positions, or everyone in one spot.
+   */
+  furthestApart: { low: string; high: string } | null;
 }
 
 export function startSpectrumPrompt(playing: string[]): SpectrumPrompt {
@@ -147,7 +160,7 @@ export function currentPositions(prompt: SpectrumPrompt): Record<string, number 
 
 export function viewSpectrum(
   prompt: SpectrumPrompt,
-  viewer: { personId: string | null; seesHidden: boolean },
+  viewer: { personId: string | null; seesHidden: boolean; seesCallingAids: boolean },
   nicknames: Map<string, string>,
 ): SpectrumView {
   const positionsVisible = prompt.step !== "positioning" || viewer.seesHidden;
@@ -173,18 +186,51 @@ export function viewSpectrum(
             after: distribution(Object.values(currentPositions(prompt))),
           }
         : null,
+    callingAids:
+      viewer.seesCallingAids && prompt.step === "revealed" ? callingAidsFor(prompt) : null,
   };
+}
+
+function callingAidsFor(prompt: SpectrumPrompt): SpectrumCallingAids {
+  return {
+    changedMind: prompt.playing.filter((id) => changedMind(positionOf(prompt, id))),
+    furthestApart: furthestApart(prompt),
+  };
+}
+
+/** Whether someone is now nearest a different notch from the one they locked in nearest. */
+function changedMind({ current, locked }: SpectrumPosition): boolean {
+  return current !== null && locked !== null && nearestNotch(current) !== nearestNotch(locked);
+}
+
+function furthestApart(prompt: SpectrumPrompt): SpectrumCallingAids["furthestApart"] {
+  let low: { id: string; at: number } | null = null;
+  let high: { id: string; at: number } | null = null;
+  for (const id of prompt.playing) {
+    const at = positionOf(prompt, id).current;
+    if (at === null) continue;
+    if (!low || at < low.at) low = { id, at };
+    if (!high || at > high.at) high = { id, at };
+  }
+  return low && high && low.at < high.at ? { low: low.id, high: high.id } : null;
 }
 
 /** Counts positions by nearest notch. A position halfway between two counts toward agreeing. */
 function distribution(positions: (number | null)[]): Distribution {
   const counts = SPECTRUM_NOTCHES.map(() => 0);
-  const step = (SPECTRUM_MAX - SPECTRUM_MIN) / (SPECTRUM_NOTCHES.length - 1);
   for (const position of positions) {
-    if (position === null) continue;
-    counts[Math.round((position - SPECTRUM_MIN) / step)]! += 1;
+    if (position !== null) counts[nearestNotch(position)]! += 1;
   }
   return counts;
+}
+
+/**
+ * The index in {@link SPECTRUM_NOTCHES} of the notch nearest a position. The
+ * boundaries between notches sit halfway; a position on one counts toward agreeing.
+ */
+function nearestNotch(position: number): number {
+  const step = (SPECTRUM_MAX - SPECTRUM_MIN) / (SPECTRUM_NOTCHES.length - 1);
+  return Math.round((position - SPECTRUM_MIN) / step);
 }
 
 function checkMove(
