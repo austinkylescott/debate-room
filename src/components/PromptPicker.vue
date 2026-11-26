@@ -25,6 +25,7 @@ watch(topics, (groups) => {
   source.value = groups[0]?.packs[0]?.id ?? WRITE;
   picked.value = [];
 });
+
 // Prompts that suit this Round's Format come first.
 const packPrompts = computed(() => {
   const all = pack.value?.prompts ?? [];
