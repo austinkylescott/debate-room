@@ -10,6 +10,12 @@ export type ServerMessage =
   /** There is no Room with this id. */
   | { type: "missing" };
 
+/**
+ * A `ServerMessage` as it goes over the wire: stamped with the server's clock
+ * when sent, so devices show countdowns on the server's time (src/lib/serverClock.ts).
+ */
+export type StampedServerMessage = ServerMessage & { serverTime: number };
+
 export interface CreateRoomRequest {
   hostNickname: string;
   /** The Host's recovery PIN: 4 to 6 digits. */

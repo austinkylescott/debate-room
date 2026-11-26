@@ -17,7 +17,7 @@ import {
   upgradeState,
   viewFor,
 } from "../src/room/room";
-import type { ServerMessage } from "../src/room/protocol";
+import type { ServerMessage, StampedServerMessage } from "../src/room/protocol";
 
 const STATE_KEY = "room";
 const RECAP_KEY = "recap";
@@ -106,8 +106,10 @@ function sendView(connection: Connection, state: RoomState, actor: Actor) {
   if (view.you.role === "removed") connection.close(4403, "Removed by the Host");
 }
 
+/** Every message carries the server's time, which devices draw countdowns from. */
 function send(connection: Connection, message: ServerMessage) {
-  connection.send(JSON.stringify(message));
+  const stamped: StampedServerMessage = { ...message, serverTime: Date.now() };
+  connection.send(JSON.stringify(stamped));
 }
 
 function safeJsonParse(text: string): unknown {

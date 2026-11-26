@@ -1,9 +1,10 @@
 // Connects to one Room's Durable Object and keeps this device's view of it.
 import PartySocket from "partysocket";
 import { onBeforeUnmount, ref, shallowRef } from "vue";
-import { PARTY_NAME, PARTY_PREFIX, type ServerMessage } from "../room/protocol";
+import { PARTY_NAME, PARTY_PREFIX, type StampedServerMessage } from "../room/protocol";
 import type { Intent, Rejection, View } from "../room/room";
 import { deviceToken, forgetHostSecret, savedHostSecret } from "./device";
+import { serverClock } from "./serverClock";
 
 export type ConnectionStatus = "connecting" | "open" | "missing" | "removed";
 
@@ -38,7 +39,8 @@ export function useRoom(roomId: string) {
   });
 
   socket.addEventListener("message", (event: MessageEvent<string>) => {
-    const message = JSON.parse(event.data) as ServerMessage;
+    const message = JSON.parse(event.data) as StampedServerMessage;
+    serverClock.observe(message.serverTime);
     switch (message.type) {
       case "view":
         view.value = message.view;
