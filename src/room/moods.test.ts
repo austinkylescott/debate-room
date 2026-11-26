@@ -341,6 +341,60 @@ describe("the Mood Check-in", () => {
   });
 });
 
+describe("the Mood Check-in sharing the Room's one timer with the Floor", () => {
+  /**
+   * Alex has the Floor with a speaking timer of `floorSeconds`, both have locked
+   * in, and the Host has just ended the Prompt, opening the Check-in.
+   */
+  const checkInWithFloorTimer = (floorSeconds: number) => {
+    const state = run(
+      roomWith("A"),
+      [start(), host],
+      [{ type: "set-floor-timer", seconds: floorSeconds }, host],
+      [{ type: "give-floor", personId: "p1" }, host],
+    );
+    const floorEndsAt = clock + floorSeconds * 1000;
+    const opened = attempt(run(state, [lockIn(20), alex], [lockIn(80), sam]), advance, host);
+    return { opened, floorEndsAt, checkInClosesAt: clock + 15_000 };
+  };
+  const typesOf = (result: ApplyResult) => result.recapEvents.map((e) => e.type);
+
+  it("schedules the Floor timer first when it runs out before the Check-in closes", () => {
+    const { opened, floorEndsAt, checkInClosesAt } = checkInWithFloorTimer(10);
+    expect(floorEndsAt).toBeLessThan(checkInClosesAt);
+    expect(opened.scheduled).toBe(floorEndsAt);
+
+    const floorUp = tick(opened.state, floorEndsAt);
+    expect(typesOf(floorUp)).toEqual(["floor-time-up"]);
+    expect(stageOf(floorUp.state, alex).checkIn?.status).toBe("open");
+    expect(floorUp.scheduled).toBe(checkInClosesAt);
+
+    const closed = tick(floorUp.state, checkInClosesAt);
+    expect(typesOf(closed)).toEqual(["mood-check-in-closed"]);
+    expect(closed.scheduled).toBeUndefined();
+  });
+
+  it("schedules the Check-in close first when it comes before the Floor timer runs out", () => {
+    const { opened, floorEndsAt, checkInClosesAt } = checkInWithFloorTimer(60);
+    expect(opened.scheduled).toBe(checkInClosesAt);
+
+    const closed = tick(opened.state, checkInClosesAt);
+    expect(typesOf(closed)).toEqual(["mood-check-in-closed"]);
+    expect(closed.scheduled).toBe(floorEndsAt);
+
+    const floorUp = tick(closed.state, floorEndsAt);
+    expect(typesOf(floorUp)).toEqual(["floor-time-up"]);
+    expect(floorUp.scheduled).toBeUndefined();
+  });
+
+  it("handles both on one tick when both are due", () => {
+    const { opened, checkInClosesAt } = checkInWithFloorTimer(10);
+    const late = tick(opened.state, checkInClosesAt);
+    expect(typesOf(late)).toEqual(["floor-time-up", "mood-check-in-closed"]);
+    expect(late.scheduled).toBeUndefined();
+  });
+});
+
 describe("Mood intents over the wire", () => {
   it("accepts a Mood from the fixed set", () => {
     expect(parseIntent({ type: "set-mood", mood: "love" })).toEqual({

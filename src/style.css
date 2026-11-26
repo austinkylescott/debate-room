@@ -581,3 +581,17 @@ button.mood.picked {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+.floor h3 {
+  margin: 16px 0 8px;
+}
+
+.floor .grow {
+  flex: 1;
+  margin: 0;
+}
+
+.tag.time-up {
+  background: var(--error);
+  color: var(--surface);
+}

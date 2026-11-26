@@ -2,8 +2,30 @@
 //
 // The Durable Object (worker/room-server.ts) only adapts this module: it maps
 // connections to actors, persists state and sends each connection its own
-// `viewFor` result. Tests drive `createRoom`, `apply` and `viewFor` directly.
+// `viewFor` result, and calls `tick` when a timer the Room scheduled is due.
+// Tests drive `createRoom`, `apply`, `tick` and `viewFor` directly.
 
+import {
+  clearFloor,
+  emptyFloor,
+  type Floor,
+  type FloorControlIntent,
+  type FloorEvent,
+  type FloorOutcome,
+  type FloorRejectionCode,
+  type FloorView,
+  giveFloor,
+  type HandIntent,
+  isFloorControlIntent,
+  isHandIntent,
+  leaveFloor,
+  moveHand,
+  nextFloorTimeUp,
+  setFloorTimer,
+  takeFloor,
+  tickFloor,
+  viewFloor,
+} from "./floor";
 import {
   editLineup,
   emptyLineup,
@@ -38,6 +60,7 @@ import {
 import { isMood, startPromptMoods } from "./mood";
 
 export type { StageView } from "./round";
+export type { FloorView } from "./floor";
 
 export type Phase = "planning" | "live" | "ended";
 
@@ -60,6 +83,8 @@ export type Intent =
   /** Moves the Round on: to the Prompt's summary, the next Prompt or the Waiting Room. */
   | { type: "advance" }
   | RoundIntent
+  | FloorControlIntent
+  | HandIntent
   | LineupIntent;
 
 export type RejectionCode =
@@ -82,7 +107,9 @@ export type RejectionCode =
   | "round-in-progress"
   | "no-round"
   | "not-in-room"
+  | "not-participant"
   | RoundRejectionCode
+  | FloorRejectionCode
   | LineupRejectionCode;
 
 export interface Rejection {
@@ -95,7 +122,8 @@ export type RecapEvent =
   | { at: number; type: "person-joined"; personId: string; nickname: string }
   | { at: number; type: "person-renamed"; personId: string; from: string; to: string }
   | { at: number; type: "person-removed"; personId: string; nickname: string }
-  | ({ at: number } & RoundEvent);
+  | ({ at: number } & RoundEvent)
+  | ({ at: number } & FloorEvent);
 
 interface Participant {
   id: string;
@@ -127,6 +155,8 @@ export interface RoomState {
   round: CurrentRound | null;
   /** Rounds of the Lineup already started, so "the next Round" skips them. */
   playedRoundIds: string[];
+  /** Who is speaking on the call. */
+  floor: Floor;
 }
 
 export interface ApplyResult {
@@ -173,6 +203,8 @@ export interface View {
   stage: StageView | null;
   /** The Round that "Start Round" would start, for the Host. Null for everyone else. */
   nextRoundId: string | null;
+  /** Who has the Floor, for people in the Room while it's Live. Null otherwise. */
+  floor: FloorView | null;
 }
 
 /** What the Worker knows when a Host creates a Room. */
@@ -216,6 +248,7 @@ export function createRoom(
       lineup: emptyLineup(),
       round: null,
       playedRoundIds: [],
+      floor: emptyFloor(),
     },
   };
 }
@@ -226,17 +259,33 @@ export function apply(state: RoomState, intent: Intent, actor: Actor, now: numbe
 
 /** Handles the timers that are due by `now`. The Durable Object calls it from an alarm. */
 export function tick(state: RoomState, now: number): ApplyResult {
-  if (!state.round) return withSchedule(unchanged(state));
-  const outcome = tickRound(state.round, now);
-  // Nothing due: the same state, so the adapter has nothing to save or send.
-  const nothingDue = "round" in outcome && outcome.round === state.round;
-  return withSchedule(nothingDue ? unchanged(state) : withRound(state, outcome, now));
+  const floor = tickFloor(state.floor, now);
+  const afterFloor = floor.floor === state.floor ? unchanged(state) : withFloor(state, floor, now);
+  return withSchedule(tickCurrentRound(afterFloor, now));
 }
 
-/** Points `scheduled` at the Room's next timer, worked out from the state after the change. */
+/** Runs the current Round's timers (the Mood Check-in closing) on top of an earlier change. */
+function tickCurrentRound(result: ApplyResult, now: number): ApplyResult {
+  const round = result.state.round;
+  if (!round) return result;
+  const outcome = tickRound(round, now);
+  // Nothing due: keep the same state, so the adapter has nothing to save or send.
+  if ("round" in outcome && outcome.round === round) return result;
+  const ticked = withRound(result.state, outcome, now);
+  return { state: ticked.state, recapEvents: [...result.recapEvents, ...ticked.recapEvents] };
+}
+
+/**
+ * Points `scheduled` at the Room's next timer, worked out from the state after
+ * the change: the earliest of the Floor timers and the Mood Check-in's close.
+ * A Durable Object has one alarm, so this is the only time it needs.
+ */
 function withSchedule(result: ApplyResult): ApplyResult {
   const round = result.state.round;
-  const scheduled = round ? nextRoundTimer(round) : null;
+  const due = [nextFloorTimeUp(result.state.floor), round ? nextRoundTimer(round) : null].filter(
+    (at): at is number => at !== null,
+  );
+  const scheduled = due.length > 0 ? Math.min(...due) : null;
   return scheduled === null ? result : { ...result, scheduled };
 }
 
@@ -245,6 +294,8 @@ function applyIntent(state: RoomState, intent: Intent, actor: Actor, now: number
   // except present the Host link, which always grants the Host role.
   if (isRemoved(state, actor) && intent.type !== "claim-host") return rejected(state, REMOVED);
   if (isLineupIntent(intent)) return changeLineup(state, intent, actor);
+  if (isFloorControlIntent(intent)) return controlFloor(state, intent, actor, now);
+  if (isHandIntent(intent)) return moveOwnHand(state, intent, actor, now);
   switch (intent.type) {
     case "claim-host":
       return claimHost(state, intent.hostSecret, actor);
@@ -296,6 +347,10 @@ export function viewFor(state: RoomState, viewer: Actor): View {
         : null,
     nextRoundId:
       you.role === "host" ? (nextRound(state.lineup, state.playedRoundIds)?.id ?? null) : null,
+    floor:
+      inRoom && state.phase === "live"
+        ? viewFloor(state.floor, roundPeople(state).nicknames)
+        : null,
   };
 }
 
@@ -340,6 +395,19 @@ export function parseIntent(raw: unknown): Intent | null {
         : null;
     case "set-mood":
       return isMood(value.mood) ? { type: "set-mood", mood: value.mood } : null;
+    case "give-floor":
+    case "take-floor":
+      return typeof value.personId === "string"
+        ? { type: value.type, personId: value.personId }
+        : null;
+    case "set-floor-timer":
+      return value.seconds === null || typeof value.seconds === "number"
+        ? { type: value.type, seconds: value.seconds }
+        : null;
+    case "clear-floor":
+    case "raise-hand":
+    case "lower-hand":
+      return { type: value.type };
     default:
       return parseLineupIntent(value);
   }
@@ -354,6 +422,7 @@ export function upgradeState(stored: RoomState): RoomState {
       ? { ...stored.round, moods: stored.round.moods ?? startPromptMoods() }
       : null,
     playedRoundIds: stored.playedRoundIds ?? [],
+    floor: stored.floor ?? emptyFloor(),
   };
 }
 
@@ -528,14 +597,19 @@ function removePerson(state: RoomState, personId: string, actor: Actor, now: num
   }
   const participant = state.participants.find((p) => p.id === personId);
   if (!participant) return rejected(state, PERSON_NOT_FOUND);
+  const floor = leaveFloor(state.floor, personId);
   const removed: ApplyResult = {
     state: {
       ...state,
       participants: state.participants.filter((p) => p.id !== personId),
       removedTokens: [...state.removedTokens, participant.token],
       lineup: forgetPerson(state.lineup, personId),
+      floor: floor.floor,
     },
-    recapEvents: [{ at: now, type: "person-removed", personId, nickname: participant.nickname }],
+    recapEvents: [
+      { at: now, type: "person-removed", personId, nickname: participant.nickname },
+      ...floor.events.map((event) => ({ at: now, ...event })),
+    ],
   };
   if (!state.round) return removed;
   const left = withRound(removed.state, leaveRound(state.round, personId), now);
@@ -600,6 +674,51 @@ function runCurrentRound(
   if (!isHost(state, actor)) return rejected(state, notHost(action));
   if (!state.round) return rejected(state, NO_ROUND);
   return withRound(state, control(state.round), now);
+}
+
+function controlFloor(
+  state: RoomState,
+  intent: FloorControlIntent,
+  actor: Actor,
+  now: number,
+): ApplyResult {
+  if (!isHost(state, actor)) return rejected(state, notHost("give and take the Floor"));
+  if (state.phase !== "live") return rejected(state, ROOM_NOT_LIVE);
+  switch (intent.type) {
+    case "give-floor":
+      if (nicknameOf(state, intent.personId) === undefined) {
+        return rejected(state, PERSON_NOT_FOUND);
+      }
+      return withFloor(state, giveFloor(state.floor, intent.personId, now), now);
+    case "take-floor":
+      return withFloor(state, takeFloor(state.floor, intent.personId), now);
+    case "clear-floor":
+      return withFloor(state, clearFloor(state.floor), now);
+    case "set-floor-timer":
+      return withFloor(state, setFloorTimer(state.floor, intent.seconds), now);
+  }
+}
+
+/** Only Participants raise a hand: the Host gives the Floor, so can simply take it. */
+function moveOwnHand(state: RoomState, intent: HandIntent, actor: Actor, now: number): ApplyResult {
+  const you = identify(state, actor);
+  if (you.role === "host") {
+    return rejected(state, {
+      code: "not-participant",
+      message: "Only Participants raise a hand. As the Host, give yourself the Floor.",
+    });
+  }
+  if (you.role !== "participant") return rejected(state, NOT_IN_ROOM);
+  if (state.phase !== "live") return rejected(state, ROOM_NOT_LIVE);
+  return withFloor(state, moveHand(state.floor, you.personId, intent), now);
+}
+
+function withFloor(state: RoomState, outcome: FloorOutcome, now: number): ApplyResult {
+  if ("rejection" in outcome) return rejected(state, outcome.rejection);
+  return {
+    state: { ...state, floor: outcome.floor },
+    recapEvents: outcome.events.map((event) => ({ at: now, ...event })),
+  };
 }
 
 function withRound(state: RoomState, outcome: RoundOutcome, now: number): ApplyResult {
