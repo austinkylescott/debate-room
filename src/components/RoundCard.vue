@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import type { Pack } from "../content/packs";
 import {
+  DEFAULT_SIDES,
   defaultSetup,
   type Format,
   FORMAT_NAMES,
@@ -8,6 +10,7 @@ import {
   type LineupIntent,
   MAX_EXCHANGE_SECONDS,
   MIN_EXCHANGE_SECONDS,
+  type NewPrompt,
   type Prompt,
   PROMPT_MAX_LENGTH,
   type Round,
@@ -41,6 +44,19 @@ function changeSide(which: 0 | 1, name: string) {
     type: "set-round-setup",
     roundId: props.round.id,
     setup: { ...props.round.setup, sides },
+  });
+}
+
+/** Adds Prompts, and takes a Pack's suggested Sides if this Round's are still the placeholders. */
+function addPrompts(prompts: NewPrompt[], pack?: Pack) {
+  emit("send", { type: "add-prompts", roundId: props.round.id, prompts });
+  const setup = props.round.setup;
+  if (setup.format !== "middle-ground" || !pack?.sides) return;
+  if (setup.sides.some((side, i) => side !== DEFAULT_SIDES[i])) return;
+  emit("send", {
+    type: "set-round-setup",
+    roundId: props.round.id,
+    setup: { ...setup, sides: [...pack.sides] },
   });
 }
 
@@ -236,11 +252,7 @@ const value = (event: Event) => (event.target as HTMLInputElement).value;
     </ol>
     <p v-else class="muted">No Prompts yet.</p>
 
-    <PromptPicker
-      v-if="pickerOpen"
-      :format="round.setup.format"
-      @add="(prompts) => emit('send', { type: 'add-prompts', roundId: round.id, prompts })"
-    />
+    <PromptPicker v-if="pickerOpen" :format="round.setup.format" @add="addPrompts" />
     <button type="button" class="link" @click="pickerOpen = !pickerOpen">
       {{ pickerOpen ? "Done adding Prompts" : "Add Prompts" }}
     </button>

@@ -1,19 +1,30 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { INTENSITY_NAMES, PACKS } from "../content/packs";
+import { computed, ref, watch } from "vue";
+import { type Intensity, INTENSITY_NAMES, type Pack, PACKS, packsByTopic } from "../content/packs";
 import { customPrompts, forgetCustomPrompt, saveCustomPrompt } from "../lib/customPrompts";
 import { type Format, FORMAT_NAMES, type NewPrompt, PROMPT_MAX_LENGTH } from "../room/lineup";
 
 const props = defineProps<{ format: Format }>();
-const emit = defineEmits<{ add: [prompts: NewPrompt[]] }>();
+// The Pack is passed along so a Middle Ground Round can take its suggested Sides.
+const emit = defineEmits<{ add: [prompts: NewPrompt[], pack?: Pack] }>();
 
 const WRITE = "write";
-const source = ref<string>(PACKS[0].id);
+const intensity = ref<Intensity | "any">("any");
+const topics = computed(() => packsByTopic(PACKS, intensity.value));
+const source = ref<string>(PACKS[0]?.id ?? WRITE);
 const picked = ref<string[]>([]);
 const draft = ref("");
 const draftSurprise = ref(false);
 
 const pack = computed(() => PACKS.find((p) => p.id === source.value));
+
+// Filtering by Intensity can hide the chosen Pack: move to the first one left.
+watch(topics, (groups) => {
+  if (source.value === WRITE) return;
+  if (groups.some((g) => g.packs.some((p) => p.id === source.value))) return;
+  source.value = groups[0]?.packs[0]?.id ?? WRITE;
+  picked.value = [];
+});
 // Prompts that suit this Round's Format come first.
 const packPrompts = computed(() => {
   const all = pack.value?.prompts ?? [];
@@ -27,6 +38,7 @@ function addPicked() {
   emit(
     "add",
     picked.value.map((text) => ({ text, surprise: false })),
+    pack.value,
   );
   picked.value = [];
 }
@@ -41,17 +53,39 @@ function addWritten() {
 
 <template>
   <div class="picker stack">
-    <label class="field">
-      <span>Add Prompts from</span>
-      <select v-model="source" @change="picked = []">
-        <option v-for="p in PACKS" :key="p.id" :value="p.id">
-          {{ p.title }} · {{ p.topic }} · {{ INTENSITY_NAMES[p.intensity] }}
-        </option>
-        <option :value="WRITE">Write your own</option>
-      </select>
-    </label>
+    <div class="pair">
+      <label class="field">
+        <span>Add Prompts from</span>
+        <select v-model="source" @change="picked = []">
+          <optgroup v-for="group in topics" :key="group.topic" :label="group.topic">
+            <option v-for="p in group.packs" :key="p.id" :value="p.id">
+              {{ p.title }} · {{ INTENSITY_NAMES[p.intensity] }}
+            </option>
+          </optgroup>
+          <option :value="WRITE">Write your own</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Intensity</span>
+        <select v-model="intensity">
+          <option value="any">Chill or Spicy</option>
+          <option v-for="(name, key) in INTENSITY_NAMES" :key="key" :value="key">
+            {{ name }} only
+          </option>
+        </select>
+      </label>
+    </div>
 
     <form v-if="pack" class="stack" @submit.prevent="addPicked">
+      <p class="muted small">
+        {{ pack.topic }} ·
+        <span class="tag" :class="{ subtle: pack.intensity === 'chill' }">
+          {{ INTENSITY_NAMES[pack.intensity] }}
+        </span>
+        <template v-if="format === 'middle-ground' && pack.sides">
+          · Suggested Sides: {{ pack.sides[0] }} / {{ pack.sides[1] }}
+        </template>
+      </p>
       <ul class="choices">
         <li v-for="prompt in packPrompts" :key="prompt.text">
           <label>
