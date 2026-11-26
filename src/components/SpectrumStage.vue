@@ -6,7 +6,7 @@ import { SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
 import MoodPanel from "./MoodPanel.vue";
 
 const props = defineProps<{
-  stage: StageView;
+  stage: Extract<StageView, { format: "spectrum" }>;
   isHost: boolean;
   personId: string;
   isSpectator?: boolean;

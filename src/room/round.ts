@@ -2,24 +2,28 @@
 // its Prompts and returning to the Waiting Room. Pure and dependency-free like
 // the rest of the Room module. The Room (./room.ts) decides who may act and
 // knows who is in the Room; this module decides what a Round does. Format rules
-// for each Prompt live in their own modules (./spectrum.ts).
+// live in their own modules (./spectrum.ts, ./middle-ground.ts); Moods and the
+// Mood Check-in (./mood.ts) belong to every Format.
 
 import { FORMAT_NAMES, type Format, type Lineup, type Prompt, type Round } from "./lineup";
 import {
-  currentPositions,
-  dropPerson,
-  endPrompt,
-  everyoneLockedIn,
-  lockedPositions,
-  lockIn,
-  movePosition,
-  reveal,
-  type SpectrumPrompt,
-  type SpectrumRejectionCode,
-  type SpectrumView,
-  startSpectrumPrompt,
-  viewSpectrum,
-} from "./spectrum";
+  chooseMiddle,
+  choices,
+  dropFromMiddleGround,
+  endMiddleGroundPrompt,
+  everyoneChosen,
+  type MiddleGround,
+  type MiddleGroundPrompt,
+  type MiddleGroundRejectionCode,
+  type MiddleGroundView,
+  moveToSide,
+  nextMiddleGroundPrompt,
+  pickSide,
+  revealChoices,
+  type SideIndex,
+  startMiddleGround,
+  viewMiddleGround,
+} from "./middle-ground";
 import {
   askedInCheckIn,
   changeMood,
@@ -39,19 +43,38 @@ import {
   startPromptMoods,
   viewCheckIn,
 } from "./mood";
+import {
+  currentPositions,
+  dropPerson,
+  endPrompt,
+  everyoneLockedIn,
+  lockedPositions,
+  lockIn,
+  movePosition,
+  reveal,
+  type SpectrumPrompt,
+  type SpectrumRejectionCode,
+  type SpectrumView,
+  startSpectrumPrompt,
+  viewSpectrum,
+} from "./spectrum";
 
 /** The Round being played. Null in the Room state means the Waiting Room. */
-export interface CurrentRound {
+export type CurrentRound = SpectrumRound | MiddleGroundRound;
+
+/** What every Round has, whatever its Format. */
+interface RoundBase {
   roundId: string;
-  format: "spectrum";
   /** A copy of the Prompts taken at the start, so Lineup edits don't change a Round mid-play. */
   prompts: Prompt[];
   hostPlaying: boolean;
   promptIndex: number;
-  spectrum: SpectrumPrompt;
   /** The current Prompt's Moods. */
   moods: PromptMoods;
 }
+
+type SpectrumRound = RoundBase & { format: "spectrum"; spectrum: SpectrumPrompt };
+type MiddleGroundRound = RoundBase & { format: "middle-ground"; middleGround: MiddleGround };
 
 /** Who is in the Room, as the Round needs to know it. */
 export interface RoundPeople {
@@ -65,10 +88,16 @@ export interface RoundPeople {
 export type RoundIntent =
   | { type: "move-position"; position: number }
   | { type: "lock-in"; position: number }
-  | { type: "set-mood"; mood: Mood };
+  | { type: "set-mood"; mood: Mood }
+  /** Middle Ground: picks your own Side for the Round. */
+  | { type: "pick-side"; side: SideIndex }
+  /** Middle Ground: step into the middle or stay (before the reveal), step in or back out (after). */
+  | { type: "choose-middle"; stepIn: boolean };
 
 export type RoundRejectionCode =
   | SpectrumRejectionCode
+  | MiddleGroundRejectionCode
+  | "wrong-format"
   | "mood-invalid"
   | "check-in-open"
   | "prompt-over"
@@ -82,8 +111,8 @@ export interface RoundRejection {
   message: string;
 }
 
-/** What set off a reveal: everyone Playing locking in, or the Host. */
-export type RevealCause = "everyone-locked-in" | "host";
+/** What set off a reveal: everyone Playing locking in (or choosing), or the Host. */
+export type RevealCause = "everyone-locked-in" | "everyone-chose" | "host";
 
 /** What happened in a Round, for the Recap. The Room adds the time. */
 export type RoundEvent =
@@ -97,12 +126,42 @@ export type RoundEvent =
     }
   | {
       type: "prompt-ended";
+      format: "spectrum";
       roundId: string;
       promptId: string;
       /** Where each person locked in (null if they didn't). */
       before: Record<string, number | null>;
       /** Where each person ended up. */
       after: Record<string, number | null>;
+    }
+  /** Middle Ground: someone picked their own Side. */
+  | { type: "side-picked"; roundId: string; personId: string; side: string }
+  /** Middle Ground: the Host moved someone to the other Side. */
+  | { type: "side-changed"; roundId: string; personId: string; from: string; to: string }
+  | {
+      type: "choices-revealed";
+      roundId: string;
+      promptId: string;
+      by: RevealCause;
+      /** Whether each Playing person chose to step in (null if they didn't choose). */
+      choices: Record<string, boolean | null>;
+    }
+  /** Middle Ground, after the reveal: someone changed position. */
+  | {
+      type: "stepped-in" | "stepped-back";
+      roundId: string;
+      promptId: string;
+      personId: string;
+      /** The name of their Side. */
+      side: string;
+    }
+  | {
+      type: "prompt-ended";
+      format: "middle-ground";
+      roundId: string;
+      promptId: string;
+      /** How many stepped in from each Side, out of how many were on it, in Side order. */
+      sides: { name: string; steppedIn: number; onSide: number }[];
     }
   | { type: "mood-changed"; roundId: string; promptId: string; personId: string; mood: Mood }
   | {
@@ -120,9 +179,15 @@ export type RoundOutcome =
   | { round: CurrentRound | null; events: RoundEvent[] }
   | { rejection: RoundRejection };
 
-export interface StageView {
+export type StageView = StageBase &
+  (
+    | { format: "spectrum"; spectrum: SpectrumView }
+    | { format: "middle-ground"; middleGround: MiddleGroundView }
+  );
+
+/** What every Stage shows, whatever the Format. */
+interface StageBase {
   roundId: string;
-  format: "spectrum";
   prompt: { id: string; text: string };
   /** 1-based. */
   promptNumber: number;
@@ -130,7 +195,6 @@ export interface StageView {
   hostPlaying: boolean;
   /** Whether the viewer is Playing this Prompt. */
   playing: boolean;
-  spectrum: SpectrumView;
   /** Each Playing person's current Mood, by person id. Anyone without one is left out. */
   moods: Record<string, Mood>;
   /** The Mood Check-in once the Prompt has ended: open, then closed with its tally. */
@@ -143,26 +207,34 @@ export function nextRound(lineup: Lineup, playedRoundIds: string[]): Round | und
 }
 
 export function startRound(round: Round, hostPlaying: boolean, people: RoundPeople): RoundOutcome {
-  if (round.setup.format !== "spectrum") {
+  const { setup } = round;
+  if (setup.format === "surrounded") {
     return refuse(
       "format-not-available",
-      `${FORMAT_NAMES[round.setup.format]} Rounds can't be played yet.`,
+      `${FORMAT_NAMES[setup.format]} Rounds can't be played yet.`,
     );
   }
   if (round.prompts.length === 0) {
     return refuse("round-empty", "This Round has no Prompts yet. Add one to start it.");
   }
+  const base: RoundBase = {
+    roundId: round.id,
+    prompts: round.prompts,
+    hostPlaying,
+    promptIndex: 0,
+    moods: startPromptMoods(),
+  };
+  const playing = playingIds(hostPlaying, people);
   return {
-    round: {
-      roundId: round.id,
-      format: "spectrum",
-      prompts: round.prompts,
-      hostPlaying,
-      promptIndex: 0,
-      spectrum: startSpectrumPrompt(playingIds(hostPlaying, people)),
-      moods: startPromptMoods(),
-    },
-    events: [{ type: "round-started", roundId: round.id, format: "spectrum", hostPlaying }],
+    round:
+      setup.format === "spectrum"
+        ? { ...base, format: "spectrum", spectrum: startSpectrumPrompt(playing) }
+        : {
+            ...base,
+            format: "middle-ground",
+            middleGround: startMiddleGround(setup.sides, playing),
+          },
+    events: [{ type: "round-started", roundId: round.id, format: setup.format, hostPlaying }],
   };
 }
 
@@ -171,20 +243,71 @@ export function playRound(
   current: CurrentRound,
   intent: RoundIntent,
   personId: string,
+  people: RoundPeople,
 ): RoundOutcome {
-  if (intent.type === "set-mood") return setMood(current, personId, intent.mood);
-  const outcome =
-    intent.type === "lock-in"
-      ? lockIn(current.spectrum, personId, intent.position)
-      : movePosition(current.spectrum, personId, intent.position);
-  if ("rejection" in outcome) return outcome;
-  return revealIfEveryoneLockedIn({ ...current, spectrum: outcome.prompt });
+  switch (intent.type) {
+    case "set-mood":
+      return setMood(current, personId, intent.mood);
+    case "move-position":
+    case "lock-in": {
+      if (current.format !== "spectrum") return WRONG_FORMAT;
+      const outcome =
+        intent.type === "lock-in"
+          ? lockIn(current.spectrum, personId, intent.position)
+          : movePosition(current.spectrum, personId, intent.position);
+      if ("rejection" in outcome) return outcome;
+      return revealIfEveryoneLockedIn({ ...current, spectrum: outcome.prompt });
+    }
+    case "pick-side": {
+      if (current.format !== "middle-ground") return WRONG_FORMAT;
+      if (!playingIds(current.hostPlaying, people).includes(personId)) return NOT_IN_ROUND;
+      const outcome = pickSide(current.middleGround, personId, intent.side);
+      if ("rejection" in outcome) return outcome;
+      return {
+        round: { ...current, middleGround: outcome.middleGround },
+        events: [
+          {
+            type: "side-picked",
+            roundId: current.roundId,
+            personId,
+            side: current.middleGround.sides[intent.side],
+          },
+        ],
+      };
+    }
+    case "choose-middle":
+      return chooseInMiddleGround(current, personId, intent.stepIn);
+  }
 }
 
-/** The Host reveals the current Prompt's positions without waiting for everyone. */
+/** The Host moves someone to a Side. */
+export function moveSide(current: CurrentRound, personId: string, side: SideIndex): RoundOutcome {
+  if (current.format !== "middle-ground") return WRONG_FORMAT;
+  const { middleGround } = current;
+  const from = middleGround.sideOf[personId];
+  const outcome = moveToSide(middleGround, personId, side);
+  if ("rejection" in outcome) return outcome;
+  const moved: CurrentRound = { ...current, middleGround: outcome.middleGround };
+  if (from === side) return { round: moved, events: [] };
+  return {
+    round: moved,
+    events: [
+      {
+        type: "side-changed",
+        roundId: current.roundId,
+        personId,
+        from: middleGround.sides[from!],
+        to: middleGround.sides[side],
+      },
+    ],
+  };
+}
+
+/** The Host reveals the current Prompt's positions or choices without waiting for everyone. */
 export function revealPositions(current: CurrentRound): RoundOutcome {
-  if (current.spectrum.step !== "positioning") {
-    return refuse("already-revealed", "The positions are already out.");
+  const { step } = currentPromptState(current);
+  if (step !== "positioning" && step !== "choosing") {
+    return refuse("already-revealed", "Everyone's already out in the open.");
   }
   return revealed(current, "host");
 }
@@ -200,25 +323,18 @@ export function advanceRound(
   people: RoundPeople,
   now: number,
 ): RoundOutcome {
-  const { roundId, spectrum } = current;
-  switch (spectrum.step) {
+  const { step, playing } = currentPromptState(current);
+  switch (step) {
     case "positioning":
-      return refuse("not-revealed", "Reveal the positions before moving on.");
+    case "choosing":
+      return refuse("not-revealed", "Reveal before moving on.");
     case "revealed": {
-      const ended: RoundEvent = {
-        type: "prompt-ended",
-        roundId,
-        promptId: currentPrompt(current).id,
-        before: lockedPositions(spectrum),
-        after: currentPositions(spectrum),
-      };
-      const moods = openCheckIn(current.moods, spectrum.playing, now);
+      const ended = endCurrentPrompt(current);
       const outcome = closeIfEveryoneAnswered({
-        ...current,
-        spectrum: endPrompt(spectrum),
-        moods,
+        ...ended.round,
+        moods: openCheckIn(current.moods, playing, now),
       });
-      return { round: outcome.round, events: [ended, ...outcome.events] };
+      return { round: outcome.round, events: [...ended.events, ...outcome.events] };
     }
     case "summary": {
       if (checkInOpen(current.moods)) {
@@ -226,15 +342,19 @@ export function advanceRound(
       }
       const promptIndex = current.promptIndex + 1;
       if (promptIndex >= current.prompts.length) {
-        return { round: null, events: [{ type: "round-ended", roundId }] };
+        return { round: null, events: [{ type: "round-ended", roundId: current.roundId }] };
       }
+      const nextPlaying = playingIds(current.hostPlaying, people);
+      const next = { promptIndex, moods: startPromptMoods() };
       return {
-        round: {
-          ...current,
-          promptIndex,
-          spectrum: startSpectrumPrompt(playingIds(current.hostPlaying, people)),
-          moods: startPromptMoods(),
-        },
+        round:
+          current.format === "spectrum"
+            ? { ...current, ...next, spectrum: startSpectrumPrompt(nextPlaying) }
+            : {
+                ...current,
+                ...next,
+                middleGround: nextMiddleGroundPrompt(current.middleGround, nextPlaying),
+              },
         events: [],
       };
     }
@@ -254,19 +374,27 @@ export function nextRoundTimer(current: CurrentRound): number | null {
 }
 
 /**
- * Someone left the Room. If they were the last to lock in, the reveal happens;
- * if they were the last to answer the Mood Check-in, it closes.
+ * Someone left the Room. If they were the last to lock in or choose, the reveal
+ * happens; if they were the last to answer the Mood Check-in, it closes.
  */
 export function leaveRound(current: CurrentRound, personId: string): RoundOutcome {
-  if (!current.spectrum.playing.includes(personId)) return { round: current, events: [] };
-  const left: CurrentRound = {
+  if (current.format === "spectrum") {
+    if (!current.spectrum.playing.includes(personId)) return { round: current, events: [] };
+    const left: SpectrumRound = {
+      ...current,
+      spectrum: dropPerson(current.spectrum, personId),
+      moods: dropFromMoods(current.moods, personId),
+    };
+    return checkInOpen(current.moods)
+      ? closeIfEveryoneAnswered(left)
+      : revealIfEveryoneLockedIn(left);
+  }
+  const left: MiddleGroundRound = {
     ...current,
-    spectrum: dropPerson(current.spectrum, personId),
+    middleGround: dropFromMiddleGround(current.middleGround, personId),
     moods: dropFromMoods(current.moods, personId),
   };
-  return checkInOpen(current.moods)
-    ? closeIfEveryoneAnswered(left)
-    : revealIfEveryoneLockedIn(left);
+  return checkInOpen(current.moods) ? closeIfEveryoneAnswered(left) : revealIfEveryoneChose(left);
 }
 
 export function stageView(
@@ -276,29 +404,74 @@ export function stageView(
 ): StageView {
   const viewerId = viewer.personId;
   const prompt = currentPrompt(current);
-  const playing = current.spectrum.playing.includes(viewerId);
+  const playing = currentPromptState(current).playing.includes(viewerId);
   // Only those not Playing this Prompt see positions before the reveal. Each
   // Prompt starts fresh, so seeing this one gives a late joiner nothing for the next.
   // Spectators never do: they see what Playing people see, so nothing leaks over the call.
   const seesHidden = !playing && !viewer.isSpectator;
   const checkIn = viewCheckIn(current.moods);
-  const spectrumView = viewSpectrum(
-    current.spectrum,
-    { personId: playing ? viewerId : null, seesHidden, seesCallingAids: viewer.isHost },
-    people.nicknames,
-  );
-  return {
+  // The summary card waits until the Mood Check-in has closed.
+  const summaryHeld = checkIn?.status === "open";
+  const base: StageBase = {
     roundId: current.roundId,
-    format: current.format,
     prompt: { id: prompt.id, text: prompt.text },
     promptNumber: current.promptIndex + 1,
     promptCount: current.prompts.length,
     hostPlaying: current.hostPlaying,
     playing,
-    // The summary card waits until the Mood Check-in has closed.
-    spectrum: checkIn?.status === "open" ? { ...spectrumView, summary: null } : spectrumView,
     moods: current.moods.current,
     checkIn,
+  };
+  if (current.format === "spectrum") {
+    const spectrum = viewSpectrum(
+      current.spectrum,
+      { personId: playing ? viewerId : null, seesHidden, seesCallingAids: viewer.isHost },
+      people.nicknames,
+    );
+    return {
+      ...base,
+      format: "spectrum",
+      spectrum: summaryHeld ? { ...spectrum, summary: null } : spectrum,
+    };
+  }
+  const inRound = playingIds(current.hostPlaying, people);
+  const middleGround = viewMiddleGround(
+    current.middleGround,
+    { personId: inRound.includes(viewerId) ? viewerId : null, seesHidden },
+    inRound,
+    people.nicknames,
+  );
+  return {
+    ...base,
+    format: "middle-ground",
+    middleGround: summaryHeld ? { ...middleGround, summary: null } : middleGround,
+  };
+}
+
+function chooseInMiddleGround(
+  current: CurrentRound,
+  personId: string,
+  stepIn: boolean,
+): RoundOutcome {
+  if (current.format !== "middle-ground") return WRONG_FORMAT;
+  const { middleGround } = current;
+  const outcome = chooseMiddle(middleGround, personId, stepIn);
+  if ("rejection" in outcome) return outcome;
+  const chosen: MiddleGroundRound = { ...current, middleGround: outcome.middleGround };
+  const { prompt, sideOf, sides } = middleGround;
+  if (prompt.step === "choosing") return revealIfEveryoneChose(chosen);
+  if (prompt.inMiddle[personId] === stepIn) return { round: chosen, events: [] };
+  return {
+    round: chosen,
+    events: [
+      {
+        type: stepIn ? "stepped-in" : "stepped-back",
+        roundId: current.roundId,
+        promptId: currentPrompt(current).id,
+        personId,
+        side: sides[sideOf[personId]!],
+      },
+    ],
   };
 }
 
@@ -308,13 +481,12 @@ export function stageView(
  */
 function setMood(current: CurrentRound, personId: string, mood: Mood): RoundOutcome {
   if (!isMood(mood)) return refuse("mood-invalid", "That isn't one of the Moods.");
-  const promptOver = current.spectrum.step === "summary";
+  const { step, playing } = currentPromptState(current);
+  const promptOver = step === "summary";
   if (promptOver && !checkInOpen(current.moods)) {
     return refuse("prompt-over", "This Prompt is over, so its Moods are final.");
   }
-  const allowed = promptOver
-    ? askedInCheckIn(current.moods, personId)
-    : current.spectrum.playing.includes(personId);
+  const allowed = promptOver ? askedInCheckIn(current.moods, personId) : playing.includes(personId);
   if (!allowed) {
     return refuse("not-playing", "Only people Playing this Prompt can set a Mood.");
   }
@@ -342,6 +514,46 @@ interface RoundChange {
   events: RoundEvent[];
 }
 
+/** Ends a revealed Prompt: its Format's state freezes for the summary card. */
+function endCurrentPrompt(current: CurrentRound): RoundChange {
+  const { roundId } = current;
+  const promptId = currentPrompt(current).id;
+  if (current.format === "spectrum") {
+    const { spectrum } = current;
+    return {
+      round: { ...current, spectrum: endPrompt(spectrum) },
+      events: [
+        {
+          type: "prompt-ended",
+          format: "spectrum",
+          roundId,
+          promptId,
+          before: lockedPositions(spectrum),
+          after: currentPositions(spectrum),
+        },
+      ],
+    };
+  }
+  const middleGround = endMiddleGroundPrompt(current.middleGround);
+  const summary = middleGround.prompt.summary!;
+  return {
+    round: { ...current, middleGround },
+    events: [
+      {
+        type: "prompt-ended",
+        format: "middle-ground",
+        roundId,
+        promptId,
+        sides: middleGround.sides.map((name, i) => ({
+          name,
+          steppedIn: summary.steppedIn[i]!,
+          onSide: summary.onSide[i]!,
+        })),
+      },
+    ],
+  };
+}
+
 function closeIfEveryoneAnswered(current: CurrentRound): RoundChange {
   return checkInOpen(current.moods) && everyoneAnswered(current.moods)
     ? checkInClosed(current, "everyone-answered")
@@ -364,26 +576,52 @@ function checkInClosed(current: CurrentRound, by: CheckInClose): RoundChange {
   };
 }
 
-function revealIfEveryoneLockedIn(current: CurrentRound): RoundOutcome {
+function revealIfEveryoneLockedIn(current: SpectrumRound): RoundOutcome {
   return current.spectrum.step === "positioning" && everyoneLockedIn(current.spectrum)
     ? revealed(current, "everyone-locked-in")
     : { round: current, events: [] };
 }
 
+function revealIfEveryoneChose(current: MiddleGroundRound): RoundOutcome {
+  return current.middleGround.prompt.step === "choosing" && everyoneChosen(current.middleGround)
+    ? revealed(current, "everyone-chose")
+    : { round: current, events: [] };
+}
+
 function revealed(current: CurrentRound, by: RevealCause): RoundOutcome {
-  const spectrum = reveal(current.spectrum);
+  const promptId = currentPrompt(current).id;
+  if (current.format === "spectrum") {
+    const spectrum = reveal(current.spectrum);
+    return {
+      round: { ...current, spectrum },
+      events: [
+        {
+          type: "positions-revealed",
+          roundId: current.roundId,
+          promptId,
+          by,
+          positions: currentPositions(spectrum),
+        },
+      ],
+    };
+  }
   return {
-    round: { ...current, spectrum },
+    round: { ...current, middleGround: revealChoices(current.middleGround) },
     events: [
       {
-        type: "positions-revealed",
+        type: "choices-revealed",
         roundId: current.roundId,
-        promptId: currentPrompt(current).id,
+        promptId,
         by,
-        positions: currentPositions(spectrum),
+        choices: choices(current.middleGround),
       },
     ],
   };
+}
+
+/** The Format's state for the current Prompt: its step and who is Playing it. */
+function currentPromptState(current: CurrentRound): SpectrumPrompt | MiddleGroundPrompt {
+  return current.format === "spectrum" ? current.spectrum : current.middleGround.prompt;
 }
 
 function currentPrompt(current: CurrentRound): Prompt {
@@ -397,3 +635,11 @@ function playingIds(hostPlaying: boolean, people: RoundPeople): string[] {
 function refuse(code: RoundRejectionCode, message: string): RoundOutcome {
   return { rejection: { code, message } };
 }
+
+const WRONG_FORMAT: RoundOutcome = {
+  rejection: { code: "wrong-format", message: "That's not part of this Round's Format." },
+};
+
+const NOT_IN_ROUND: RoundOutcome = {
+  rejection: { code: "not-playing", message: "You're not Playing this Round." },
+};

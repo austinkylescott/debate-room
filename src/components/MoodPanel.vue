@@ -12,11 +12,14 @@ const yoursMood = computed(() => MOODS.find((m) => m.id === yours.value));
 const youAnswered = computed(
   () => checkIn.value?.status === "open" && checkIn.value.answered.includes(props.personId),
 );
+const promptOver = computed(() => {
+  const step =
+    props.stage.format === "spectrum" ? props.stage.spectrum.step : props.stage.middleGround.step;
+  return step === "summary";
+});
 /** Playing people pick a Mood during the Prompt and while the Check-in is open. */
 const canPick = computed(
-  () =>
-    props.stage.playing &&
-    (props.stage.spectrum.step !== "summary" || checkIn.value?.status === "open"),
+  () => props.stage.playing && (!promptOver.value || checkIn.value?.status === "open"),
 );
 
 // A clock for the Check-in countdown, running only while it's open.

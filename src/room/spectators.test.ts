@@ -163,9 +163,10 @@ const start: Intent = { type: "start-round", hostPlaying: false };
 const reveal: Intent = { type: "reveal-positions" };
 const advance: Intent = { type: "advance" };
 
-function stageOf(state: RoomState, viewer: Actor): StageView {
+function stageOf(state: RoomState, viewer: Actor): Extract<StageView, { format: "spectrum" }> {
   const stage = viewFor(state, viewer).stage;
   if (!stage) throw new Error("no Stage in this view");
+  if (stage.format !== "spectrum") throw new Error("not a Spectrum Stage");
   return stage;
 }
 
@@ -394,5 +395,113 @@ describe("switching from Spectator to Participant", () => {
     expect(attempt(state, becomeParticipant, alex).rejection?.code).toBe("not-spectator");
     expect(attempt(state, becomeParticipant, host).rejection?.code).toBe("not-spectator");
     expect(attempt(state, becomeParticipant, casey).rejection?.code).toBe("not-spectator");
+  });
+});
+
+const pickSide = (side: 0 | 1): Intent => ({ type: "pick-side", side });
+const stepIn: Intent = { type: "choose-middle", stepIn: true };
+const stay: Intent = { type: "choose-middle", stepIn: false };
+
+/** A Live Room with Alex and Sam as Participants, Casey as a Spectator, and a Middle Ground Round. */
+function middleGroundRoom(): RoomState {
+  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" });
+  if ("rejection" in created) throw new Error(created.rejection.message);
+  return run(
+    created.state,
+    [{ type: "claim-host", hostSecret: HOST_SECRET }, host],
+    [{ type: "open-room" }, host],
+    [
+      {
+        type: "add-round",
+        setup: { format: "middle-ground", sides: ["Cat people", "Dog people"] },
+        prompts: [{ text: "Cats beat dogs", surprise: false }],
+      },
+      host,
+    ],
+    [joinAsParticipant("Alex"), alex],
+    [joinAsParticipant("Sam"), sam],
+    [joinAsSpectator("Casey"), casey],
+  );
+}
+
+function middleOf(state: RoomState, viewer: Actor) {
+  const stage = viewFor(state, viewer).stage;
+  if (!stage) throw new Error("no Stage in this view");
+  if (stage.format !== "middle-ground") throw new Error("not a Middle Ground Stage");
+  return stage.middleGround;
+}
+
+describe("Spectators in a Middle Ground Round", () => {
+  /** Alex (Cat people) has stepped in; Sam (Dog people) hasn't chosen yet. */
+  function choosing(): RoomState {
+    return run(
+      middleGroundRoom(),
+      [start, host],
+      [pickSide(0), alex],
+      [pickSide(1), sam],
+      [stepIn, alex],
+    );
+  }
+
+  it.each<Intent>([pickSide(0), stepIn, stay])(
+    "refuses a Spectator's Middle Ground intent (%j)",
+    (intent) => {
+      const state = run(middleGroundRoom(), [start, host]);
+      const result = attempt(state, intent, casey);
+      expect(result.rejection?.code).toBe("spectators-watch");
+      expect(result.state).toBe(state);
+    },
+  );
+
+  it("refuses a Spectator stepping in or out after the reveal", () => {
+    const revealed = run(choosing(), [stay, sam]);
+    expect(middleOf(revealed, casey).step).toBe("revealed");
+    expect(attempt(revealed, stepIn, casey).rejection?.code).toBe("spectators-watch");
+  });
+
+  it("never gives a Spectator a Side or lists them among those Playing", () => {
+    const state = choosing();
+    expect(middleOf(state, casey).yours).toBeNull();
+    expect(middleOf(state, host).people.map((p) => p.nickname)).toEqual(["Alex", "Sam"]);
+  });
+
+  it("doesn't wait for a Spectator before the reveal", () => {
+    const revealed = run(choosing(), [stay, sam]);
+    expect(middleOf(revealed, host).step).toBe("revealed");
+  });
+
+  it("won't let the Host move a Spectator to a Side", () => {
+    const state = choosing();
+    const result = attempt(
+      state,
+      { type: "move-to-side", personId: personIdOf(state, casey), side: 0 },
+      host,
+    );
+    expect(result.rejection?.code).toBe("spectators-watch");
+  });
+
+  it("hides choices from a Spectator before the reveal, as from a Playing Participant", () => {
+    const state = choosing();
+    const spectators = middleOf(state, casey);
+    expect(spectators.choicesVisible).toBe(false);
+    expect(spectators.people).toEqual(middleOf(state, sam).people);
+    expect(spectators.people.every((p) => p.inMiddle === null)).toBe(true);
+    expect(middleOf(state, host).people.find((p) => p.nickname === "Alex")?.inMiddle).toBe(true);
+  });
+
+  it("lets a Spectator who switched to Participant pick a Side in the next Round", () => {
+    const state = run(middleGroundRoom(), [becomeParticipant, casey], [start, host]);
+    const picked = run(state, [pickSide(1), casey]);
+    expect(middleOf(picked, casey).yours?.side).toBe(1);
+    expect(middleOf(picked, host).people.map((p) => p.nickname)).toEqual(["Alex", "Sam", "Casey"]);
+    const allChosen = run(
+      picked,
+      [pickSide(0), alex],
+      [pickSide(0), sam],
+      [stay, alex],
+      [stay, sam],
+    );
+    expect(middleOf(allChosen, host).step).toBe("choosing");
+    expect(middleOf(run(allChosen, [stepIn, casey]), host).step).toBe("revealed");
   });
 });
