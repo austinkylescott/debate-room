@@ -55,7 +55,7 @@ const setMood = (mood: Mood): Intent => ({ type: "set-mood", mood });
 
 /** A Live Room with Alex and Sam in the Waiting Room and a Middle Ground Round in the Lineup. */
 function roomWith(prompts: string[] = ["Cats beat dogs", "Pineapple on pizza"]): RoomState {
-  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" });
+  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" }, 0);
   if ("rejection" in created) throw new Error(created.rejection.message);
   return run(
     created.state,

@@ -57,7 +57,7 @@ const advance: Intent = { type: "advance" };
 
 /** A Live Room with Alex and Sam in the Waiting Room and the given Rounds in the Lineup. */
 function roomWith(...rounds: { setup?: RoundSetup; prompts: string[] }[]): RoomState {
-  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" });
+  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" }, 0);
   if ("rejection" in created) throw new Error(created.rejection.message);
   return run(
     created.state,

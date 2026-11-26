@@ -43,12 +43,15 @@ const joinAsSpectator = (nickname: string): Intent => ({ type: "join", nickname,
 
 /** A Live Room with Jordan as Host and the given Spectrum Prompts as one Round. */
 function liveRoom(options: Partial<CreateRoomInput> = {}, prompts = ["Cats beat dogs"]): RoomState {
-  const created = createRoom({
-    hostSecret: HOST_SECRET,
-    hostNickname: "Jordan",
-    pin: "4821",
-    ...options,
-  });
+  const created = createRoom(
+    {
+      hostSecret: HOST_SECRET,
+      hostNickname: "Jordan",
+      pin: "4821",
+      ...options,
+    },
+    0,
+  );
   if ("rejection" in created) throw new Error(created.rejection.message);
   return run(
     created.state,
@@ -404,7 +407,7 @@ const stay: Intent = { type: "choose-middle", stepIn: false };
 
 /** A Live Room with Alex and Sam as Participants, Casey as a Spectator, and a Middle Ground Round. */
 function middleGroundRoom(): RoomState {
-  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" });
+  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" }, 0);
   if ("rejection" in created) throw new Error(created.rejection.message);
   return run(
     created.state,

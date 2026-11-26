@@ -6,6 +6,7 @@ import {
   parseIntent,
   type Actor,
   type Intent,
+  ROOM_EXPIRY_MS,
   type RoomState,
   tick,
   type View,
@@ -34,7 +35,7 @@ function run(state: RoomState, ...steps: [Intent, Actor, number?][]): RoomState 
 
 /** A Live Room with Alex, Sam and Riley in the Waiting Room. */
 function liveRoom(): RoomState {
-  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" });
+  const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" }, 0);
   if ("rejection" in created) throw new Error(created.rejection.message);
   return run(
     created.state,
@@ -144,7 +145,8 @@ describe("the speaking timer", () => {
     const result = apply(liveRoom(), give(ALEX), host, 5_000);
     expect(floorOf(result.state, alex).timerSeconds).toBeNull();
     expect(floorOf(result.state, alex).holders[0]?.endsAt).toBeNull();
-    expect(result.scheduled).toBeUndefined();
+    // No timer to tick for: only the Room's expiry is scheduled.
+    expect(result.scheduled).toBe(5_000 + ROOM_EXPIRY_MS);
   });
 
   it("gives each new Floor turn the set time, and asks for a tick when it runs out", () => {
@@ -178,7 +180,7 @@ describe("the speaking timer", () => {
       ]);
     }
     expect(due.recapEvents).toEqual([{ at: 65_000, type: "floor-time-up", personId: ALEX }]);
-    expect(due.scheduled).toBeUndefined();
+    expect(due.scheduled).toBe(5_000 + ROOM_EXPIRY_MS);
   });
 
   it("runs out once per turn", () => {
@@ -190,7 +192,7 @@ describe("the speaking timer", () => {
   it("stops when the Floor is taken back", () => {
     const state = run(liveRoom(), [timer(60), host], [give(ALEX), host, 5_000]);
     const taken = apply(state, take(ALEX), host, 6_000);
-    expect(taken.scheduled).toBeUndefined();
+    expect(taken.scheduled).toBe(6_000 + ROOM_EXPIRY_MS);
     expect(tick(taken.state, 65_000).recapEvents).toEqual([]);
   });
 
@@ -263,7 +265,7 @@ describe("who controls the Floor", () => {
   });
 
   it("has no Floor before the Room is Live, and shows none to visitors", () => {
-    const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" });
+    const created = createRoom({ hostSecret: HOST_SECRET, hostNickname: "Jordan", pin: "4821" }, 0);
     if ("rejection" in created) throw new Error(created.rejection.message);
     const planning = run(created.state, [{ type: "claim-host", hostSecret: HOST_SECRET }, host]);
     expect(apply(planning, give("host"), host, 5_000).rejection?.code).toBe("room-not-open");

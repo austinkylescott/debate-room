@@ -40,8 +40,11 @@ interface CheckIn {
   result: Record<string, Mood | null> | null;
 }
 
-/** Why a Check-in closed. */
-export type CheckInClose = "everyone-answered" | "timeout";
+/**
+ * Why a Check-in closed. "room-ended": the Host ended the Room while it was
+ * open, and anyone who hadn't answered is recorded as "no Mood".
+ */
+export type CheckInClose = "everyone-answered" | "timeout" | "room-ended";
 
 /** How many people answered each Mood, plus how many gave no Mood. */
 export interface CheckInTally {

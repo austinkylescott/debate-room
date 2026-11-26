@@ -51,6 +51,7 @@ import {
   lockedPositions,
   lockIn,
   movePosition,
+  notchesCrossed,
   reveal,
   type SpectrumPrompt,
   type SpectrumRejectionCode,
@@ -86,7 +87,12 @@ export interface RoundPeople {
 
 /** What a Playing person does during a Prompt. */
 export type RoundIntent =
-  | { type: "move-position"; position: number }
+  /**
+   * `settled`: the slider was let go here, so a move after the reveal is
+   * recorded in the Recap wherever it lands. Moves in between are recorded only
+   * where they cross a notch.
+   */
+  | { type: "move-position"; position: number; settled?: boolean }
   | { type: "lock-in"; position: number }
   | { type: "set-mood"; mood: Mood }
   /** Middle Ground: picks your own Side for the Round. */
@@ -117,6 +123,27 @@ export type RevealCause = "everyone-locked-in" | "everyone-chose" | "host";
 /** What happened in a Round, for the Recap. The Room adds the time. */
 export type RoundEvent =
   | { type: "round-started"; roundId: string; format: Format; hostPlaying: boolean }
+  | {
+      type: "prompt-started";
+      roundId: string;
+      promptId: string;
+      /** 1-based. */
+      promptNumber: number;
+      text: string;
+    }
+  /**
+   * Spectrum, after the reveal: someone's slider crossed a notch (`position` is
+   * the notch), or settled where they let it go. Hovering before the reveal
+   * stays hidden, so it isn't recorded; nor is jitter between notches.
+   */
+  | {
+      type: "position-moved";
+      roundId: string;
+      promptId: string;
+      personId: string;
+      position: number;
+      reason: "notch" | "settled";
+    }
   | {
       type: "positions-revealed";
       roundId: string;
@@ -225,16 +252,20 @@ export function startRound(round: Round, hostPlaying: boolean, people: RoundPeop
     moods: startPromptMoods(),
   };
   const playing = playingIds(hostPlaying, people);
+  const current: CurrentRound =
+    setup.format === "spectrum"
+      ? { ...base, format: "spectrum", spectrum: startSpectrumPrompt(playing) }
+      : {
+          ...base,
+          format: "middle-ground",
+          middleGround: startMiddleGround(setup.sides, playing),
+        };
   return {
-    round:
-      setup.format === "spectrum"
-        ? { ...base, format: "spectrum", spectrum: startSpectrumPrompt(playing) }
-        : {
-            ...base,
-            format: "middle-ground",
-            middleGround: startMiddleGround(setup.sides, playing),
-          },
-    events: [{ type: "round-started", roundId: round.id, format: setup.format, hostPlaying }],
+    round: current,
+    events: [
+      { type: "round-started", roundId: round.id, format: setup.format, hostPlaying },
+      promptStarted(current),
+    ],
   };
 }
 
@@ -256,7 +287,9 @@ export function playRound(
           ? lockIn(current.spectrum, personId, intent.position)
           : movePosition(current.spectrum, personId, intent.position);
       if ("rejection" in outcome) return outcome;
-      return revealIfEveryoneLockedIn({ ...current, spectrum: outcome.prompt });
+      const moved: SpectrumRound = { ...current, spectrum: outcome.prompt };
+      if (current.spectrum.step !== "revealed") return revealIfEveryoneLockedIn(moved);
+      return { round: moved, events: movedEvents(current, personId, intent) };
     }
     case "pick-side": {
       if (current.format !== "middle-ground") return WRONG_FORMAT;
@@ -346,17 +379,15 @@ export function advanceRound(
       }
       const nextPlaying = playingIds(current.hostPlaying, people);
       const next = { promptIndex, moods: startPromptMoods() };
-      return {
-        round:
-          current.format === "spectrum"
-            ? { ...current, ...next, spectrum: startSpectrumPrompt(nextPlaying) }
-            : {
-                ...current,
-                ...next,
-                middleGround: nextMiddleGroundPrompt(current.middleGround, nextPlaying),
-              },
-        events: [],
-      };
+      const nextRound: CurrentRound =
+        current.format === "spectrum"
+          ? { ...current, ...next, spectrum: startSpectrumPrompt(nextPlaying) }
+          : {
+              ...current,
+              ...next,
+              middleGround: nextMiddleGroundPrompt(current.middleGround, nextPlaying),
+            };
+      return { round: nextRound, events: [promptStarted(nextRound)] };
     }
   }
 }
@@ -371,6 +402,21 @@ export function tickRound(current: CurrentRound, now: number): RoundOutcome {
 /** When `tickRound` next has something to do: the open Mood Check-in's close. Null if nothing. */
 export function nextRoundTimer(current: CurrentRound): number | null {
   return checkInClosesAt(current.moods) ?? null;
+}
+
+/**
+ * The Host ended the Room mid-Round: the Round ends where it is. A revealed
+ * Prompt ends with its summary card; one still hidden ends without, so nothing
+ * hidden comes out. An open Mood Check-in closes, so its Prompt keeps a tally.
+ */
+export function abandonRound(current: CurrentRound): RoundOutcome {
+  const roundEnded: RoundEvent = { type: "round-ended", roundId: current.roundId };
+  const { step } = currentPromptState(current);
+  if (step === "revealed") {
+    return { round: null, events: [...endCurrentPrompt(current).events, roundEnded] };
+  }
+  const closed = checkInOpen(current.moods) ? checkInClosed(current, "room-ended").events : [];
+  return { round: null, events: [...closed, roundEnded] };
 }
 
 /**
@@ -506,6 +552,43 @@ function setMood(current: CurrentRound, personId: string, mood: Mood): RoundOutc
   if (!promptOver) return { round: next, events };
   const outcome = closeIfEveryoneAnswered(next);
   return { round: outcome.round, events: [...events, ...outcome.events] };
+}
+
+/**
+ * What a Spectrum move after the reveal adds to the Recap: each notch it
+ * crosses, then where it settles if the slider was let go.
+ */
+function movedEvents(
+  current: SpectrumRound,
+  personId: string,
+  intent: { position: number; settled?: boolean },
+): RoundEvent[] {
+  const from = currentPositions(current.spectrum)[personId] ?? null;
+  const base = { roundId: current.roundId, promptId: currentPrompt(current).id, personId };
+  const crossed = from === null ? [] : notchesCrossed(from, intent.position);
+  const events: RoundEvent[] = crossed.map((position) => ({
+    type: "position-moved",
+    ...base,
+    position,
+    reason: "notch",
+  }));
+  // The last move while dragging has often reached the same spot already; the
+  // settle is still recorded, unless this move recorded it as a notch.
+  if (intent.settled && crossed.at(-1) !== intent.position) {
+    events.push({ type: "position-moved", ...base, position: intent.position, reason: "settled" });
+  }
+  return events;
+}
+
+function promptStarted(current: CurrentRound): RoundEvent {
+  const prompt = currentPrompt(current);
+  return {
+    type: "prompt-started",
+    roundId: current.roundId,
+    promptId: prompt.id,
+    promptNumber: current.promptIndex + 1,
+    text: prompt.text,
+  };
 }
 
 /** A change to a Round that is still being played. */
