@@ -436,7 +436,7 @@ export function abandonRound(current: CurrentRound): RoundOutcome {
  * happens; if they were the last to answer the Mood Check-in, it closes.
  */
 export function leaveRound(round: CurrentRound, personId: string): RoundOutcome {
-  const current = rejoinRound(round, personId);
+  const current = stopSittingOut(round, personId);
   if (current.format === "spectrum") {
     if (!current.spectrum.playing.includes(personId)) return { round: current, events: [] };
     const left: SpectrumRound = {
@@ -457,11 +457,12 @@ export function leaveRound(round: CurrentRound, personId: string): RoundOutcome 
 }
 
 /**
- * A Co-Host sitting out the Round stopped being one: they Play from the next
- * Prompt, like someone who joined mid-Round (and in Middle Ground can pick a
- * Side straight away). Whatever they saw of this Prompt, it starts fresh.
+ * Someone sitting out the Round (a Co-Host who stepped down, was revoked or
+ * left) no longer is: they Play from the next Prompt, like someone who joined
+ * mid-Round (and in Middle Ground can pick a Side straight away). Whatever they
+ * saw of this Prompt, the next starts fresh.
  */
-export function rejoinRound(current: CurrentRound, personId: string): CurrentRound {
+export function stopSittingOut(current: CurrentRound, personId: string): CurrentRound {
   if (!current.sittingOut.includes(personId)) return current;
   return { ...current, sittingOut: current.sittingOut.filter((id) => id !== personId) };
 }

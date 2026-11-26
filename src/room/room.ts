@@ -44,7 +44,7 @@ import {
   advanceRound,
   type CurrentRound,
   leaveRound,
-  rejoinRound,
+  stopSittingOut,
   moveSide,
   nextRound,
   playRound,
@@ -983,7 +983,7 @@ function endCoHost(
     state: {
       ...state,
       coHosts: withoutCoHost(state, personId),
-      round: state.round ? rejoinRound(state.round, personId) : null,
+      round: state.round ? stopSittingOut(state.round, personId) : null,
     },
     recapEvents: [{ at: now, type, personId }],
   };
