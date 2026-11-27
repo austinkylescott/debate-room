@@ -137,7 +137,11 @@ test("choices flags a radio or checkbox that sits away from its label", async ({
      <label style="display: flex; gap: 12px; align-items: center">
        <span role="radio" aria-checked="true" aria-labelledby="fixture-near" tabindex="0" style="display: inline-block; width: 22px; height: 22px"><input type="radio" aria-hidden="true" style="position: absolute; opacity: 0"></span>
        <span id="fixture-near">Beside it</span>
-     </label>`,
+     </label>
+     <div role="radiogroup" aria-label="Theme">
+       <button role="radio" aria-checked="true" aria-label="Light">☀</button>
+       <button role="radio" aria-checked="false" aria-label="Dark">☾</button>
+     </div>`,
   );
   expect(await checks.choices(page, SCOPE)).toEqual([]);
 });

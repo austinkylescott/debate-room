@@ -400,6 +400,9 @@ export async function choices(page: Page, scope: Scope = null, max = 16): Promis
         if (!visible(control) || !inScope(control, scope)) continue;
         // UI SDK's hidden native input, beside the role=radio or role=checkbox it serves.
         if (control.matches("input[aria-hidden=true]")) continue;
+        // A button that is a radio or checkbox (a segmented control or toggle group item)
+        // is its own label: there's no separate mark to sit beside one.
+        if (control.matches("button")) continue;
         const labelledBy = control.getAttribute("aria-labelledby")?.split(/\s+/)[0];
         const label =
           (labelledBy && document.getElementById(labelledBy)) ||
