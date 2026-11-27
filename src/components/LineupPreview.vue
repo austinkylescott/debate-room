@@ -11,9 +11,9 @@ defineProps<{ rounds: PreviewRound[] }>();
       <span class="count">{{ rounds.length }} {{ rounds.length === 1 ? "Round" : "Rounds" }}</span>
     </h2>
     <p v-if="rounds.length === 0" class="muted">The Host hasn't planned any Rounds yet.</p>
-    <article v-for="(round, index) in rounds" :key="round.id" class="round stack">
+    <article v-for="(round, index) in rounds" :key="round.id" class="dr-card dr-card--raised stack">
       <header class="round-head">
-        <h3>Round {{ index + 1 }}</h3>
+        <h3 class="dr-card__title">Round {{ index + 1 }}</h3>
         <span class="dr-tag">{{ FORMAT_NAMES[round.setup.format] }}</span>
       </header>
       <p v-if="round.setup.format === 'middle-ground'" class="muted">

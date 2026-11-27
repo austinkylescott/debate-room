@@ -12,6 +12,14 @@ export interface RedesignedEntry {
   issue: string;
 }
 
-export const REDESIGNED: RedesignedEntry[] = [{ selector: "[data-redesigned]", issue: "#54" }];
+export const REDESIGNED: RedesignedEntry[] = [
+  { selector: "[data-redesigned]", issue: "#54" },
+  // Interactive cards. Card containers (.dr-card) aren't listed: they hold other
+  // components' controls (old link buttons, selects) that their own issues
+  // restyle. The cards check (harness/checks.ts) covers the cards themselves,
+  // on every screen.
+  { selector: "button.dr-card", issue: "#58" },
+  { selector: "a.dr-card", issue: "#58" },
+];
 
 export const REDESIGNED_SELECTORS = REDESIGNED.map((entry) => entry.selector);
