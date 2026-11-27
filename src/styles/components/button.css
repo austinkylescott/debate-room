@@ -1,0 +1,45 @@
+/* Button. Spec: docs/design/components/Button.md (restyled in its own issue). */
+
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--muted);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* The screen's one primary action: the spark. */
+button.primary {
+  width: 100%;
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
+  margin-top: 4px;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+button.link {
+  padding: 4px 8px;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+button.link.danger {
+  color: var(--spicy);
+}
+
+button.danger:not(.link) {
+  border-color: var(--spicy);
+  color: var(--spicy);
+}

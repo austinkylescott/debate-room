@@ -16,5 +16,9 @@ export default defineConfig({
     rules: { "vite-plus/prefer-vite-plus-imports": "error" },
     options: { typeAware: true, typeCheck: true },
   },
+  test: {
+    // Tests stub CSS out by default; tokens.test.ts reads the theme tokens as text.
+    css: { include: [/src\/styles\/tokens\.css/] },
+  },
   plugins: lazyPlugins(() => [vue(), cloudflare()]),
 });

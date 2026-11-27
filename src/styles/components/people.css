@@ -1,0 +1,34 @@
+/* People lists: the Waiting Room, the Floor queue, Sides and Stage lists. Becomes Electron (docs/design/components/Electron.md). */
+
+.people {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.people li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--ground);
+}
+
+.people li.you {
+  background: var(--raised);
+}
+
+.people .name {
+  flex: 1;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.people .actions {
+  display: flex;
+  gap: 4px;
+}

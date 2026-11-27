@@ -1,0 +1,11 @@
+/* What every Stage shares: the heading and the Host's controls under it. */
+
+.stage h1 {
+  margin-bottom: 16px;
+}
+
+.host-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}

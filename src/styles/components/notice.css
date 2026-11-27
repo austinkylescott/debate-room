@@ -1,0 +1,20 @@
+/* Notice and status lines. Spec: docs/design/components/Toast.md (restyled in its own issue). */
+
+/* A notice: dashed ink outline on the ground it sits on (the design's dr-notice). */
+.warning {
+  background: transparent;
+  border: 1.5px dashed var(--ink);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.error {
+  color: var(--spicy);
+  margin: 0;
+}
+
+.banner {
+  text-align: center;
+  color: var(--muted);
+  margin: 0;
+}
