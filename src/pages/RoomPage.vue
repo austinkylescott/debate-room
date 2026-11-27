@@ -126,7 +126,7 @@ function claimHostWithPin(pin: string) {
     <!-- Ended: everyone, whatever their role, sees the Recap -->
     <template v-if="view.phase === 'ended'">
       <section class="card">
-        <p class="eyebrow">Ended</p>
+        <p><span class="dr-tag">Ended</span></p>
         <h1>This Room has ended</h1>
         <p>The Recap stays here until {{ expiresOn }}. Download it to keep it.</p>
         <p v-if="view.you.role === 'visitor' && !hostFormOpen">
@@ -145,7 +145,7 @@ function claimHostWithPin(pin: string) {
     <!-- Host -->
     <template v-else-if="view.you.role === 'host'">
       <section v-if="view.phase === 'planning'" class="card">
-        <p class="eyebrow">Planning</p>
+        <p><span class="dr-tag">Planning</span></p>
         <h1>Your Room isn't open yet</h1>
         <p>Open it when you're ready for people to join.</p>
         <button class="primary" type="button" @click="send({ type: 'open-room' })">
@@ -214,7 +214,7 @@ function claimHostWithPin(pin: string) {
           @send="send"
         />
         <section class="card">
-          <p class="eyebrow">Live</p>
+          <p><span class="dr-tag dr-tag--live">Live</span></p>
           <h2>Invite your friends</h2>
           <InviteCard :url="inviteUrl(roomId)" />
         </section>
@@ -326,7 +326,7 @@ function claimHostWithPin(pin: string) {
         />
       </template>
       <template v-else-if="view.phase === 'planning'">
-        <p class="eyebrow">Planning</p>
+        <p><span class="dr-tag">Planning</span></p>
         <h1>This Room isn't open yet</h1>
         <p>
           The Host is still getting things ready. Keep this page open: you can join here as soon as

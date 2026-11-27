@@ -13,7 +13,8 @@ defineProps<{ rounds: PreviewRound[] }>();
     <p v-if="rounds.length === 0" class="muted">The Host hasn't planned any Rounds yet.</p>
     <article v-for="(round, index) in rounds" :key="round.id" class="round stack">
       <header class="round-head">
-        <h3>Round {{ index + 1 }}: {{ FORMAT_NAMES[round.setup.format] }}</h3>
+        <h3>Round {{ index + 1 }}</h3>
+        <span class="dr-tag">{{ FORMAT_NAMES[round.setup.format] }}</span>
       </header>
       <p v-if="round.setup.format === 'middle-ground'" class="muted">
         {{ round.setup.sides[0] }} vs {{ round.setup.sides[1] }}

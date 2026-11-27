@@ -80,7 +80,7 @@ function addWritten() {
     <form v-if="pack" class="stack" @submit.prevent="addPicked">
       <p class="muted small">
         {{ pack.topic }} ·
-        <span class="tag" :class="{ subtle: pack.intensity === 'chill' }">
+        <span class="dr-tag" :class="`dr-tag--${pack.intensity}`">
           {{ INTENSITY_NAMES[pack.intensity] }}
         </span>
         <template v-if="format === 'middle-ground' && pack.sides">

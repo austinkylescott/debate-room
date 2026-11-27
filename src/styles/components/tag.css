@@ -1,23 +1,125 @@
-/* Tag. Spec: docs/design/components/Tag.md (restyled in its own issue). */
+/*
+ * Tag. Spec: docs/design/components/Tag.md, reference rules in docs/design/components.css.
+ * A small pill label, never interactive (use a button for filters).
+ *
+ *   .dr-tag              plain: a Pack name, a Format, a role or status with no colour of its own
+ *   .dr-tag--chill       ● Chill: a circle as well as the colour
+ *   .dr-tag--spicy       ▲ Spicy: a triangle as well as the colour
+ *   .dr-tag--host        mustard fill (a highlight, not the spark)
+ *   .dr-tag--cohost      mustard outline
+ *   .dr-tag--spectator   muted outline, muted text: Spectator, Sitting out
+ *   .dr-tag--outline     muted outline, ink text: You
+ *   .dr-tag--live        ● Live: the spark, one of the status pills hard rule 2 allows
+ *
+ * Long text truncates on one line: wrap it in .dr-tag__text and put the full text in `title`.
+ */
+.dr-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  background: var(--raised);
+  color: var(--ink);
+  font: 600 13px/1 var(--font-body);
+  white-space: nowrap;
+  vertical-align: middle;
+}
 
-/* Locked in, Host, Changed their mind: a highlight, so mustard rather than the spark. */
-.tag {
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
+.dr-tag__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dr-tag svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.dr-tag--chill {
+  color: var(--chill);
+}
+
+.dr-tag--chill::before,
+.dr-tag--live::before {
+  content: "";
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.dr-tag--spicy {
+  color: var(--spicy);
+}
+
+.dr-tag--spicy::before {
+  content: "";
+  flex-shrink: 0;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 9px solid currentColor;
+}
+
+.dr-tag--host {
   background: var(--mustard);
   color: var(--on-agree);
 }
 
-/* Outlined, so it reads on any row it sits in. */
+.dr-tag--cohost {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--mustard);
+}
+
+.dr-tag--spectator {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--muted);
+  color: var(--muted);
+}
+
+/* "You": a neutral outline, so it still reads on your own `raised` row. Not in the spec; decided in PR #68. */
+.dr-tag--outline {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--muted);
+}
+
+.dr-tag--live {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/*
+ * Legacy .tag: still used by SpectrumStage, MiddleGroundStage and FloorPanel, which move to
+ * .dr-tag when their own components (Electron, Timer, the Stages) are restyled. Same pill as
+ * .dr-tag, but it may still wrap (their rows haven't been made to fit yet). The fills are the
+ * spec's: mustard highlight, muted outline, spicy outline for errors.
+ */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  background: var(--mustard);
+  color: var(--on-agree);
+  font: 600 13px/1.2 var(--font-body);
+}
+
 .tag.subtle {
   background: transparent;
   color: var(--ink);
   box-shadow: inset 0 0 0 1.5px var(--muted);
 }
 
-/* An error state: spicy, outlined. */
 .tag.time-up {
   background: transparent;
   color: var(--spicy);
