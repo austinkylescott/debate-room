@@ -44,7 +44,7 @@ const canRemove = (person: WaitingRoomPerson) =>
 </script>
 
 <template>
-  <ul class="people">
+  <ul class="people waiting-room">
     <li v-for="person in people" :key="person.id" :class="{ you: person.id === youId }">
       <form
         v-if="editingId === person.id"
@@ -61,10 +61,15 @@ const canRemove = (person: WaitingRoomPerson) =>
         <button type="button" @click="editingId = null">Cancel</button>
       </form>
       <template v-else>
-        <span class="name">{{ person.nickname }}</span>
-        <span v-if="person.isHost" class="tag">Host</span>
-        <span v-if="person.isCoHost" class="tag">Co-Host</span>
-        <span v-if="person.id === youId" class="tag subtle">You</span>
+        <span class="name" :title="person.nickname">{{ person.nickname }}</span>
+        <span v-if="person.isHost" class="dr-tag dr-tag--host">
+          <svg viewBox="0 0 14 14" aria-hidden="true">
+            <path d="M1,11 L2,4 L5,7 L7,2 L9,7 L12,4 L13,11Z" />
+          </svg>
+          Host
+        </span>
+        <span v-if="person.isCoHost" class="dr-tag dr-tag--cohost">Co-Host</span>
+        <span v-if="person.id === youId" class="dr-tag">You</span>
         <span v-if="canManage" class="actions">
           <button type="button" class="link" @click="startRename(person)">Rename</button>
           <template v-if="isHost && canBeCoHosts && !person.isHost">

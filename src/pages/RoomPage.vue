@@ -214,7 +214,7 @@ function claimHostWithPin(pin: string) {
           @send="send"
         />
         <section class="card">
-          <p class="eyebrow">Live</p>
+          <p><span class="dr-tag dr-tag--live">Live</span></p>
           <h2>Invite your friends</h2>
           <InviteCard :url="inviteUrl(roomId)" />
         </section>

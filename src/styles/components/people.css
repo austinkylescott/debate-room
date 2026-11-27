@@ -28,6 +28,23 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * Waiting Room names sit beside tags that don't shrink, so they never break letter by letter
+ * (hard rule 3): one line, an ellipsis, the full name in `title`, and at least 6rem before the
+ * tags and actions wrap to the next line. The other lists follow when they become Electrons.
+ */
+.people.waiting-room li {
+  flex-wrap: wrap;
+}
+
+.people.waiting-room .name {
+  flex: 1 1 6rem;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .people .actions {
   display: flex;
   gap: 4px;
