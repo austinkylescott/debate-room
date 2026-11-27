@@ -1,0 +1,434 @@
+<!doctype html>
+<html data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AtomicStage · Debate Room</title>
+<style>
+/* Debate Room tokens. Generated from tokens.json. Dark is the default theme. */
+:root, [data-theme="dark"] {
+  --ground: #132229;
+  --surface: #1b2f38;
+  --raised: #26414c;
+  --line: #355561;
+  --ink: #fbf1dc;
+  --muted: #b5c3c0;
+  --primary: #f2733a;
+  --on-primary: #1a0f08;
+  --primary-text: #ff9a63;
+  --mustard: #f5b82e;
+  --teal: #3fb8a9;
+  --on-teal: #10181c;
+  --avocado: #a3c255;
+  --pink: #ef86b4;
+  --sky: #5bb4e4;
+  --disagree: #1f6f9e;
+  --on-disagree: #ffffff;
+  --agree: #f5b82e;
+  --on-agree: #1a0f08;
+  --chill: #a3c255;
+  --spicy: #ff8796;
+  --focus: #f5b82e;
+  --lift: 0 6px 0 #0b161b;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground: #f5e8cf;
+    --surface: #fffaf0;
+    --raised: #eedcbc;
+    --line: #d9c6a3;
+    --ink: #1d2b33;
+    --muted: #55605f;
+    --primary: #e3602a;
+    --on-primary: #1a0f08;
+    --primary-text: #a3401a;
+    --mustard: #f2ad1d;
+    --teal: #2f8f8a;
+    --on-teal: #10181c;
+    --avocado: #8c9a2e;
+    --pink: #e2739f;
+    --sky: #4aa3d8;
+    --disagree: #1f6f9e;
+    --on-disagree: #ffffff;
+    --agree: #f5b82e;
+    --on-agree: #1a0f08;
+    --chill: #4d6b12;
+    --spicy: #a92e45;
+    --focus: #1d2b33;
+    --lift: 0 6px 0 #e0c99f;
+  }
+}
+[data-theme="light"] {
+  --ground: #f5e8cf;
+  --surface: #fffaf0;
+  --raised: #eedcbc;
+  --line: #d9c6a3;
+  --ink: #1d2b33;
+  --muted: #55605f;
+  --primary: #e3602a;
+  --on-primary: #1a0f08;
+  --primary-text: #a3401a;
+  --mustard: #f2ad1d;
+  --teal: #2f8f8a;
+  --on-teal: #10181c;
+  --avocado: #8c9a2e;
+  --pink: #e2739f;
+  --sky: #4aa3d8;
+  --disagree: #1f6f9e;
+  --on-disagree: #ffffff;
+  --agree: #f5b82e;
+  --on-agree: #1a0f08;
+  --chill: #4d6b12;
+  --spicy: #a92e45;
+  --focus: #1d2b33;
+  --lift: 0 6px 0 #e0c99f;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius: 14px;
+  --radius-lg: 28px;
+  --radius-pill: 999px;
+  --font-display: Righteous, system-ui, sans-serif;
+  --font-body: Jost, system-ui, sans-serif;
+}
+
+/* Type styles */
+.t-prompt { font-family: var(--font-display); font-size: 30px; line-height: 34px; font-weight: 400; }
+.t-title { font-family: var(--font-display); font-size: 20px; line-height: 24px; font-weight: 400; }
+.t-count { font-family: var(--font-display); font-size: 40px; line-height: 40px; font-weight: 400; }
+.t-body-text { font-family: var(--font-body); font-size: 16px; line-height: 24px; font-weight: 500; }
+.t-label { font-family: var(--font-body); font-size: 13px; line-height: 16px; font-weight: 600; }
+
+/* Debate Room components. Plain CSS on the system's tokens; every class is prefixed dr-.
+   States are driven by native attributes first ([disabled], [aria-pressed], [aria-invalid], [aria-selected]),
+   then by is-* classes for app state the browser can't know (is-you, is-speaking, is-low…). */
+
+/* ---------- Button ---------- */
+.dr-btn{--btn-bg:var(--primary);--btn-fg:var(--on-primary);--btn-bd:var(--ink);--btn-sh:var(--ink);
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:44px;padding:0 20px;
+  border:2px solid var(--btn-bd);border-radius:var(--radius-pill);background:var(--btn-bg);color:var(--btn-fg);
+  font:600 16px/1 var(--font-body);white-space:nowrap;cursor:pointer;box-shadow:0 4px 0 var(--btn-sh);
+  transition:transform .12s ease,box-shadow .12s ease}
+.dr-btn:hover{transform:translateY(-1px);box-shadow:0 5px 0 var(--btn-sh)}
+.dr-btn:active,.dr-btn.is-active{transform:translateY(3px);box-shadow:0 1px 0 var(--btn-sh)}
+.dr-btn:focus-visible,.dr-btn.is-focus{outline:3px solid var(--focus);outline-offset:3px}
+.dr-btn--secondary{--btn-bg:transparent;--btn-fg:var(--ink);--btn-sh:transparent;box-shadow:none}
+.dr-btn--secondary:hover{background:var(--raised);box-shadow:none}
+.dr-btn--destructive{--btn-bg:transparent;--btn-fg:var(--spicy);--btn-bd:var(--spicy);--btn-sh:transparent;box-shadow:none}
+.dr-btn--destructive:hover{background:var(--raised);box-shadow:none}
+.dr-btn--quiet{--btn-bg:transparent;--btn-fg:var(--ink);--btn-bd:transparent;--btn-sh:transparent;box-shadow:none;text-decoration:underline;text-underline-offset:4px}
+.dr-btn--lg{min-height:52px;font-size:18px;width:100%}
+.dr-btn--icon{width:44px;padding:0}
+.dr-btn[disabled],.dr-btn[aria-disabled=true]{--btn-bg:var(--raised);--btn-fg:var(--muted);--btn-bd:var(--muted);box-shadow:none;transform:none;cursor:not-allowed;border-style:dashed}
+.dr-btn.is-loading{cursor:progress}
+.dr-btn.is-loading .dr-spin{width:18px;height:18px}
+.dr-spin{display:inline-block;width:20px;height:20px;animation:dr-spin 1.2s linear infinite}
+@keyframes dr-spin{to{transform:rotate(360deg)}}
+
+/* ---------- Tag ---------- */
+.dr-tag{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 12px;border-radius:var(--radius-pill);
+  background:var(--raised);color:var(--ink);font:600 13px/1 var(--font-body);white-space:nowrap}
+.dr-tag--chill{color:var(--chill)}.dr-tag--chill::before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor}
+.dr-tag--spicy{color:var(--spicy)}.dr-tag--spicy::before{content:"";width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid currentColor}
+.dr-tag--host{background:var(--mustard);color:var(--on-agree)}
+.dr-tag--cohost{background:transparent;box-shadow:inset 0 0 0 2px var(--mustard)}
+.dr-tag--spectator{background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted);color:var(--muted)}
+.dr-tag--live{background:var(--primary);color:var(--on-primary)}
+.dr-tag svg{width:14px;height:14px}
+
+/* ---------- Electron (person marker) ---------- */
+.dr-electron{--e:38px;--pole:var(--surface);--pole-ink:var(--ink);position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:4px;min-width:0;max-width:72px}
+.dr-electron[data-pole=disagree]{--pole:var(--disagree);--pole-ink:var(--on-disagree)}
+.dr-electron[data-pole=agree]{--pole:var(--agree);--pole-ink:var(--on-agree)}
+.dr-electron--sm{--e:28px}.dr-electron--lg{--e:52px}
+.dr-electron__dot{position:relative;width:var(--e);height:var(--e);border-radius:50%;background:var(--pole);color:var(--pole-ink);
+  border:2px solid var(--ink);display:grid;place-items:center;font:700 calc(var(--e)*.34)/1 var(--font-body)}
+.dr-electron__name{max-width:100%;font:600 12px/1.25 var(--font-body);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dr-electron__mood{position:absolute;right:-8px;bottom:-5px;font-size:15px;line-height:1}
+.dr-electron__hand{position:absolute;left:-9px;top:-8px;width:16px;height:22px;display:grid;place-items:center;font:700 9px/1 var(--font-body);color:var(--ink)}
+.dr-electron__hand::before{content:"";position:absolute;inset:0;background:var(--sky);border:1.5px solid var(--ink);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.dr-electron__hand span{position:relative}
+.dr-electron__role{position:absolute;right:-6px;top:-6px;width:16px;height:16px;border-radius:50%;background:var(--mustard);border:1.5px solid var(--ink)}
+.dr-electron.is-speaking .dr-electron__dot{outline:3px solid var(--primary);outline-offset:3px}
+.dr-electron.is-you .dr-electron__dot::after{content:"YOU";position:absolute;top:-10px;padding:2px 5px;border-radius:999px;background:var(--ink);color:var(--ground);font:700 9px/1 var(--font-body);letter-spacing:.08em}
+.dr-electron.is-hidden .dr-electron__dot{background:var(--raised);color:var(--muted);border-style:dashed}
+.dr-electron.is-locked .dr-electron__dot{background:var(--raised);color:var(--ink)}
+.dr-electron.is-locked .dr-electron__dot::before{content:"✦";position:absolute;right:-7px;top:-7px;width:18px;height:18px;border-radius:50%;background:var(--mustard);color:var(--on-agree);border:1.5px solid var(--ink);display:grid;place-items:center;font-size:10px}
+.dr-electron.is-away{opacity:.5}.dr-electron.is-away .dr-electron__dot{border-style:dashed}
+.dr-electron.is-spectator .dr-electron__dot{background:transparent;border:1.5px dashed var(--ink);color:var(--ink)}
+.dr-electron.is-peek .dr-electron__dot{opacity:.55;border-style:dashed}
+button.dr-electron{background:none;border:0;padding:0;cursor:pointer;color:inherit}
+button.dr-electron:focus-visible .dr-electron__dot{outline:3px solid var(--focus);outline-offset:3px}
+
+/* ---------- Mood ---------- */
+.dr-moods{display:flex;justify-content:space-between;gap:4px}
+.dr-mood{width:44px;height:44px;border-radius:50%;border:0;background:var(--raised);display:grid;place-items:center;font-size:20px;line-height:1;cursor:pointer;transition:transform .15s ease}
+.dr-mood:hover{transform:scale(1.08)}
+.dr-mood[aria-pressed=true]{background:var(--mustard);box-shadow:0 0 0 2px var(--ink)}
+.dr-mood:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.dr-mood[disabled]{opacity:.4;cursor:not-allowed;transform:none}
+.dr-mood-inline{display:inline-flex;align-items:center;gap:4px;font:600 13px var(--font-body)}
+
+/* ---------- Timer ---------- */
+.dr-timer{position:relative;display:inline-grid;place-items:center;width:86px;height:86px}
+.dr-timer svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.dr-timer__num{position:relative;font:400 18px/1 var(--font-display);font-variant-numeric:tabular-nums;color:var(--ink);min-width:3.2ch;text-align:center}
+.dr-timer__arc{fill:none;stroke:var(--primary);stroke-width:5;stroke-linecap:round;transform:rotate(-90deg);transform-origin:center;transition:stroke-dasharray 1s linear}
+.dr-timer.is-low .dr-timer__arc{stroke:var(--ink);stroke-width:6}
+.dr-timer.is-low .dr-timer__num{font-size:22px}
+.dr-timer.is-low{animation:dr-beat 1s ease-in-out infinite}
+@keyframes dr-beat{50%{transform:scale(1.04)}}
+.dr-timer.is-paused .dr-timer__arc{stroke-dasharray:3 6!important;stroke:var(--muted)}
+.dr-timer.is-done .dr-timer__num{font-size:15px}
+.dr-timer-bar{display:block;width:100%;height:24px}
+
+/* ---------- Field ---------- */
+.dr-field{display:grid;gap:6px;min-width:0}
+.dr-field__label{font:600 14px/1.2 var(--font-body);color:var(--ink)}
+.dr-field__input{min-height:48px;width:100%;padding:0 16px;border-radius:var(--radius);border:2px solid var(--muted);background:var(--surface);color:var(--ink);font:500 16px var(--font-body)}
+.dr-field__input::placeholder{color:var(--muted)}
+.dr-field__input:hover{border-color:var(--ink)}
+.dr-field__input:focus,.dr-field__input.is-focus{outline:3px solid var(--focus);outline-offset:2px;border-color:var(--ink)}
+.dr-field__input[aria-invalid=true]{border-color:var(--spicy)}
+.dr-field__input[disabled]{background:var(--raised);border-style:dashed;color:var(--muted);cursor:not-allowed}
+.dr-field__help{display:flex;justify-content:space-between;gap:8px;font:500 13px/1.35 var(--font-body);color:var(--muted)}
+.dr-field__error{font:600 13px/1.35 var(--font-body);color:var(--spicy);display:flex;gap:6px;align-items:baseline}
+.dr-field__error::before{content:"▲";font-size:10px}
+.dr-choice{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 14px;border-radius:var(--radius);border:2px solid var(--muted);background:var(--surface);cursor:pointer;font:600 15px var(--font-body);color:var(--ink)}
+.dr-choice input{appearance:none;margin:0;flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--ink);background:var(--surface);display:grid;place-items:center}
+.dr-choice input:checked{background:var(--primary)}
+.dr-choice input:checked::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--on-primary)}
+.dr-choice:has(input:checked){border-color:var(--ink);background:var(--raised)}
+.dr-choice:has(input:focus-visible){outline:3px solid var(--focus);outline-offset:2px}
+.dr-choice small{display:block;font-weight:500;color:var(--muted);font-size:13px}
+
+/* ---------- Menu / Select ---------- */
+.dr-select{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:48px;padding:0 14px 0 16px;border-radius:var(--radius);border:2px solid var(--muted);background:var(--surface);color:var(--ink);font:500 16px var(--font-body);cursor:pointer;width:100%}
+.dr-select[aria-expanded=true]{border-color:var(--ink)}
+.dr-select:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.dr-select svg{width:18px;height:18px;flex:none}
+.dr-menu{list-style:none;margin:0;padding:6px;min-width:220px;background:var(--surface);border-radius:var(--radius-lg) 8px var(--radius-lg) 8px;box-shadow:var(--lift),0 0 0 2px var(--ink)}
+.dr-menu__item{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border-radius:10px;font:500 15px var(--font-body);color:var(--ink);cursor:pointer}
+.dr-menu__item:hover,.dr-menu__item.is-hover{background:var(--raised)}
+.dr-menu__item[aria-selected=true]{font-weight:700}
+.dr-menu__item .dr-menu__check{margin-left:auto;width:16px;height:16px}
+.dr-menu__item.is-focus{outline:3px solid var(--focus);outline-offset:-3px}
+.dr-menu__item--danger{color:var(--spicy)}
+.dr-menu__item[aria-disabled=true]{color:var(--muted);cursor:not-allowed}
+.dr-menu__sep{height:0;border-top:1.5px dashed var(--line);margin:6px 8px}
+
+/* ---------- Toast / Notice ---------- */
+.dr-toast{position:relative;display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;min-height:52px;padding:10px 12px 10px 14px;
+  background:var(--surface);border-radius:var(--radius-lg) 8px var(--radius-lg) 8px;box-shadow:var(--lift),0 0 0 2px var(--ink);font:500 15px/1.35 var(--font-body);color:var(--ink)}
+.dr-toast::before{content:"";position:absolute;left:28px;top:-18px;height:18px;border-left:1.5px solid var(--ink)}
+.dr-toast svg{width:26px;height:26px}
+.dr-toast b{font-weight:700}
+.dr-toast button{min-width:44px;min-height:44px;border:0;background:none;color:var(--muted);font:600 14px var(--font-body);cursor:pointer}
+.dr-notice{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:var(--radius);border:1.5px dashed var(--ink);font:500 14px/1.4 var(--font-body);color:var(--ink);background:transparent}
+.dr-notice--host{border-color:var(--primary-text)}
+
+/* ---------- Card ---------- */
+.dr-card{background:var(--surface);color:var(--ink);border-radius:var(--radius-lg) 8px var(--radius-lg) 8px;box-shadow:var(--lift);padding:var(--space-4)}
+.dr-card--flip{border-radius:8px var(--radius-lg) 8px var(--radius-lg)}
+.dr-card--raised{background:var(--raised);box-shadow:none}
+.dr-card__title{margin:0 0 6px;font:400 20px/1.15 var(--font-display)}
+.dr-card__meta{font:500 13px var(--font-body);color:var(--muted)}
+button.dr-card,a.dr-card{display:block;text-align:left;border:0;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease;font:inherit}
+button.dr-card:hover,a.dr-card:hover{transform:translateY(-2px)}
+button.dr-card:focus-visible,a.dr-card:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.dr-card.is-selected{box-shadow:var(--lift),0 0 0 3px var(--ink)}
+
+@media (prefers-reduced-motion: reduce){
+  .dr-btn,.dr-mood,.dr-card{transition:none}
+  .dr-spin,.dr-timer.is-low{animation:none}
+}
+
+</style></head>
+<body>
+<p style="position:fixed;right:12px;top:8px;z-index:9;font:600 13px system-ui"><button onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'">Toggle theme</button></p>
+<!-- @dsCard group="Atomic" height=1000 width=960 subtitle="The Spectrum Stage: breathing amoeba containers over a drifting shape layer, with the Spectrum as an orbit" -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Righteous&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:500 16px/1.5 var(--font-body)}
+.a-stroke{stroke:var(--ink);stroke-width:2;fill:none;stroke-linecap:round}
+.a-stroke-f{fill:var(--ink)}
+.a-hair{stroke:var(--ink);stroke-width:1.25;stroke-linecap:round}
+.f-or{fill:var(--primary)}.f-mu{fill:var(--mustard)}.f-te{fill:var(--teal)}.f-av{fill:var(--avocado)}.f-pk{fill:var(--pink)}.f-sky{fill:var(--sky)}.f-bl{fill:var(--disagree)}.f-ink{fill:var(--ink)}.f-sur{fill:var(--surface)}.f-gr{fill:var(--ground)}.f-ra{fill:var(--raised)}
+.ol{stroke:var(--ink);stroke-width:2}
+.sheet{display:grid;grid-template-columns:390px minmax(0,1fr);gap:40px;padding:32px;width:960px;align-items:start}
+.about .kick{font:600 13px/1 var(--font-body);letter-spacing:.14em;text-transform:uppercase;color:var(--primary-text)}
+.about h2{font:400 44px/1 var(--font-display);margin:10px 0 12px}
+.about p{color:var(--muted);margin:0 0 16px;max-width:52ch}
+.about ul{margin:0 0 18px;padding:0;list-style:none;display:grid;gap:10px}
+.about li{display:grid;grid-template-columns:28px 1fr;gap:10px;color:var(--muted);font-size:15px}
+.about li b{color:var(--ink)}
+.about li svg{width:28px;height:28px}
+.meter{display:flex;align-items:center;gap:10px;font:600 14px var(--font-body);color:var(--ink)}
+.meter i{width:14px;height:14px;border-radius:50%;border:2px solid var(--ink)}.meter i.on{background:var(--primary)}
+.phone{width:390px;background:var(--ground);border:2px solid var(--line);border-radius:36px;padding:16px;display:flex;flex-direction:column;gap:14px;overflow:hidden;position:relative}
+.top{display:flex;justify-content:space-between;align-items:center;position:relative}
+.top .d{font:400 18px var(--font-display);display:flex;align-items:center;gap:6px}
+.top small{color:var(--muted);font-size:13px;font-weight:600}
+.tag{min-height:28px;padding:0 12px;border-radius:var(--radius-pill);font:600 13px var(--font-body);display:inline-flex;align-items:center;gap:6px;background:var(--raised);color:var(--ink)}
+.tag.ch{color:var(--chill)}
+.state{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;color:var(--muted)}
+.lit{background:var(--primary);color:var(--on-primary);padding:3px 12px;border-radius:var(--radius-pill)}
+.btn{min-height:44px;padding:0 18px;border-radius:var(--radius-pill);font:600 16px var(--font-body);border:2px solid var(--ink);display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--primary);color:var(--on-primary);box-shadow:0 4px 0 var(--ink);white-space:nowrap}
+.av{position:relative;width:38px;height:38px;flex:none;border-radius:50%;background:var(--pole);color:var(--pole-ink);border:2px solid var(--ink);display:grid;place-items:center;font:700 13px var(--font-body)}
+.speaking .av{outline:3px solid var(--primary);outline-offset:3px}
+.you .av::after{content:"YOU";position:absolute;top:-10px;font:700 9px/1 var(--font-body);letter-spacing:.08em;background:var(--ink);color:var(--ground);padding:2px 5px;border-radius:999px}
+.mood{position:absolute;right:-8px;bottom:-5px;font-size:15px;line-height:1}
+.hand{position:absolute;left:-8px;top:-6px;width:18px;height:18px;border-radius:50%;background:var(--primary);color:var(--on-primary);border:1.5px solid var(--ink);font:700 10px/15px var(--font-body);text-align:center}
+.nm{max-width:100%;font:600 12px/1.25 var(--font-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbl{font:600 12px/1.2 var(--font-body);color:var(--muted);hyphens:none;overflow-wrap:normal;text-align:center}
+.mc{width:44px;height:44px;border-radius:50%;background:var(--raised);display:grid;place-items:center;font-size:20px;position:relative}
+
+.tags{display:flex;gap:8px}
+/* layered containers: 0 drifting shapes, 1 breathing blob, 2 content */
+.zone{position:relative}
+.zone>svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.pr{height:214px;margin:-2px -6px 0}
+.pr .q{position:absolute;left:60px;right:60px;top:48px;bottom:54px;display:flex;align-items:center;justify-content:center;text-align:center;margin:0;font:400 29px/1.08 var(--font-display);color:var(--on-primary)}
+.drift{transform-box:fill-box;transform-origin:center;animation:drift var(--d,16s) ease-in-out infinite alternate;animation-delay:var(--dl,0s)}
+@keyframes drift{0%{transform:translate(0,0) rotate(0)}50%{transform:translate(var(--x,8px),var(--y,-6px)) rotate(var(--r,8deg))}100%{transform:translate(calc(var(--x,8px)*-.6),calc(var(--y,-6px)*-.8)) rotate(calc(var(--r,8deg)*-.5))}}
+.spin{transform-box:view-box;animation:spin 40s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.orbit{display:block;width:100%;height:284px;overflow:visible;margin-top:-6px}
+.orbit .lab{font:600 12px var(--font-body);fill:var(--muted)}
+.orbit .cnt{font:400 15px var(--font-display);fill:var(--ink)}
+.orbit .ini{font:700 11px var(--font-body)}
+.orbit .pill{font:600 12px var(--font-body);fill:var(--ink)}
+.orbit .mine .lab{fill:var(--ink)}
+.hint{margin:-8px 0 0;text-align:center;font:500 12px var(--font-body);color:var(--muted)}
+.fl{height:132px;margin:0 -6px}
+.fl .in{position:absolute;inset:0 26px 0 22px;display:grid;grid-template-columns:86px 1fr auto;gap:8px;align-items:center;color:var(--on-teal)}
+.fl small{display:block;font:600 13px var(--font-body)}
+.fl b{display:block;font:400 21px/1.1 var(--font-display)}
+.dial{width:86px;height:86px;overflow:visible}
+.dial text{font:400 17px var(--font-display);fill:var(--ink)}
+.dial .q{font:700 9px var(--font-body);fill:var(--on-agree)}
+.moods{display:flex;justify-content:space-between}
+.mc.on{background:var(--mustard);box-shadow:0 0 0 2px var(--ink)}
+@media (prefers-reduced-motion: reduce){.drift,.spin{animation:none}}
+</style>
+<div class="sheet">
+  <div class="phone">
+    <div class="top"><span class="d"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" id="ts"></svg>Round 2 · Spectrum</span><small>Prompt 3 of 5</small></div>
+    <div class="tags"><span class="tag ch">● Chill</span><span class="tag">Food Fights</span></div>
+    <div class="zone pr"><svg id="prs" viewBox="0 0 370 214" aria-hidden="true"></svg><p class="q">Pineapple belongs on pizza</p></div>
+    <div class="state"><span class="lit">✦ Revealed</span><span>11 of 11 locked in · you can move now</span></div>
+    <svg class="orbit" id="orbit" viewBox="0 0 358 284" role="img" aria-label="Spectrum results: 2 strongly disagree, 2 disagree, 1 unsure, 4 agree including you, 2 strongly agree"></svg>
+    <p class="hint">Tap any orbit to see who's in it · yours is open</p>
+    <div class="zone fl"><svg id="fls" viewBox="0 0 370 132" aria-hidden="true"></svg>
+      <div class="in"><svg class="dial" id="dial" viewBox="0 0 86 86" aria-hidden="true"></svg><div><small>On the Floor</small><b>Priya 😀</b><small>Next: Dev, then Kiki</small></div><span class="btn" style="padding:0 14px">✋ Raise</span></div></div>
+    <div class="moods" id="moods"></div>
+  </div>
+  <div class="about">
+    <div class="kick">Atomic · the Stage</div>
+    <h2>Amoebas in orbit</h2>
+    <p>Stage A's containers and Stage C's atom, merged. The Prompt and the Floor sit in shapes that slowly breathe, with small shapes drifting on a layer behind them. The Spectrum is an orbit. Everyone at a notch is an electron in that notch's orbit, and the orbit you're in is open with names. The key is gone: counts sit with the notch labels, Moods ride on the electrons, and raised hands are diamonds.</p>
+    <ul id="why"></ul>
+    <div class="meter">Motion <i class="on"></i><i></i><i></i> <span>Light: ambient only. Edges breathe over about 10 seconds, the back layer drifts over 14 to 20, and nothing moves faster than a slow breath. All of it stops with reduced motion.</span></div>
+  </div>
+</div>
+<script>
+// Atomic shape vocabulary. Every path is drawn in a 100×100 box centred on 0,0.
+const A=(()=>{
+const T=(x,y,s,r)=>`transform="translate(${x} ${y}) rotate(${r||0}) scale(${(s/100).toFixed(3)})"`;
+const P={
+ boomerang:"M-50,-22 C-47,-32 -37,-32 -31,-25 C-19,-11 -9,-2 2,-1 C14,-2 26,-14 38,-32 C43,-40 53,-38 51,-28 C45,-6 24,26 2,28 C-20,28 -42,2 -50,-22Z",
+ kidney:"M-40,-6 C-44,-30 -14,-40 8,-34 C34,-28 48,-6 42,14 C36,34 10,40 -6,32 C-14,28 -12,16 -22,16 C-34,16 -38,8 -40,-6Z",
+ amoeba:"M-44,-6 C-48,-34 -10,-46 18,-40 C44,-34 52,-8 40,12 C30,28 34,40 16,44 C-4,48 -10,30 -26,30 C-42,30 -42,12 -44,-6Z",
+ leaf:"M0,-48 C26,-26 30,18 0,48 C-30,18 -26,-26 0,-48Z",
+ teardrop:"M0,-46 C10,-18 24,0 24,16 A24,24 0 0 1 -24,16 C-24,0 -10,-18 0,-46Z",
+ diamond:"M0,-48 L20,0 L0,48 L-20,0Z",
+ sparkle:"M0,-50 C4,-8 8,-4 50,0 C8,4 4,8 0,50 C-4,8 -8,4 -50,0 C-8,-4 -4,-8 0,-50Z",
+ bowl:"M-48,-12 A48,48 0 0 0 48,-12Z",
+ arrow:"M-48,-5 L20,-5 L20,-18 L48,0 L20,18 L20,5 L-48,5Z"
+};
+const path=(k,x,y,s,r,c,st="")=>`<path class="${c}" ${T(x,y,s,r)} d="${P[k]}" ${st}/>`;
+const compass=(x,y,s,r,c)=>{let p=[];for(let i=0;i<16;i++){const a=Math.PI*i/8-Math.PI/2,R=i%4===0?50:i%2===0?24:9;p.push((Math.cos(a)*R).toFixed(1)+","+(Math.sin(a)*R).toFixed(1))}return `<polygon class="${c}" ${T(x,y,s,r)} points="${p.join(" ")}"/>`};
+const burst=(x,y,s,n=8,c="a-stroke",r=0)=>{const R=s/2;let o="";for(let i=0;i<n;i++){const a=Math.PI*2*i/n+r*Math.PI/180,L=i%2?R*.72:R,ex=x+Math.cos(a)*L,ey=y+Math.sin(a)*L;o+=`<line class="${c}" x1="${x}" y1="${y}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}"/><circle class="${c}-f" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="${Math.max(1.8,s/22).toFixed(1)}"/>`}return o+`<circle class="${c}-f" cx="${x}" cy="${y}" r="${Math.max(2,s/18).toFixed(1)}"/>`};
+const cross=(x,y,w,h,c="a-hair")=>`<line class="${c}" x1="${x-w/2}" y1="${y}" x2="${x+w/2}" y2="${y}"/><line class="${c}" x1="${x}" y1="${y-h/2}" x2="${x}" y2="${y+h/2}"/>`;
+const atom=(x,y,s,c="a-stroke")=>[0,60,120].map(a=>`<ellipse class="${c}" style="fill:none" cx="${x}" cy="${y}" rx="${s/2}" ry="${s*.18}" transform="rotate(${a} ${x} ${y})"/>`).join("")+`<circle class="${c}-f" cx="${x}" cy="${y}" r="${s/14}"/>`;
+const surf=(x,y,s,r,c,c2)=>`<g ${T(x,y,s,r)}><ellipse class="${c}" rx="15" ry="48"/><ellipse class="${c2}" rx="4.5" ry="34"/><circle class="${c}" cy="-20" r="3"/></g>`;
+const leafSpine=(x,y,s,r,c)=>`<g ${T(x,y,s,r)}><path class="${c}" d="${P.leaf}"/><line class="a-stroke" x1="0" y1="-38" x2="0" y2="44" style="stroke-width:${(200/s).toFixed(2)}"/></g>`;
+return {T,P,path,compass,burst,cross,atom,surf,leafSpine};
+})();
+// Morph helpers: wob() nudges every coordinate of a path (same commands, so SMIL can interpolate);
+// morph() returns an <animate> that breathes between variants. Skipped under reduced motion.
+const RM=typeof matchMedia!=="undefined"&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+const wob=(d,amp,seed)=>{let i=0;return d.replace(/-?\d+(\.\d+)?/g,m=>{i++;return (+m+Math.sin(seed*12.9898+i*78.233)*amp).toFixed(1)})};
+const morph=(d,amp=4,dur=10)=>RM?"":`<animate attributeName="d" dur="${dur}s" repeatCount="indefinite" calcMode="spline" keyTimes="0;.33;.66;1" keySplines=".45 0 .55 1;.45 0 .55 1;.45 0 .55 1" values="${d};${wob(d,amp,1)};${wob(d,amp,2)};${d}"/>`;
+const blob=(k,tf,c,amp,dur)=>`<path class="${c}" transform="${tf}" d="${A.P[k]}">${morph(A.P[k],amp,dur)}</path>`;
+
+const PEOPLE=[["Maya",0,"😮"],["Dev",0,"",1],["Jordan B",1,"🤔"],["Sam",1],["Alexandria-Rose",2,"😂"],["Priya",3,"😀",0,"speaking"],["Theo",3,"",0,"you"],["Kiki",3,"❤️",2],["Marcus Okonkwo-Hale",3],["Lou",4,"😂"],["Bea",4]];
+const NOTCHES=["Strongly disagree","Disagree","Unsure","Agree","Strongly agree"];
+const ini=s=>s.split(/[\s-]+/).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+const poleVars=n=>n<2?"--pole:var(--disagree);--pole-ink:var(--on-disagree)":n>2?"--pole:var(--agree);--pole-ink:var(--on-agree)":"--pole:var(--surface);--pole-ink:var(--ink)";
+const avatar=([name,n,mood,hand],extra="")=>`<span class="av">${ini(name)}${mood&&!extra?`<span class="mood">${mood}</span>`:""}${hand?`<span class="hand">${hand}</span>`:""}</span>`;
+
+const dr=(inner,o)=>`<g class="drift" style="--d:${o.d}s;--x:${o.x}px;--y:${o.y}px;--r:${o.r}deg;--dl:${o.dl||0}s">${inner}</g>`;
+document.getElementById("ts").innerHTML=A.compass(10,10,20,0,"f-or");
+// Prompt zone. Layer 0: small shapes drifting behind. Layer 1: the breathing amoeba. Text on top.
+document.getElementById("prs").innerHTML=
+  dr(A.path("boomerang",70,192,110,-12,"f-mu"),{d:18,x:10,y:-6,r:6})+
+  dr(A.path("kidney",330,40,70,30,"f-pk"),{d:20,x:-8,y:8,r:-10,dl:-4})+
+  dr(A.burst(340,186,38,8),{d:15,x:-6,y:-8,r:20,dl:-2})+
+  dr(A.path("sparkle",22,28,22,0,"f-ink"),{d:14,x:6,y:8,r:30,dl:-6})+
+  dr(A.leafSpine(14,140,34,-30,"f-te"),{d:17,x:8,y:-10,r:-12,dl:-8})+
+  dr(`<circle class="a-stroke-f" cx="300" cy="14" r="4"/><circle class="a-stroke-f" cx="316" cy="22" r="2.5"/>`,{d:12,x:-8,y:6,r:0})+
+  blob("amoeba","translate(186 104) scale(3.55 2.15)","f-or",3.5,11);
+// Orbit Spectrum
+const C={x:179,y:230},R=136,ang=[180,135,90,45,0].map(a=>a*Math.PI/180),MINE=3;
+const pt=(i,rr=R)=>({x:C.x+Math.cos(ang[i])*rr,y:C.y-Math.sin(ang[i])*rr});
+let s=`<path d="M${C.x-R},${C.y} A${R},${R} 0 0 1 ${C.x+R},${C.y}" style="fill:none;stroke:var(--ink);stroke-width:2"/>`;
+s+=`<g class="spin" style="transform-origin:${C.x}px ${C.y-22}px">${A.atom(C.x,C.y-22,46,"a-hair")}</g>`;
+const fill=i=>i<2?["var(--disagree)","var(--on-disagree)"]:i>2?["var(--agree)","var(--on-agree)"]:["var(--surface)","var(--ink)"];
+const electron=(q,x,y,i)=>{const [f,k]=fill(i);let e="";
+  if(q[4]==="speaking")e+=`<circle cx="${x}" cy="${y}" r="19" style="fill:none;stroke:var(--primary);stroke-width:3"/>`;
+  e+=`<circle cx="${x}" cy="${y}" r="14" style="fill:${f};stroke:var(--ink);stroke-width:2"/><text class="ini" x="${x}" y="${y+4}" text-anchor="middle" style="fill:${k}">${ini(q[0])}</text>`;
+  if(q[2])e+=`<text x="${x+11}" y="${y+16}" text-anchor="middle" style="font-size:12px">${q[2]}</text>`;
+  if(q[3])e+=`<g transform="translate(${x-13} ${y-12})"><path d="M0,-9 L6,0 L0,9 L-6,0Z" style="fill:var(--sky);stroke:var(--ink);stroke-width:1.5"/><text x="0" y="3.5" text-anchor="middle" style="font:700 9px var(--font-body);fill:var(--ink)">${q[3]}</text></g>`;
+  return e};
+NOTCHES.forEach((n,i)=>{const p=pt(i),grp=PEOPLE.filter(q=>q[1]===i),k=grp.length,mine=i===MINE;
+  const rr=k>3?34:k>1?26:22,out=Math.atan2(p.y-C.y,p.x-C.x);
+  let g=`<g class="${mine?"mine":""}">`;
+  g+=`<circle cx="${p.x}" cy="${p.y}" r="${rr}" style="fill:${mine?"var(--raised)":"none"};stroke:var(--ink);stroke-width:1;stroke-dasharray:2 4"/>`;
+  g+=mine?A.compass(p.x,p.y,34,0,"f-or"):A.burst(p.x,p.y,16,8);
+  const spread=mine?170:k>1?360:0,a0=mine?out-spread/2*Math.PI/180:out;
+  const pos=grp.map((q,j)=>{const a=k===1?out:mine?a0+j*(spread*Math.PI/180)/(k-1):out+j*2*Math.PI/k;return {q,a,x:p.x+Math.cos(a)*rr,y:p.y+Math.sin(a)*rr}});
+  g+=pos.map((o,j)=>mine?electron(o.q,o.x,o.y,i):dr(electron(o.q,o.x,o.y,i),{d:6+j*1.3,x:Math.cos(o.a+1.57)*3,y:Math.sin(o.a+1.57)*3,r:0,dl:-j})).join("");
+  if(mine)pos.forEach(o=>{const nm=o.q[4]==="you"?"You":o.q[0].split(" ")[0]+(o.q[0].includes(" ")?" "+o.q[0].split(" ")[1][0]+".":"");const w=nm.length*6.6+14,d=rr+27,x=p.x+Math.cos(o.a)*d,y=p.y+Math.sin(o.a)*d;
+    g+=`<rect x="${(x-w/2).toFixed(1)}" y="${(y-10).toFixed(1)}" width="${w.toFixed(1)}" height="20" rx="10" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.5"/><text class="pill" x="${x.toFixed(1)}" y="${(y+4).toFixed(1)}" text-anchor="middle">${nm}</text>`});
+  const d=i===2?64:i===0||i===4?78:58,lx=C.x+Math.cos(ang[i])*(R-d),ly=C.y-Math.sin(ang[i])*(R-d)+(i===0||i===4?-8:0),w=n.split(" ");
+  g+=`<text class="lab" x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle">${w.map((t,j)=>`<tspan x="${lx.toFixed(1)}" dy="${j?14:0}">${t}${j===w.length-1?` <tspan class="cnt" dx="2">${k}</tspan>`:""}</tspan>`).join("")}</text>`;
+  s+=g+"</g>";});
+document.getElementById("orbit").innerHTML=s;
+// Floor zone: drifting shapes behind a breathing kidney
+document.getElementById("fls").innerHTML=
+  dr(A.path("sparkle",350,14,20,0,"f-ink"),{d:13,x:-6,y:6,r:25})+
+  dr(A.path("boomerang",338,104,70,150,"f-or"),{d:19,x:-6,y:-4,r:-8,dl:-5})+
+  dr(A.burst(14,20,26,8),{d:16,x:6,y:6,r:-20,dl:-3})+
+  dr(A.path("diamond",16,112,22,20,"f-sky"),{d:14,x:8,y:-6,r:14,dl:-7})+
+  blob("kidney","translate(184 66) scale(4.2 1.62) rotate(3)","f-te",3.5,12);
+// Atom timer: progress arc with an electron at its tip; the raised-hand queue rides the outer orbit
+const r=26,c=2*Math.PI*r,an=0.7*2*Math.PI-Math.PI/2;
+let dl=`<g class="spin" style="transform-origin:43px 43px;animation-duration:30s">${A.atom(43,43,84,"a-hair").replace(/<circle[^>]*>$/,"")}</g>`;
+dl+=`<circle class="f-sur" cx="43" cy="43" r="23"/><circle cx="43" cy="43" r="${r}" style="fill:none;stroke:var(--primary);stroke-width:5;stroke-dasharray:${(c*.7).toFixed(1)} ${c};transform:rotate(-90deg);transform-origin:43px 43px"/><circle class="a-stroke-f" cx="${(43+Math.cos(an)*r).toFixed(1)}" cy="${(43+Math.sin(an)*r).toFixed(1)}" r="4"/><text x="43" y="49" text-anchor="middle">0:42</text>`;
+[["D",1,-150],["K",2,-115]].forEach(([l,n,a])=>{const x=43+Math.cos(a*Math.PI/180)*40,y=43+Math.sin(a*Math.PI/180)*40;dl+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9" style="fill:var(--agree);stroke:var(--ink);stroke-width:1.5"/><text class="q" x="${x.toFixed(1)}" y="${(y+3).toFixed(1)}" text-anchor="middle">${l}</text>`});
+document.getElementById("dial").innerHTML=dl;
+document.getElementById("moods").innerHTML=["😀","❤️","😂","😮","🤔","😢","😠"].map((m,i)=>`<span class="mc${i===2?" on":""}">${m}</span>`).join("");
+document.getElementById("why").innerHTML=[
+ [A.path("amoeba",14,14,26,0,"f-or"),"<b>Breathing containers.</b> The amoeba and kidney edges slowly morph. The text area stays fixed, so nothing you read ever moves."],
+ [A.path("sparkle",14,14,22,0,"f-ink"),"<b>A drifting back layer.</b> Small shapes peek out from behind each container and drift a few pixels. They never cross text."],
+ [A.atom(14,14,26),"<b>Your orbit is open.</b> It shows names. The other orbits show initials and Moods, and their electrons gently bob in place. Tap one to open it and close yours."],
+ [`<path d="M14,4 L21,14 L14,24 L7,14Z" style="fill:var(--sky);stroke:var(--ink);stroke-width:1.5"/>`,"<b>One language, no key.</b> Counts sit under each label, raised hands are numbered diamonds, and the queue rides the timer's outer orbit."]
+].map(([s,t])=>`<li><svg viewBox="0 0 28 28" aria-hidden="true">${s}</svg><span>${t}</span></li>`).join("");
+</script>
+
+</body></html>
