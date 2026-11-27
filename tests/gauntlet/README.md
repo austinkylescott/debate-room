@@ -31,6 +31,7 @@ The per-screen checks (`harness/checks.ts`, run by `harness/gauntlet.ts`):
 | `flat`           | Hard rule 7             | No gradients, blur or backdrop filters                                                                                                                           |
 | `targets`        | Gauntlet 4, hard rule 5 | Every visible control is at least 44×44px (a wrapping `<label>` counts; UI SDK's hidden form input doesn't)                                                      |
 | `names`          | Gauntlet 1, hard rule 3 | Every name label is one line, `white-space: nowrap`, cut only with an ellipsis, has the full name in `title` and its accessible name, and overlaps no other name |
+| `tags`           | Tag.md, hard rule 5     | Every tag sits on `ground`, `surface` or `raised`, and its fill, border or outline differs from that ground, so it reads as a pill                               |
 
 The crowd test (gauntlet 1) is two of the screens: `crowd()` gives a Waiting Room of 15 Participants with 20-character names, and `crowdOnOneNotch()` puts all of them on one Spectrum notch and reveals.
 
@@ -38,7 +39,7 @@ The crowd test (gauntlet 1) is two of the screens: `crowd()` gives a Waiting Roo
 
 Some checks fail on parts of the app the redesign hasn't reached (old 28px link buttons, names that wrap letter by letter, the Spectrum track's gradient). Those checks are never skipped. Instead, each screen lists in `redesignedOnly` the checks its old parts still fail, and on that screen those checks look only at the **redesigned elements**: anything matching a selector in `redesigned.ts`, or inside one, or carrying a `data-redesigned` attribute. Everything else runs on the whole page.
 
-So on `main` today, contrast, spark, focus, reduced motion and flat hold on every screen except flat on the two Spectrum screens. Targets and names hold nowhere yet, so they run on the redesigned parts only.
+So on `main` today, contrast, spark, focus, reduced motion and flat hold on every screen except flat on the two Spectrum screens. Targets hold on Home, Join and the visitor's Planning screen; elsewhere (old `<summary>`s and checkboxes) targets and names run on the redesigned parts only, which include every button, tag and timer.
 
 ## Adding a component's checks
 

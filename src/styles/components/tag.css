@@ -12,6 +12,10 @@
  *   .dr-tag--live        ● Live: the spark, one of the status pills hard rule 2 allows
  *
  * Long text truncates on one line: wrap it in .dr-tag__text and put the full text in `title`.
+ *
+ * Tags sit on the three documented grounds (ground, surface, raised). The plain, Chill and Spicy
+ * tags are filled `raised`, so on a `raised` ground they trade the fill for a muted outline to
+ * stay a pill (the gauntlet's tags check holds this).
  */
 .dr-tag {
   display: inline-flex;
@@ -95,6 +99,17 @@
 .dr-tag--live {
   background: var(--primary);
   color: var(--on-primary);
+}
+
+/*
+ * On a raised ground the raised fill vanishes, so the pill is drawn as an outline instead, like
+ * "You" and Spectator. The raised grounds: a nested card, and your own row in a people list.
+ * Not in the spec; asked for in #74 (found in #75: the Format tag on the Lineup Preview).
+ */
+:is(.dr-card--raised, .people li.you)
+  .dr-tag:not(.dr-tag--host, .dr-tag--cohost, .dr-tag--spectator, .dr-tag--outline, .dr-tag--live) {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--muted);
 }
 
 /*
