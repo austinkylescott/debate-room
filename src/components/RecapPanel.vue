@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref } from "vue";
 import { serverClock } from "../lib/serverClock";
 import { FORMAT_NAMES } from "../room/lineup";
-import { summarizeRecap } from "../room/recap";
+import { summarizeRecap, type RecapRound } from "../room/recap";
 import type { RecapEvent } from "../room/room";
 import type { RevealCause } from "../room/round";
 import { MOODS } from "../room/mood";
@@ -63,6 +63,12 @@ function notchLabel(position: number | null): string {
   return position === null ? "no position" : labelOf(position);
 }
 
+/** How someone became the Center, after their name. */
+function centerMove(center: RecapRound["centers"][number]): string {
+  if (center.replaced) return `replaced ${center.replaced.nickname} as the Center`;
+  return center.by === "volunteer" ? "stepped up as the Center" : "was picked as the Center";
+}
+
 /** The Room-wide overview only lists Prompts where someone had a Mood. */
 const moodOverview = computed(() =>
   recap.value.moodOverview.filter(
@@ -101,7 +107,7 @@ function download() {
     <p v-if="recap.floorTime.length === 0" class="muted small">Nobody has had the Floor yet.</p>
     <ul v-else class="floor-time">
       <li v-for="person in recap.floorTime" :key="person.personId">
-        <span class="name">{{ person.nickname }}</span>
+        <span class="name" :title="person.nickname">{{ person.nickname }}</span>
         <span class="bar" :style="{ width: `${(person.ms / floorMax) * 60}%` }" />
         <span class="small">{{ duration(person.ms) }}</span>
       </li>
@@ -152,15 +158,8 @@ function download() {
       </ul>
       <ul v-if="round.centers.length > 0" class="moves small">
         <li v-for="(center, i) in round.centers" :key="i">
-          {{ center.nickname }}
-          <template v-if="center.replaced"
-            >replaced {{ center.replaced.nickname }} as the Center</template
-          >
-          <template v-else>
-            {{
-              center.by === "volunteer" ? "stepped up as the Center" : "was picked as the Center"
-            }}
-          </template>
+          <!-- One text node, so the name reads as part of the sentence, not a name label. -->
+          {{ center.nickname }} {{ centerMove(center) }}
         </li>
       </ul>
       <div v-for="prompt in round.prompts" :key="prompt.promptId" class="recap-prompt">

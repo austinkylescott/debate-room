@@ -99,8 +99,13 @@
   gap: 6px;
 }
 
+/* Hard rule 3: one line, an ellipsis, the full name in `title`. */
 .mood-timelines .name {
+  max-width: 100%;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mood-change {

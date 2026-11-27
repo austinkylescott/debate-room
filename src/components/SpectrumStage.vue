@@ -8,11 +8,12 @@ import {
   type SliderValueChangeDetails,
 } from "@ui-sdk/vue/slider";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { floorMarks, poleOf } from "../lib/electron";
 import { useSpectrumDraft } from "../lib/spectrumDraft";
 import { describePosition, nextNotch, stackLabels } from "../lib/spectrumTrack";
-import type { Intent, StageView } from "../room/room";
-import { MOODS } from "../room/mood";
+import type { FloorView, Intent, StageView } from "../room/room";
 import { notchesCrossed, SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
+import Electron from "./Electron.vue";
 import MoodPanel from "./MoodPanel.vue";
 import Notice from "./Notice.vue";
 import SpectrumSummary from "./SpectrumSummary.vue";
@@ -22,6 +23,8 @@ const props = defineProps<{
   isHost: boolean;
   personId: string;
   isSpectator?: boolean;
+  /** Who has the Floor and whose hands are up, marked on their electrons. */
+  floor?: FloorView | null;
 }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
@@ -122,11 +125,18 @@ onBeforeUnmount(() => {
   flashTimers.forEach(clearTimeout);
 });
 
-/** The emoji for someone's current Mood, shown next to their name. Empty if they have none. */
-function moodOf(personId: string): string {
-  const mood = props.stage.moods[personId];
-  return MOODS.find((m) => m.id === mood)?.emoji ?? "";
-}
+/** Someone's current Mood, shown on their electron. */
+const moodOf = (personId: string) => props.stage.moods[personId] ?? null;
+
+const marks = computed(() => floorMarks(props.floor ?? null));
+
+/**
+ * A Host or Co-Host who isn't Playing sees positions before the reveal: dimmed,
+ * with "Only you can see this" (hard rule 4).
+ */
+const peeking = computed(
+  () => spectrum.value.positionsVisible && spectrum.value.step === "positioning",
+);
 
 const checkInOpen = computed(() => props.stage.checkIn?.status === "open");
 
@@ -210,10 +220,7 @@ onMounted(() => {
 });
 // A label's width changes only with its text and styling, not as it moves.
 watch(
-  () =>
-    markers.value
-      .map((m) => [m.personId, m.nickname, moodOf(m.personId), m.hovering].join())
-      .join("|"),
+  () => markers.value.map((m) => [m.personId, m.nickname, moodOf(m.personId)].join()).join("|"),
   measureLabels,
   { flush: "post" },
 );
@@ -258,15 +265,22 @@ const rowCount = computed(() => Math.max(0, ...Object.values(rows.value).map((r)
           :data-person="person.personId"
           class="marker"
           :class="{
-            hover: person.hovering,
             you: person.personId === personId,
             apart: furthestIds.includes(person.personId),
             crossed: crossedPeople.includes(person.personId),
           }"
           :style="{ '--at': percent(person.position), '--row': rows[person.personId] ?? 0 }"
-          :title="person.hovering ? `${person.nickname} (hovering)` : person.nickname"
         >
-          <span class="marker-name">{{ moodOf(person.personId) }} {{ person.nickname }}</span>
+          <Electron
+            :name="person.nickname"
+            size="sm"
+            layout="row"
+            :pole="poleOf(person.position)"
+            :mood="moodOf(person.personId)"
+            :locked="peeking && !person.hovering"
+            :peek="peeking"
+            v-bind="marks(person.personId)"
+          />
         </span>
       </div>
 
@@ -313,6 +327,7 @@ const rowCount = computed(() => Math.max(0, ...Object.values(rows.value).map((r)
           {{ notch.label }}
         </span>
       </div>
+      <p v-if="peeking && markers.length" class="muted small peek-note">Only you can see this.</p>
     </component>
 
     <div v-if="yours && spectrum.step !== 'summary'" class="stack">
@@ -346,7 +361,13 @@ const rowCount = computed(() => Math.max(0, ...Object.values(rows.value).map((r)
       </h2>
       <ul class="people">
         <li v-for="person in spectrum.people" :key="person.personId">
-          <span class="name">{{ moodOf(person.personId) }} {{ person.nickname }}</span>
+          <Electron
+            :name="person.nickname"
+            layout="row"
+            :mood="moodOf(person.personId)"
+            :locked="person.lockedIn"
+            v-bind="marks(person.personId)"
+          />
           <span v-if="person.lockedIn" class="tag">Locked in</span>
           <span v-else class="tag subtle">Deciding</span>
         </li>
@@ -358,7 +379,13 @@ const rowCount = computed(() => Math.max(0, ...Object.values(rows.value).map((r)
       <h2>Who to call on</h2>
       <ul v-if="callOn.length" class="people">
         <li v-for="person in callOn" :key="person.personId">
-          <span class="name">{{ person.nickname }}</span>
+          <Electron
+            :name="person.nickname"
+            layout="row"
+            :pole="poleOf(person.position)"
+            :mood="moodOf(person.personId)"
+            v-bind="marks(person.personId)"
+          />
           <span v-if="person.changedMind" class="tag">Changed their mind</span>
           <span v-if="person.furthestApart" class="tag subtle">Furthest apart</span>
         </li>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { FloorView, Intent, WaitingRoomPerson } from "../room/room";
+import Electron from "./Electron.vue";
 import Timer from "./Timer.vue";
 
 const props = defineProps<{
@@ -54,7 +55,7 @@ function setTimer(event: Event) {
         :key="holder.personId"
         :class="{ you: holder.personId === youId }"
       >
-        <span class="name">{{ holder.nickname }}</span>
+        <Electron :name="holder.nickname" layout="row" speaking />
         <Timer
           v-if="holder.endsAt !== null"
           :ends-at="holder.endsAt"
@@ -102,8 +103,7 @@ function setTimer(event: Event) {
       <h3>Give the Floor</h3>
       <ul class="people">
         <li v-for="person in candidates" :key="person.id">
-          <span class="name">{{ person.nickname }}</span>
-          <span v-if="person.hand !== null" class="tag">Hand up · {{ person.hand }}</span>
+          <Electron :name="person.nickname" layout="row" :hand="person.hand" />
           <button
             type="button"
             class="link"

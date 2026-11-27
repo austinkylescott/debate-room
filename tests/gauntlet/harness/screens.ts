@@ -11,6 +11,7 @@ import {
   join,
   planRound,
   startRound,
+  type Bot,
   type TestRoom,
 } from "./room.ts";
 
@@ -36,6 +37,9 @@ export interface Screen {
 /** Checks no screen passes as a whole yet: every control and name label is still the old one. */
 const NOT_YET: CheckName[] = ["targets", "names"];
 
+/** Every name on the screen is an Electron or one-line label now (#61); old controls remain. */
+const OLD_CONTROLS: CheckName[] = ["targets"];
+
 /** A Waiting Room with a few people in it and a Round planned. */
 async function waitingRoom(baseURL: string) {
   const room = await createRoom(baseURL, { hostNickname: "Robin" });
@@ -45,6 +49,49 @@ async function waitingRoom(baseURL: string) {
   return room;
 }
 const WAITING_ROOM_NAMES = ["Robin", "Ada", "Grace Hopper", "Linus", "Margaret"];
+
+/** Positions spread over every notch, so a crowd shows both poles and Neutral. */
+const SPREAD = [0, 10, 25, 40, 50, 50, 60, 75, 90, 100];
+
+/** The crowd, each locked in at the next spread position (only some, with `count`). */
+async function lockInSpread(people: Bot[], count = people.length) {
+  await Promise.all(
+    people
+      .slice(0, count)
+      .map((bot, i) =>
+        bot.act({ type: "lock-in", position: SPREAD[i % SPREAD.length] }, (view) =>
+          Boolean(
+            view.stage?.format === "spectrum" &&
+            view.stage.spectrum.people.find((p) => p.personId === bot.personId)?.lockedIn,
+          ),
+        ),
+      ),
+  );
+}
+
+/**
+ * The Floor in a crowd: the first person has it (unless `give` is false, when the
+ * Round has already given it), the next three have hands up, and two people have
+ * Moods, so electrons show the ring, diamonds and Moods.
+ */
+async function busyFloor(room: TestRoom, people: Bot[], { give = true } = {}) {
+  if (give) {
+    await room.host.act({ type: "give-floor", personId: people[0].personId }, (view) =>
+      Boolean(view.floor?.holders.length),
+    );
+  }
+  for (const bot of people.slice(2, 5)) {
+    await bot.act({ type: "raise-hand" }, (view) =>
+      Boolean(view.floor?.raisedHands.some((h) => h.personId === bot.personId)),
+    );
+  }
+  for (const [bot, mood] of [
+    [people[0], "thinking"],
+    [people[2], "amused"],
+  ] as const) {
+    await bot.act({ type: "set-mood", mood }, (view) => view.stage?.moods[bot.personId] === mood);
+  }
+}
 
 /**
  * Lets the page's WebSocket to the Room be dropped on cue, and kept down, so
@@ -197,7 +244,7 @@ export const SCREENS: Screen[] = [
       await openRoom(page, room, "host");
       return { room, names: WAITING_ROOM_NAMES };
     },
-    redesignedOnly: NOT_YET,
+    redesignedOnly: OLD_CONTROLS,
   },
   {
     name: "Waiting Room (Participant)",
@@ -206,7 +253,7 @@ export const SCREENS: Screen[] = [
       await openRoom(page, room, room.people.get("Ada")!);
       return { room, names: WAITING_ROOM_NAMES };
     },
-    redesignedOnly: NOT_YET,
+    redesignedOnly: OLD_CONTROLS,
   },
   {
     name: "Waiting Room (Spectator)",
@@ -215,7 +262,7 @@ export const SCREENS: Screen[] = [
       await openRoom(page, room, room.people.get("Margaret")!);
       return { room, names: WAITING_ROOM_NAMES };
     },
-    redesignedOnly: NOT_YET,
+    redesignedOnly: OLD_CONTROLS,
   },
   {
     name: "Crowd: Waiting Room (Host)",
@@ -224,7 +271,7 @@ export const SCREENS: Screen[] = [
       await openRoom(page, room, "host");
       return { room, names };
     },
-    redesignedOnly: NOT_YET,
+    redesignedOnly: OLD_CONTROLS,
   },
   {
     name: "Spectrum Stage, before the reveal (Participant)",
@@ -235,7 +282,7 @@ export const SCREENS: Screen[] = [
       await openRoom(page, room, ada);
       return { room, names: ["Robin", "Ada", "Linus"] };
     },
-    redesignedOnly: [...NOT_YET, "flat"],
+    redesignedOnly: [...OLD_CONTROLS, "flat"],
   },
   {
     name: "Crowd: Spectrum Stage, everyone on one notch (Participant)",
@@ -244,7 +291,62 @@ export const SCREENS: Screen[] = [
       await openRoom(page, room, people[0]);
       return { room, names };
     },
-    redesignedOnly: [...NOT_YET, "flat"],
+    redesignedOnly: [...OLD_CONTROLS, "flat"],
+  },
+  {
+    name: "Crowd: Spectrum Stage, before the reveal (Host, not Playing)",
+    async open(page, baseURL) {
+      const { room, names, people } = await crowd(baseURL);
+      await startRound(room, { format: "spectrum" });
+      // Some locked in, the rest still deciding: the Host peeks at both.
+      await lockInSpread(people, 10);
+      await Promise.all(
+        people
+          .slice(10)
+          .map((bot) =>
+            bot.act({ type: "move-position", position: 70 }, (view) =>
+              Boolean(view.stage?.format === "spectrum"),
+            ),
+          ),
+      );
+      await openRoom(page, room, "host");
+      return { room, names: ["Robin", ...names] };
+    },
+    redesignedOnly: [...OLD_CONTROLS, "flat"],
+  },
+  {
+    name: "Crowd: Spectrum Stage, revealed, with the Floor (Participant)",
+    async open(page, baseURL) {
+      const { room, names, people } = await crowd(baseURL);
+      await startRound(room, { format: "spectrum" });
+      await lockInSpread(people);
+      await busyFloor(room, people);
+      await openRoom(page, room, people[4]);
+      return { room, names: ["Robin", ...names] };
+    },
+    redesignedOnly: [...OLD_CONTROLS, "flat"],
+  },
+  {
+    name: "Crowd: Spectrum Stage, who to call on (Host)",
+    async open(page, baseURL) {
+      const { room, names, people } = await crowd(baseURL);
+      await startRound(room, { format: "spectrum" });
+      await lockInSpread(people);
+      // Two people cross notches after the reveal: they've changed their minds.
+      for (const bot of people.slice(0, 2)) {
+        bot.send({ type: "move-position", position: 95, settled: true });
+        await room.host.until(
+          (view) =>
+            view.stage?.format === "spectrum" &&
+            Boolean(view.stage.spectrum.callingAids?.changedMind.includes(bot.personId)),
+          "a changed mind",
+        );
+      }
+      await busyFloor(room, people);
+      await openRoom(page, room, "host");
+      return { room, names: ["Robin", ...names] };
+    },
+    redesignedOnly: [...OLD_CONTROLS, "flat"],
   },
   {
     name: "Middle Ground Stage (Participant)",
@@ -255,7 +357,34 @@ export const SCREENS: Screen[] = [
       await openRoom(page, room, ada);
       return { room, names: ["Robin", "Ada", "Linus"] };
     },
-    redesignedOnly: NOT_YET,
+    redesignedOnly: OLD_CONTROLS,
+  },
+  {
+    name: "Crowd: Middle Ground Stage, before the reveal (Host, not Playing)",
+    async open(page, baseURL) {
+      const { room, names, people } = await crowd(baseURL);
+      await startRound(room, { format: "middle-ground" });
+      for (const [i, bot] of people.entries()) {
+        const side = i < 12 ? 0 : 1;
+        await bot.act({ type: "pick-side", side }, (view) =>
+          Boolean(
+            view.stage?.format === "middle-ground" && view.stage.middleGround.yours?.side === side,
+          ),
+        );
+      }
+      // Half step in, half stay; the Host sees both before the reveal.
+      for (const [i, bot] of people.slice(0, 8).entries()) {
+        await bot.act({ type: "choose-middle", stepIn: i % 2 === 0 }, (view) =>
+          Boolean(
+            view.stage?.format === "middle-ground" &&
+            view.stage.middleGround.yours?.inMiddle === (i % 2 === 0),
+          ),
+        );
+      }
+      await openRoom(page, room, "host");
+      return { room, names: ["Robin", ...names] };
+    },
+    redesignedOnly: OLD_CONTROLS,
   },
   {
     name: "Surrounded Stage (Participant)",
@@ -266,7 +395,26 @@ export const SCREENS: Screen[] = [
       await openRoom(page, room, ada);
       return { room, names: ["Robin", "Ada", "Linus", "Grace"] };
     },
-    redesignedOnly: NOT_YET,
+    redesignedOnly: OLD_CONTROLS,
+  },
+  {
+    name: "Crowd: Surrounded Stage, an Exchange (Participant)",
+    async open(page, baseURL) {
+      const { room, names, people } = await crowd(baseURL);
+      const [center, challenger] = people;
+      await startRound(room, { format: "surrounded", centerId: center.personId });
+      await challenger.act({ type: "take-chair" }, (view) =>
+        Boolean(
+          view.stage?.format === "surrounded" &&
+          view.stage.surrounded.chair?.challenger.personId === challenger.personId,
+        ),
+      );
+      // The Center and the Challenger have the Floor for the Exchange.
+      await busyFloor(room, people, { give: false });
+      await openRoom(page, room, people[5]);
+      return { room, names: ["Robin", ...names] };
+    },
+    redesignedOnly: OLD_CONTROLS,
   },
   {
     // Timers (#63, registered in #74): the Floor's atom dial, counting down. On a
