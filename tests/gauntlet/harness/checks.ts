@@ -379,6 +379,64 @@ export async function names(page: Page, shown: string[], scope: Scope = null): P
   );
 }
 
+/**
+ * Choices (hard rule 8): every radio and checkbox sits right beside its label,
+ * on the same line and at most `max` px before its first letter, so it reads
+ * as one row (the join form's radios used to sit a whole row away).
+ */
+export async function choices(page: Page, scope: Scope = null, max = 16): Promise<Violations> {
+  await withHelpers(page);
+  return page.evaluate(
+    ({ scope, max }) => {
+      const { describe, visible, inScope } = window.__gauntlet;
+      const found: string[] = [];
+      const controls = document.querySelectorAll(
+        "[role=radio], [role=checkbox], input[type=radio], input[type=checkbox]",
+      );
+      for (const control of controls) {
+        if (!visible(control) || !inScope(control, scope)) continue;
+        // UI SDK's hidden native input, beside the role=radio or role=checkbox it serves.
+        if (control.matches("input[aria-hidden=true]")) continue;
+        const labelledBy = control.getAttribute("aria-labelledby")?.split(/\s+/)[0];
+        const label =
+          (labelledBy && document.getElementById(labelledBy)) ||
+          control.closest("label") ||
+          (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`));
+        const walker = label ? document.createTreeWalker(label, NodeFilter.SHOW_TEXT) : null;
+        let text: Text | null = null;
+        for (let node = walker?.nextNode(); node; node = walker?.nextNode()) {
+          if (!control.contains(node) && node.textContent?.trim()) {
+            text = node as Text;
+            break;
+          }
+        }
+        if (!text) {
+          found.push(`${describe(control)} has no visible label`);
+          continue;
+        }
+        const start = text.data.search(/\S/);
+        const range = document.createRange();
+        range.setStart(text, start);
+        range.setEnd(text, start + 1);
+        const letter = range.getBoundingClientRect();
+        const box = control.getBoundingClientRect();
+        // The mark is square and centred in its box: a native radio stretched to 100% width
+        // draws its circle in the middle, far from a label that starts right after the box.
+        const half = Math.min(box.width, box.height) / 2;
+        const centre = box.left + box.width / 2;
+        const rtl = getComputedStyle(control).direction === "rtl";
+        const gap = Math.round(rtl ? centre - half - letter.right : letter.left - (centre + half));
+        const sameLine = letter.top < box.bottom && letter.bottom > box.top;
+        if (!sameLine) found.push(`${describe(control)} sits on another line from its label`);
+        else if (gap < 0 || gap > max)
+          found.push(`${describe(control)} sits ${gap}px from its label`);
+      }
+      return found;
+    },
+    { scope, max },
+  );
+}
+
 /** What the Card spec calls a card: the new class and the screens' legacy one. */
 const CARDS = ".dr-card, .card";
 
