@@ -47,7 +47,7 @@ function planWholeNight() {
 </script>
 
 <template>
-  <section class="card stack">
+  <section class="dr-card stack">
     <h2>
       Lineup
       <span class="count">{{ rounds.length }} {{ rounds.length === 1 ? "Round" : "Rounds" }}</span>

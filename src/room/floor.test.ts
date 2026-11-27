@@ -9,6 +9,7 @@ import {
   ROOM_EXPIRY_MS,
   type RoomState,
   tick,
+  upgradeState,
   type View,
   viewFor,
 } from "./room";
@@ -66,7 +67,7 @@ describe("giving the Floor", () => {
     const state = run(liveRoom(), [give(ALEX), host]);
     for (const viewer of [host, alex, sam, riley]) {
       expect(floorOf(state, viewer).holders).toEqual([
-        { personId: ALEX, nickname: "Alex", endsAt: null, timeUp: false },
+        { personId: ALEX, nickname: "Alex", endsAt: null, durationSeconds: null, timeUp: false },
       ]);
     }
   });
@@ -138,9 +139,9 @@ describe("raised hands", () => {
   });
 });
 
-describe("the speaking timer", () => {
-  const timer = (seconds: number | null): Intent => ({ type: "set-floor-timer", seconds });
+const timer = (seconds: number | null): Intent => ({ type: "set-floor-timer", seconds });
 
+describe("the speaking timer", () => {
   it("is off by default", () => {
     const result = apply(liveRoom(), give(ALEX), host, 5_000);
     expect(floorOf(result.state, alex).timerSeconds).toBeNull();
@@ -153,7 +154,7 @@ describe("the speaking timer", () => {
     const state = run(liveRoom(), [timer(60), host]);
     const result = apply(state, give(ALEX), host, 5_000);
     expect(floorOf(result.state, sam).holders).toEqual([
-      { personId: ALEX, nickname: "Alex", endsAt: 65_000, timeUp: false },
+      { personId: ALEX, nickname: "Alex", endsAt: 65_000, durationSeconds: 60, timeUp: false },
     ]);
     expect(result.scheduled).toBe(65_000);
   });
@@ -170,13 +171,25 @@ describe("the speaking timer", () => {
     expect(floorOf(after, host).timerSeconds).toBe(30);
   });
 
+  it("keeps each turn's own length when the Host changes it mid-turn", () => {
+    const state = run(liveRoom(), [timer(60), host], [give(ALEX), host, 5_000], [timer(30), host]);
+    expect(floorOf(state, sam).holders).toEqual([
+      { personId: ALEX, nickname: "Alex", endsAt: 65_000, durationSeconds: 60, timeUp: false },
+    ]);
+    const after = run(state, [give(SAM), host, 10_000]);
+    expect(floorOf(after, sam).holders.map((h) => [h.endsAt, h.durationSeconds])).toEqual([
+      [65_000, 60],
+      [40_000, 30],
+    ]);
+  });
+
   it("shows everyone that time is up, without taking the Floor back", () => {
     const state = run(liveRoom(), [timer(60), host], [give(ALEX), host, 5_000]);
     expect(tick(state, 64_999).recapEvents).toEqual([]);
     const due = tick(state, 65_000);
     for (const viewer of [host, alex, sam]) {
       expect(floorOf(due.state, viewer).holders).toEqual([
-        { personId: ALEX, nickname: "Alex", endsAt: 65_000, timeUp: true },
+        { personId: ALEX, nickname: "Alex", endsAt: 65_000, durationSeconds: 60, timeUp: true },
       ]);
     }
     expect(due.recapEvents).toEqual([{ at: 65_000, type: "floor-time-up", personId: ALEX }]);
@@ -294,5 +307,43 @@ describe("Floor intents over the wire", () => {
     { type: "set-floor-timer" },
   ])("drops a malformed one (%j)", (raw) => {
     expect(parseIntent(raw)).toBeNull();
+  });
+});
+
+describe("Rooms stored before Floor turns had their own length", () => {
+  /** Strips each turn's length, as a Room stored by an earlier version had none. */
+  function storedEarlier(state: RoomState): RoomState {
+    const holders = state.floor.holders.map((turn) => {
+      const { durationSeconds: _, ...stored } = turn;
+      return stored;
+    });
+    return { ...state, floor: { ...state.floor, holders } } as RoomState;
+  }
+
+  function lengths(state: RoomState): (number | null)[] {
+    return floorOf(state, host).holders.map((h) => h.durationSeconds);
+  }
+
+  it("give a running turn the speaking timer's length", () => {
+    const state = run(liveRoom(), [timer(60), host], [give(ALEX), host, 5_000]);
+    expect(lengths(upgradeState(storedEarlier(state), 20_000))).toEqual([60]);
+  });
+
+  it("give a turn with no timer no length", () => {
+    const state = run(liveRoom(), [give(ALEX), host, 5_000]);
+    expect(lengths(upgradeState(storedEarlier(state), 20_000))).toEqual([null]);
+  });
+
+  it("never give a turn less than the time it had left", () => {
+    // The timer was turned off, or shortened, after the turn started at 5 s.
+    const off = run(liveRoom(), [timer(60), host], [give(ALEX), host, 5_000], [timer(null), host]);
+    expect(lengths(upgradeState(storedEarlier(off), 20_000))).toEqual([45]);
+    const shorter = run(off, [timer(30), host]);
+    expect(lengths(upgradeState(storedEarlier(shorter), 20_000))).toEqual([45]);
+  });
+
+  it("keep the length of a turn that already has one", () => {
+    const state = run(liveRoom(), [timer(60), host], [give(ALEX), host, 5_000], [timer(30), host]);
+    expect(lengths(upgradeState(state, 20_000))).toEqual([60]);
   });
 });
