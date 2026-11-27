@@ -1,24 +1,109 @@
-/* Card. Spec: docs/design/components/Card.md (restyled in its own issue). */
-
+/*
+ * Card. Spec: docs/design/components/Card.md, reference rules in docs/design/components.css.
+ * The plain container: a surface fill, asymmetric corners (radius-lg and 8px)
+ * and the flat offset shadow `lift`.
+ *
+ *   .dr-card            a card on the page
+ *   .dr-card--flip      mirrored corners. Neighbouring cards (siblings) alternate
+ *                       on their own, so only reach for this to force it.
+ *   .dr-card--raised    a card inside another card: raised fill, no shadow
+ *   .dr-card__title     its title (display face)
+ *   .dr-card__meta      a line of detail under the title (muted)
+ *
+ * Interactive cards are a real <button> or <a class="dr-card">, never a div with
+ * a click handler: hover lifts 2px, focus shows the ring, and .is-selected adds
+ * a 3px ink outline (selection is ink, never the spark: hard rule 2).
+ *
+ * The screens' plain sections still say .card; it is the same card until each
+ * screen is redesigned and moves to .dr-card.
+ */
+.dr-card,
 .card {
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 20px;
+  color: var(--ink);
+  border-radius: var(--radius-lg) 8px var(--radius-lg) 8px;
+  box-shadow: var(--lift);
+  padding: var(--space-4);
 }
 
-/* A Round in the Lineup (RoundCard, LineupPreview). */
-.round {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 14px;
+/* The boomerang lean: every other card in a row of siblings mirrors its corners. */
+.dr-card--flip,
+:is(.dr-card, .card):nth-child(even of :is(.dr-card, .card)) {
+  border-radius: 8px var(--radius-lg) 8px var(--radius-lg);
 }
 
+.dr-card--raised {
+  background: var(--raised);
+  box-shadow: none;
+}
+
+.dr-card__title {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font: 400 20px/1.15 var(--font-display);
+}
+
+.dr-card__meta {
+  margin: 0;
+  color: var(--muted);
+  font: 500 13px/1.5 var(--font-body);
+}
+
+/* Interactive cards. */
+button.dr-card,
+a.dr-card {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  text-align: left;
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+button.dr-card:hover,
+a.dr-card:hover {
+  transform: translateY(-2px);
+}
+
+button.dr-card:focus-visible,
+a.dr-card:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.dr-card.is-selected {
+  box-shadow:
+    var(--lift),
+    0 0 0 3px var(--ink);
+}
+
+.dr-card--raised.is-selected {
+  box-shadow: 0 0 0 3px var(--ink);
+}
+
+/* Reduced motion: the lift still shows, instantly. */
+@media (prefers-reduced-motion: reduce) {
+  button.dr-card,
+  a.dr-card {
+    transition: none;
+  }
+}
+
+/* A Round in the Lineup (RoundCard, LineupPreview): a raised card. */
 .round-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.round-head .dr-card__title {
+  margin: 0;
 }
 
 .round-head .actions {
