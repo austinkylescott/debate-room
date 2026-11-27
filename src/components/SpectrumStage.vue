@@ -8,6 +8,7 @@ import {
   type SliderValueChangeDetails,
 } from "@ui-sdk/vue/slider";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useSpectrumDraft } from "../lib/spectrumDraft";
 import { describePosition, nextNotch, stackLabels } from "../lib/spectrumTrack";
 import type { Intent, StageView } from "../room/room";
 import { MOODS } from "../room/mood";
@@ -37,14 +38,7 @@ const canMove = computed(
 );
 const lockedCount = computed(() => spectrum.value.people.filter((p) => p.lockedIn).length);
 
-const midpoint = (SPECTRUM_MIN + SPECTRUM_MAX) / 2;
-const draft = ref(yours.value?.position ?? midpoint);
-
-// A new Prompt (or a reconnect) starts the slider from where the Room has it.
-// Two sources, not one getter returning a fresh array, which would fire on every view.
-watch([() => props.stage.prompt.id, () => spectrum.value.step], () => {
-  draft.value = yours.value?.position ?? midpoint;
-});
+const draft = useSpectrumDraft(() => props.stage);
 
 let lastSent = 0;
 let pending: ReturnType<typeof setTimeout> | undefined;
