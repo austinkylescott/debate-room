@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { NICKNAME_MAX_LENGTH, type WaitingRoomPerson } from "../room/room";
+import Electron from "./Electron.vue";
 
 const props = defineProps<{
   people: WaitingRoomPerson[];
@@ -11,6 +12,8 @@ const props = defineProps<{
   isHost?: boolean;
   /** Spectators can't be Co-Hosts. */
   canBeCoHosts?: boolean;
+  /** This is the Spectators' list: their electrons sit on the dashed outer shell. */
+  spectators?: boolean;
 }>();
 const emit = defineEmits<{
   rename: [personId: string, nickname: string];
@@ -61,7 +64,8 @@ const canRemove = (person: WaitingRoomPerson) =>
         <button type="button" @click="editingId = null">Cancel</button>
       </form>
       <template v-else>
-        <span class="name" :title="person.nickname">{{ person.nickname }}</span>
+        <!-- The Host and Co-Host tags say the role in words, so no role badge on the disc. -->
+        <Electron :name="person.nickname" layout="row" :spectator="spectators" />
         <span v-if="person.isHost" class="dr-tag dr-tag--host">
           <svg viewBox="0 0 14 14" aria-hidden="true">
             <path d="M1,11 L2,4 L5,7 L7,2 L9,7 L12,4 L13,11Z" />

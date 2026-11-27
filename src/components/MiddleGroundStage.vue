@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { floorMarks } from "../lib/electron";
 import type { SideIndex } from "../room/middle-ground";
-import { MOODS } from "../room/mood";
-import type { Intent, StageView } from "../room/room";
+import type { FloorView, Intent, StageView } from "../room/room";
+import Electron from "./Electron.vue";
 import MoodPanel from "./MoodPanel.vue";
 import Notice from "./Notice.vue";
 
@@ -11,6 +12,8 @@ const props = defineProps<{
   isHost: boolean;
   personId: string;
   isSpectator?: boolean;
+  /** Who has the Floor and whose hands are up, marked on their electrons. */
+  floor?: FloorView | null;
 }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
@@ -53,11 +56,16 @@ function moveToOtherSide(personId: string, side: SideIndex) {
   emit("send", { type: "move-to-side", personId, side: side === 0 ? 1 : 0 });
 }
 
-/** The emoji for someone's current Mood, shown next to their name. Empty if they have none. */
-function moodOf(personId: string): string {
-  const mood = props.stage.moods[personId];
-  return MOODS.find((m) => m.id === mood)?.emoji ?? "";
-}
+/** Someone's current Mood, shown on their electron. */
+const moodOf = (personId: string) => props.stage.moods[personId] ?? null;
+
+const marks = computed(() => floorMarks(props.floor ?? null));
+
+/**
+ * A Host or Co-Host who isn't Playing sees choices before the reveal: dimmed,
+ * with "Only you can see this" (hard rule 4).
+ */
+const peeking = computed(() => middle.value.choicesVisible && middle.value.step === "choosing");
 
 const checkInOpen = computed(() => props.stage.checkIn?.status === "open");
 
@@ -85,7 +93,14 @@ const advanceLabel = computed(() => {
         <h2>{{ middle.sides[side] }}</h2>
         <ul class="people">
           <li v-for="person in columns.sides[side]" :key="person.personId">
-            <span class="name">{{ moodOf(person.personId) }} {{ person.nickname }}</span>
+            <Electron
+              :name="person.nickname"
+              size="sm"
+              layout="row"
+              :mood="moodOf(person.personId)"
+              :peek="peeking && person.chosen"
+              v-bind="marks(person.personId)"
+            />
             <template v-if="middle.step === 'choosing' && person.playing">
               <span v-if="person.chosen && middle.choicesVisible" class="tag subtle">Staying</span>
               <span v-else-if="person.chosen" class="tag">Chosen</span>
@@ -109,7 +124,14 @@ const advanceLabel = computed(() => {
         </h2>
         <ul class="people">
           <li v-for="person in columns.inMiddle" :key="person.personId">
-            <span class="name">{{ moodOf(person.personId) }} {{ person.nickname }}</span>
+            <Electron
+              :name="person.nickname"
+              size="sm"
+              layout="row"
+              :mood="moodOf(person.personId)"
+              :peek="peeking"
+              v-bind="marks(person.personId)"
+            />
             <span v-if="person.side !== null" class="tag subtle">{{
               middle.sides[person.side]
             }}</span>
@@ -127,6 +149,7 @@ const advanceLabel = computed(() => {
         <p v-if="middle.step === 'choosing' && !middle.choicesVisible" class="muted small">
           Choices stay hidden until the reveal.
         </p>
+        <p v-else-if="peeking" class="muted small">Only you can see this.</p>
       </div>
     </div>
     <p v-if="columns.unsided.length && middle.step !== 'summary'" class="muted small">

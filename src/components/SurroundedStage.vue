@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { MOODS } from "../room/mood";
-import type { Intent, StageView } from "../room/room";
+import { floorMarks } from "../lib/electron";
+import type { FloorView, Intent, StageView } from "../room/room";
 import type { ExchangeEnd, Yielder } from "../room/surrounded";
+import Electron from "./Electron.vue";
 import MoodPanel from "./MoodPanel.vue";
 import Timer from "./Timer.vue";
 
@@ -11,6 +12,8 @@ const props = defineProps<{
   isHost: boolean;
   personId: string;
   isSpectator?: boolean;
+  /** Who has the Floor and whose hands are up, marked on their electrons. */
+  floor?: FloorView | null;
 }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
 
@@ -45,11 +48,10 @@ function endedLabel(endedBy: ExchangeEnd, yieldedBy?: Yielder): string {
     : ENDED_BY[endedBy];
 }
 
-/** The emoji for someone's current Mood, shown next to their name. Empty if they have none. */
-function moodOf(personId: string): string {
-  const mood = props.stage.moods[personId];
-  return MOODS.find((m) => m.id === mood)?.emoji ?? "";
-}
+/** Someone's current Mood, shown on their electron. */
+const moodOf = (personId: string) => props.stage.moods[personId] ?? null;
+
+const marks = computed(() => floorMarks(props.floor ?? null));
 
 function send(intent: Intent) {
   emit("send", intent);
@@ -73,17 +75,24 @@ const advanceLabel = computed(() => {
       <div class="pair surrounded">
         <div class="seat">
           <p class="eyebrow">Center</p>
-          <p v-if="surrounded.center" class="seat-name">
-            {{ moodOf(surrounded.center.personId) }} {{ surrounded.center.nickname }}
-          </p>
+          <Electron
+            v-if="surrounded.center"
+            :name="surrounded.center.nickname"
+            size="lg"
+            :mood="moodOf(surrounded.center.personId)"
+            v-bind="marks(surrounded.center.personId)"
+          />
           <p v-else class="muted">Waiting for a Center to step up</p>
         </div>
         <div class="seat">
           <p class="eyebrow">The chair</p>
           <template v-if="chair">
-            <p class="seat-name">
-              {{ moodOf(chair.challenger.personId) }} {{ chair.challenger.nickname }}
-            </p>
+            <Electron
+              :name="chair.challenger.nickname"
+              size="lg"
+              :mood="moodOf(chair.challenger.personId)"
+              v-bind="marks(chair.challenger.personId)"
+            />
             <Timer
               class="exchange-timer"
               :ends-at="chair.endsAt"
@@ -243,11 +252,6 @@ const advanceLabel = computed(() => {
   border-radius: var(--radius);
   padding: 0.75rem;
   text-align: center;
-}
-.seat-name {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0.25rem 0;
 }
 .exchange-timer {
   margin: 0.25rem 0;

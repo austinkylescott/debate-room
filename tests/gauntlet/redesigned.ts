@@ -22,6 +22,7 @@ export const REDESIGNED: RedesignedEntry[] = [
   // on every screen.
   { selector: "button.dr-card", issue: "#58" },
   { selector: "a.dr-card", issue: "#58" },
+  { selector: ".dr-electron", issue: "#61" },
   { selector: ".dr-toast", issue: "#60" },
   { selector: ".dr-notice", issue: "#60" },
   // Buttons (#55), Tags (#56) and Timers (#63), registered in #74. Tags and
