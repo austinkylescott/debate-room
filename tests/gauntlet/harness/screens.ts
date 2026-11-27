@@ -151,6 +151,46 @@ export const SCREENS: Screen[] = [
     redesignedOnly: [],
   },
   {
+    name: "Join, nickname taken",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin" });
+      await join(room, ["Ada"]);
+      await openRoom(page, room, "visitor");
+      await page.getByRole("textbox", { name: "Your nickname" }).fill("Ada");
+      await page.getByRole("button", { name: "Join" }).click();
+      await expect(page.getByRole("textbox", { name: "Your nickname" })).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      return { room, names: [] };
+    },
+    redesignedOnly: [],
+  },
+  {
+    name: "Take back Host control, wrong PIN",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin" });
+      await openRoom(page, room, "visitor");
+      await page.getByRole("button", { name: "I'm the Host" }).click();
+      await page.getByLabel("Your Host PIN").fill("9999");
+      await page.getByRole("button", { name: "Continue as the Host" }).click();
+      await expect(page.getByLabel("Your Host PIN")).toHaveAttribute("aria-invalid", "true");
+      return { room, names: [] };
+    },
+    redesignedOnly: [],
+  },
+  {
+    name: "Planning, picking Prompts (Host)",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin", open: false });
+      await planRound(room, { format: "spectrum" }, []);
+      await openRoom(page, room, "host");
+      await expect(page.getByRole("checkbox").first()).toBeVisible();
+      return { room, names: ["Robin"] };
+    },
+    redesignedOnly: NOT_YET,
+  },
+  {
     name: "Waiting Room (Host)",
     async open(page, baseURL) {
       const room = await waitingRoom(baseURL);

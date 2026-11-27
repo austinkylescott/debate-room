@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { RadioGroup } from "@ui-sdk/vue/radio";
+import { computed, ref, useId, watch } from "vue";
+import ChoiceCheckbox from "../components/ChoiceCheckbox.vue";
+import ChoiceRadio from "../components/ChoiceRadio.vue";
 import FloorPanel from "../components/FloorPanel.vue";
 import InviteCard from "../components/InviteCard.vue";
 import LineupEditor from "../components/LineupEditor.vue";
@@ -14,6 +17,7 @@ import SpectrumStage from "../components/SpectrumStage.vue";
 import SurroundedStage from "../components/SurroundedStage.vue";
 import WaitingRoomList from "../components/WaitingRoomList.vue";
 import { forgetHostSecret } from "../lib/device";
+import { rejectedField } from "../lib/rejectedField";
 import { inviteUrl, navigate } from "../lib/route";
 import { useRoom } from "../lib/useRoom";
 import { useRoomToasts } from "../lib/useRoomToasts";
@@ -49,9 +53,20 @@ const nextRound = computed(() => {
   const round = view.value?.lineup?.[index];
   return round ? { round, number: index + 1 } : null;
 });
-// Visitors see refusals next to the form they just used; everyone else in a card.
+const joinAsLegend = useId();
+const setJoinAs = (role: string | null) => {
+  if (role === "participant" || role === "spectator") joinAs.value = role;
+};
+/** The field a refusal is about, which shows it as its own error. */
+const fieldRejected = computed(() => rejectedField(rejection.value?.code));
+const fieldError = (field: "nickname" | "limit") =>
+  fieldRejected.value === field ? (rejection.value?.message ?? null) : null;
+// Visitors see refusals next to the form they just used, and the Host sees a refused
+// Participant limit on its field; everyone else sees them in a card.
 const rejectionInline = computed(
-  () => you.value?.role === "visitor" && (hostFormOpen.value || view.value?.phase === "live"),
+  () =>
+    (you.value?.role === "visitor" && (hostFormOpen.value || view.value?.phase === "live")) ||
+    (you.value?.role === "host" && fieldRejected.value === "limit"),
 );
 
 watch(
@@ -136,7 +151,7 @@ function claimHostWithPin(pin: string) {
         </p>
         <HostPinForm
           v-if="view.you.role === 'visitor' && hostFormOpen"
-          :error="rejection?.message ?? null"
+          :rejection="rejection"
           @submit="claimHostWithPin"
           @back="hostFormOpen = false"
         />
@@ -189,10 +204,7 @@ function claimHostWithPin(pin: string) {
               {{ nextRound.round.prompts.length === 1 ? "Prompt" : "Prompts" }}
             </p>
             <form class="stack" @submit.prevent="send({ type: 'start-round', hostPlaying })">
-              <label class="check">
-                <input v-model="hostPlaying" type="checkbox" />
-                I'm Playing this Round
-              </label>
+              <ChoiceCheckbox v-model:checked="hostPlaying">I'm Playing this Round</ChoiceCheckbox>
               <p v-if="hostIsNextCenter" class="muted small">
                 You're this Round's Center, so you need to be Playing it.
               </p>
@@ -235,7 +247,7 @@ function claimHostWithPin(pin: string) {
           class="inline-form"
           @submit.prevent="send({ type: 'set-participant-limit', limit: limitDraft })"
         >
-          <ParticipantLimitField v-model="limitDraft" />
+          <ParticipantLimitField v-model="limitDraft" :error="fieldError('limit')" />
           <button type="submit" :disabled="limitDraft === view.capacity.limit">Save</button>
         </form>
         <p v-if="view.phase === 'live'">
@@ -278,19 +290,12 @@ function claimHostWithPin(pin: string) {
         <p v-if="nextRound">
           {{ FORMAT_NAMES[nextRound.round.setup.format] }} · The Host starts the Round.
         </p>
-        <label class="check">
-          <input
-            type="checkbox"
-            :checked="view.coHost.playingNextRound"
-            @change="
-              send({
-                type: 'set-playing',
-                playing: ($event.target as HTMLInputElement).checked,
-              })
-            "
-          />
+        <ChoiceCheckbox
+          :checked="view.coHost.playingNextRound"
+          @update:checked="(playing: boolean) => send({ type: 'set-playing', playing })"
+        >
           I'm Playing the next Round
-        </label>
+        </ChoiceCheckbox>
         <p class="muted small">
           If you're not Playing, you'll see where people are leaning before the reveal.
         </p>
@@ -322,7 +327,7 @@ function claimHostWithPin(pin: string) {
       <template v-if="hostFormOpen">
         <h1>Take back Host control</h1>
         <HostPinForm
-          :error="rejection?.message ?? null"
+          :rejection="rejection"
           @submit="claimHostWithPin"
           @back="hostFormOpen = false"
         />
@@ -345,47 +350,34 @@ function claimHostWithPin(pin: string) {
           The Participant places are all taken, but you can watch as a Spectator.
         </Notice>
         <form class="stack" @submit.prevent="send({ type: 'join', nickname, as: joinAs })">
-          <NicknameField v-model="nickname" />
+          <NicknameField v-model="nickname" :error="fieldError('nickname')" />
           <fieldset class="join-as">
-            <legend>Join as</legend>
-            <ul class="choices">
-              <li>
-                <label>
-                  <input
-                    v-model="joinAs"
-                    type="radio"
-                    value="participant"
-                    :disabled="participantsFull"
-                  />
-                  <span>
-                    Participant
-                    <span class="muted small">
-                      Take part in the Rounds · {{ view.capacity.joined }} of
-                      {{ view.capacity.limit }} joined
-                    </span>
-                  </span>
-                </label>
-              </li>
-              <li>
-                <label>
-                  <input
-                    v-model="joinAs"
-                    type="radio"
-                    value="spectator"
-                    :disabled="spectatorsFull"
-                  />
-                  <span>
-                    Spectator
-                    <span class="muted small">
-                      Watch the Stage · {{ view.spectatorCapacity.joined }} of
-                      {{ view.spectatorCapacity.limit }} joined (Spectators have their own limit)
-                    </span>
-                  </span>
-                </label>
-              </li>
-            </ul>
+            <legend :id="joinAsLegend" class="field__label">Join as</legend>
+            <RadioGroup
+              :value="joinAs"
+              class="choices"
+              :aria-labelledby="joinAsLegend"
+              @value-change="setJoinAs"
+            >
+              <ChoiceRadio value="participant" :disabled="participantsFull">
+                Participant
+                <template #hint>
+                  Take part in the Rounds · {{ view.capacity.joined }} of
+                  {{ view.capacity.limit }} joined
+                </template>
+              </ChoiceRadio>
+              <ChoiceRadio value="spectator" :disabled="spectatorsFull">
+                Spectator
+                <template #hint>
+                  Watch the Stage · {{ view.spectatorCapacity.joined }} of
+                  {{ view.spectatorCapacity.limit }} joined (Spectators have their own limit)
+                </template>
+              </ChoiceRadio>
+            </RadioGroup>
           </fieldset>
-          <p v-if="rejection" class="error" role="alert">{{ rejection.message }}</p>
+          <p v-if="rejection && fieldRejected !== 'nickname'" class="error" role="alert">
+            {{ rejection.message }}
+          </p>
           <button class="primary" type="submit">Join</button>
         </form>
       </template>

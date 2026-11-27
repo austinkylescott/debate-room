@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { CheckboxGroup } from "@ui-sdk/vue/checkbox";
+import { computed, ref, useId, watch } from "vue";
 import { type Intensity, INTENSITY_NAMES, type Pack, PACKS, packsByTopic } from "../content/packs";
 import { customPrompts, forgetCustomPrompt, saveCustomPrompt } from "../lib/customPrompts";
 import { type Format, FORMAT_NAMES, type NewPrompt, PROMPT_MAX_LENGTH } from "../room/lineup";
+import ChoiceCheckbox from "./ChoiceCheckbox.vue";
 
 const props = defineProps<{ format: Format }>();
 // The Pack is passed along so a Middle Ground Round can take its suggested Sides.
@@ -17,6 +19,7 @@ const draft = ref("");
 const draftSurprise = ref(false);
 
 const pack = computed(() => PACKS.find((p) => p.id === source.value));
+const packLine = useId();
 
 // Filtering by Intensity can hide the chosen Pack: move to the first one left.
 watch(topics, (groups) => {
@@ -79,7 +82,7 @@ function addWritten() {
 
     <form v-if="pack" class="stack" @submit.prevent="addPicked">
       <div class="dr-card pack">
-        <h4 class="dr-card__title">{{ pack.title }}</h4>
+        <h4 :id="packLine" class="dr-card__title">{{ pack.title }}</h4>
         <p class="dr-card__meta">
           {{ pack.topic }} · {{ pack.prompts.length }}
           {{ pack.prompts.length === 1 ? "Prompt" : "Prompts" }} ·
@@ -91,19 +94,14 @@ function addWritten() {
           Suggested Sides: {{ pack.sides[0] }} / {{ pack.sides[1] }}
         </p>
       </div>
-      <ul class="choices">
-        <li v-for="prompt in packPrompts" :key="prompt.text">
-          <label>
-            <input v-model="picked" type="checkbox" :value="prompt.text" />
-            <span>
-              {{ prompt.text }}
-              <span class="muted small">
-                Suits {{ prompt.formats.map((f) => FORMAT_NAMES[f]).join(", ") }}
-              </span>
-            </span>
-          </label>
-        </li>
-      </ul>
+      <CheckboxGroup v-model:value="picked" class="choices" :aria-labelledby="packLine">
+        <ChoiceCheckbox v-for="prompt in packPrompts" :key="prompt.text" :value="prompt.text">
+          {{ prompt.text }}
+          <template #hint>
+            Suits {{ prompt.formats.map((f) => FORMAT_NAMES[f]).join(", ") }}
+          </template>
+        </ChoiceCheckbox>
+      </CheckboxGroup>
       <button type="submit" :disabled="picked.length === 0">
         Add {{ picked.length || "" }} {{ picked.length === 1 ? "Prompt" : "Prompts" }}
       </button>
@@ -120,10 +118,9 @@ function addWritten() {
             required
           />
         </label>
-        <label class="check">
-          <input v-model="draftSurprise" type="checkbox" />
+        <ChoiceCheckbox v-model:checked="draftSurprise">
           Surprise Prompt (hidden in the Preview)
-        </label>
+        </ChoiceCheckbox>
         <button type="submit">Add Prompt</button>
       </form>
       <div v-if="customPrompts.length > 0">

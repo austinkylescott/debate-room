@@ -7,6 +7,7 @@ import Notice from "../components/Notice.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
 import PinField from "../components/PinField.vue";
 import { saveHostSecret } from "../lib/device";
+import { type RejectedField, rejectedField } from "../lib/rejectedField";
 import { hostUrl, navigate, roomPath } from "../lib/route";
 import type { CreateRoomRequest, CreateRoomResponse } from "../room/protocol";
 import { DEFAULT_PARTICIPANT_LIMIT, PIN_MAX_LENGTH, PIN_MIN_LENGTH } from "../room/room";
@@ -16,11 +17,15 @@ const pin = ref("");
 const participantLimit = ref(DEFAULT_PARTICIPANT_LIMIT);
 const creating = ref(false);
 const error = ref<string | null>(null);
+/** The field the error is about, which shows it; otherwise it shows under the form. */
+const errorField = ref<RejectedField | null>(null);
+const fieldError = (field: RejectedField) => (errorField.value === field ? error.value : null);
 const created = ref<{ roomId: string; hostLink: string } | null>(null);
 
 async function createRoom() {
   creating.value = true;
   error.value = null;
+  errorField.value = null;
   try {
     const response = await fetch("/api/rooms", {
       method: "POST",
@@ -34,6 +39,7 @@ async function createRoom() {
     const result = (await response.json()) as CreateRoomResponse;
     if (!result.ok) {
       error.value = result.message;
+      errorField.value = rejectedField(result.code);
       return;
     }
     saveHostSecret(result.roomId, result.hostSecret);
@@ -64,14 +70,14 @@ async function createRoom() {
     <h1>Debate Room</h1>
     <p class="lede">Stage a discussion night with your friends, alongside your own call.</p>
     <form class="stack" @submit.prevent="createRoom">
-      <NicknameField v-model="hostNickname" />
-      <PinField v-model="pin" />
-      <p class="muted">
-        {{ PIN_MIN_LENGTH }} to {{ PIN_MAX_LENGTH }} digits. With your PIN you can take back Host
-        control from the invite link on any device.
-      </p>
-      <ParticipantLimitField v-model="participantLimit" />
-      <p v-if="error" class="error" role="alert">{{ error }}</p>
+      <NicknameField v-model="hostNickname" :error="fieldError('nickname')" />
+      <PinField
+        v-model="pin"
+        :help="`${PIN_MIN_LENGTH} to ${PIN_MAX_LENGTH} digits. With your PIN you can take back Host control from the invite link on any device.`"
+        :error="fieldError('pin')"
+      />
+      <ParticipantLimitField v-model="participantLimit" :error="fieldError('limit')" />
+      <p v-if="error && !errorField" class="error" role="alert">{{ error }}</p>
       <button class="primary" type="submit" :disabled="creating" :aria-busy="creating">
         <AtomSpinner v-if="creating" />
         {{ creating ? "Creating…" : "Create a Room" }}
