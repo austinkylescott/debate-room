@@ -13,4 +13,6 @@ export interface SparkAllowed {
 export const SPARK_ALLOWLIST: SparkAllowed[] = [
   { selector: "button.primary", why: "The screen's one primary action" },
   { selector: ".spectrum [data-slot='slider-thumb']", why: "Your own notch on the Spectrum" },
+  { selector: ".dr-electron.is-speaking .dr-electron__dot", why: "Whoever has the Floor" },
+  { selector: ".dr-tag--live", why: "The Live status pill" },
 ];

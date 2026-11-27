@@ -1,0 +1,233 @@
+/*
+ * Electron: the person marker. Spec: docs/design/components/Electron.md,
+ * reference: components.css (.dr-electron). Markup from Electron.vue:
+ *   .dr-electron > .dr-electron__dot (initials, __mood, __hand, __role) + .dr-electron__name
+ * Pole by [data-pole]; app state by is-* classes. --row puts the name beside the disc, for lists.
+ */
+
+.dr-electron {
+  --e: 38px;
+  --pole: var(--surface);
+  --pole-ink: var(--ink);
+
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 72px;
+  color: var(--ink);
+}
+
+.dr-electron[data-pole="disagree"] {
+  --pole: var(--disagree);
+  --pole-ink: var(--on-disagree);
+}
+
+.dr-electron[data-pole="agree"] {
+  --pole: var(--agree);
+  --pole-ink: var(--on-agree);
+}
+
+.dr-electron--sm {
+  --e: 28px;
+}
+
+.dr-electron--lg {
+  --e: 52px;
+}
+
+.dr-electron__dot {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--e);
+  height: var(--e);
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--pole);
+  color: var(--pole-ink);
+  font: 700 calc(var(--e) * 0.34) / 1 var(--font-body);
+  white-space: nowrap;
+}
+
+/* Hard rule 3: one line, cut with an ellipsis. Electron.vue puts the full name in `title`. */
+.dr-electron__name {
+  max-width: 100%;
+  font: 600 12px/1.25 var(--font-body);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dr-electron__mood {
+  position: absolute;
+  right: -8px;
+  bottom: -5px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.dr-electron--sm .dr-electron__mood {
+  right: -7px;
+  bottom: -5px;
+  font-size: 13px;
+}
+
+/* A raised hand: a sky diamond carrying the queue number. */
+.dr-electron__hand {
+  position: absolute;
+  left: -9px;
+  top: -8px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 22px;
+  font: 700 9px/1 var(--font-body);
+  /*
+   * The reference CSS uses ink, which is 2:1 on sky in the dark theme. on-teal (dark in
+   * both themes) passes AA on sky in both; there's no on-sky token. Flagged for design.
+   */
+  color: var(--on-teal);
+}
+
+.dr-electron__hand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--sky);
+  border: 1.5px solid var(--ink);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.dr-electron__hand span {
+  position: relative;
+}
+
+/* The Host or a Co-Host. */
+.dr-electron__role {
+  position: absolute;
+  right: -6px;
+  top: -6px;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--mustard);
+}
+
+/* Whoever has the Floor: the spark (hard rule 2). */
+.dr-electron.is-speaking .dr-electron__dot {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.dr-electron.is-you .dr-electron__dot::after {
+  content: "YOU";
+  position: absolute;
+  top: -10px;
+  padding: 2px 5px;
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  color: var(--ground);
+  font: 700 9px/1 var(--font-body);
+  letter-spacing: 0.08em;
+}
+
+.dr-electron.is-hidden .dr-electron__dot {
+  border-style: dashed;
+  background: var(--raised);
+  color: var(--muted);
+}
+
+.dr-electron.is-locked .dr-electron__dot {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+.dr-electron.is-locked .dr-electron__dot::before {
+  content: "✦";
+  position: absolute;
+  right: -7px;
+  top: -7px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--mustard);
+  color: var(--on-agree);
+  font-size: 10px;
+}
+
+.dr-electron.is-away {
+  opacity: 0.5;
+}
+
+.dr-electron.is-away .dr-electron__dot {
+  border-style: dashed;
+}
+
+.dr-electron.is-spectator .dr-electron__dot {
+  border: 1.5px dashed var(--ink);
+  background: transparent;
+  color: var(--ink);
+}
+
+/*
+ * A Host or Co-Host who isn't Playing, seeing positions before the reveal: a dimmed,
+ * dashed disc. The reference dims the whole disc (opacity .55), which takes the initials
+ * below AA; this dims only the fill (40% of the pole over the ground) and keeps the
+ * initials in ink, which passes in both themes. Flagged for design. Peeking at someone
+ * who has locked in keeps their pole too, with the ✦ badge.
+ */
+.dr-electron.is-peek .dr-electron__dot,
+.dr-electron.is-peek.is-locked .dr-electron__dot {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--pole) 40%, transparent);
+  color: var(--ink);
+}
+
+/* In a list: the disc, then the name beside it, as wide as the row allows. */
+.dr-electron--row {
+  flex-direction: row;
+  gap: var(--space-3);
+  max-width: 100%;
+  /* Room for the badges that sit outside the disc. */
+  padding-block: 6px;
+  padding-inline-start: 6px;
+}
+
+.dr-electron--row .dr-electron__name {
+  font-size: 1rem;
+}
+
+.dr-electron--row.dr-electron--sm {
+  gap: var(--space-2);
+}
+
+.dr-electron--row.dr-electron--sm .dr-electron__name {
+  font-size: 0.875rem;
+}
+
+/* Actionable: a <button>, still the same marker. The focus ring is on the button (hard rule 5). */
+button.dr-electron {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  box-shadow: none;
+  font: inherit;
+}
+
+button.dr-electron:where(:hover:not(:disabled)) {
+  transform: none;
+  background: var(--raised);
+  box-shadow: none;
+}

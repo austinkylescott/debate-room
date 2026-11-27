@@ -45,7 +45,7 @@ function describe(change: MoodLink["changes"][number]): string {
   <div v-if="moods.timelines.length > 0 || moods.checkIn" class="recap-moods small">
     <ul v-if="moods.timelines.length > 0" class="mood-timelines">
       <li v-for="timeline in moods.timelines" :key="timeline.personId">
-        <span class="name">{{ timeline.nickname }}</span>
+        <span class="name" :title="timeline.nickname">{{ timeline.nickname }}</span>
         <span v-for="(change, i) in timeline.changes" :key="i" class="mood-change">
           <span v-if="i > 0" aria-hidden="true">→</span>
           <span :title="change.mood">{{ emoji(change.mood) }}</span>

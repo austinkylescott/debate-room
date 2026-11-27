@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useCountdown } from "../lib/serverClock";
 import type { FloorView, Intent, WaitingRoomPerson } from "../room/room";
+import Electron from "./Electron.vue";
 
 const props = defineProps<{
   floor: FloorView;
@@ -64,7 +65,7 @@ function setTimer(event: Event) {
         :key="holder.personId"
         :class="{ you: holder.personId === youId }"
       >
-        <span class="name">{{ holder.nickname }}</span>
+        <Electron :name="holder.nickname" layout="row" speaking />
         <span v-if="holder.timeUp" class="tag time-up">Time's up</span>
         <span v-else-if="holder.endsAt !== null" class="tag subtle">{{
           timeLeft(holder.endsAt)
@@ -107,8 +108,7 @@ function setTimer(event: Event) {
       <h3>Give the Floor</h3>
       <ul class="people">
         <li v-for="person in candidates" :key="person.id">
-          <span class="name">{{ person.nickname }}</span>
-          <span v-if="person.hand !== null" class="tag">Hand up · {{ person.hand }}</span>
+          <Electron :name="person.nickname" layout="row" :hand="person.hand" />
           <button
             type="button"
             class="link"

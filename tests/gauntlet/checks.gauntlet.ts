@@ -31,7 +31,11 @@ test("contrast flags low-contrast text", async ({ page }) => {
 });
 
 test("targets flags controls under 44×44px, counting a wrapping label", async ({ page }) => {
-  await plant(page, `<button style="width: 40px; height: 44px">Go</button>`);
+  // No min-width or padding, or button.css (a 44px floor, 20px side padding) would hide the plant.
+  await plant(
+    page,
+    `<button style="width: 40px; min-width: 0; padding: 0; height: 44px">Go</button>`,
+  );
   expect(await checks.targets(page, SCOPE)).toEqual([expect.stringContaining("40×44px")]);
   await plant(
     page,

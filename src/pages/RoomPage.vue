@@ -161,6 +161,7 @@ function claimHostWithPin(pin: string) {
           :stage="view.stage"
           is-host
           :person-id="personId"
+          :floor="view.floor"
           @send="send"
         />
         <MiddleGroundStage
@@ -168,6 +169,7 @@ function claimHostWithPin(pin: string) {
           :stage="view.stage"
           is-host
           :person-id="personId"
+          :floor="view.floor"
           @send="send"
         />
         <SurroundedStage
@@ -175,6 +177,7 @@ function claimHostWithPin(pin: string) {
           :stage="view.stage"
           is-host
           :person-id="personId"
+          :floor="view.floor"
           @send="send"
         />
         <section v-else-if="view.phase === 'live'" class="card">
@@ -250,6 +253,7 @@ function claimHostWithPin(pin: string) {
         :stage="view.stage"
         :is-host="view.runsRoom"
         :person-id="personId"
+        :floor="view.floor"
         :is-spectator="view.you.role === 'spectator'"
         @send="send"
       />
@@ -258,6 +262,7 @@ function claimHostWithPin(pin: string) {
         :stage="view.stage"
         :is-host="view.runsRoom"
         :person-id="personId"
+        :floor="view.floor"
         :is-spectator="view.you.role === 'spectator'"
         @send="send"
       />
@@ -266,6 +271,7 @@ function claimHostWithPin(pin: string) {
         :stage="view.stage"
         :is-host="view.runsRoom"
         :person-id="personId"
+        :floor="view.floor"
         :is-spectator="view.you.role === 'spectator'"
         @send="send"
       />
@@ -431,6 +437,7 @@ function claimHostWithPin(pin: string) {
       <WaitingRoomList
         v-if="view.waitingRoom.spectators.length"
         :people="view.waitingRoom.spectators"
+        spectators
         :you-id="personId"
         :can-manage="view.runsRoom"
         :is-host="view.you.role === 'host'"
