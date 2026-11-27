@@ -7,7 +7,7 @@ vp run gauntlet                       # the whole suite, headless, no traces (~2
 vp run gauntlet --grep "Waiting"      # only the tests whose title matches
 ```
 
-It starts `vp dev` itself, on a port between 5180 and 5279 picked from the checkout's path, so parallel worktrees never share a server; if a server already answers on that port it reuses it. Set `GAUNTLET_PORT` to run against a `vp dev --port <n>` you started, and `GAUNTLET_CHROMIUM` to point at a different Chromium; by default it uses Playwright's own at `/opt/pw-browsers/chromium`, and where that doesn't exist (CI) the full Chromium from `playwright install` (`channel: "chromium"`, never the headless shell, which misses a `targets` violation). `@playwright/test` is pinned to the installed Playwright's version, so the two always match.
+It starts `vp dev` itself, on a port between 5180 and 5279 picked from the checkout's path, so parallel worktrees never share a server; if a server already answers on that port it reuses it. Set `GAUNTLET_PORT` to run against a `vp dev --port <n>` you started, and `GAUNTLET_CHROMIUM` to point at a different Chromium; by default it uses Playwright's own at `/opt/pw-browsers/chromium`. `@playwright/test` is pinned to the installed Playwright's version, so the two always match.
 
 The by-hand checks (glance, tone, side by side with Discord) stay by hand.
 

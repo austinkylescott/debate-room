@@ -20,11 +20,8 @@ const baseURL = `http://localhost:${port}`;
 
 /**
  * The Chromium that ships with the installed Playwright. `@playwright/test` is
- * pinned to that Playwright's version. Set GAUNTLET_CHROMIUM to override.
- *
- * Where neither exists (CI), use the full Chromium that `playwright install`
- * fetched (`channel: "chromium"`), not its default headless shell: in the shell
- * the `targets` check misses the planted 40×44px button, so its fixture fails.
+ * pinned to that Playwright's version, so this is only a fallback for machines
+ * where the browsers live elsewhere (set GAUNTLET_CHROMIUM to override).
  */
 const chromium = process.env.GAUNTLET_CHROMIUM ?? "/opt/pw-browsers/chromium";
 
@@ -52,9 +49,7 @@ export default defineConfig({
     trace: "off",
     screenshot: "off",
     video: "off",
-    ...(existsSync(chromium)
-      ? { launchOptions: { executablePath: chromium } }
-      : { channel: "chromium" }),
+    launchOptions: existsSync(chromium) ? { executablePath: chromium } : {},
   },
   webServer: {
     // Starts the app's own dev server (the Worker and its Durable Objects included).
