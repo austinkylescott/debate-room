@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useCountdown } from "../lib/serverClock";
 import type { FloorView, Intent, WaitingRoomPerson } from "../room/room";
+import Timer from "./Timer.vue";
 
 const props = defineProps<{
   floor: FloorView;
@@ -22,11 +22,6 @@ const TIMER_CHOICES: { seconds: number | null; label: string }[] = [
   { seconds: 300, label: "5 minutes" },
 ];
 
-// The countdowns, on the server's clock, running only while a speaking timer is.
-const secondsLeft = useCountdown(() =>
-  props.floor.holders.some((h) => h.endsAt !== null && !h.timeUp),
-);
-
 const holderIds = computed(() => props.floor.holders.map((h) => h.personId));
 const youHaveFloor = computed(() => holderIds.value.includes(props.youId));
 const yourHand = computed(() => {
@@ -42,11 +37,6 @@ const candidates = computed(() => {
     .map((p) => ({ ...p, hand: handOrder.get(p.id) ?? null }))
     .sort((a, b) => (a.hand ?? Infinity) - (b.hand ?? Infinity));
 });
-
-function timeLeft(endsAt: number): string {
-  const seconds = secondsLeft(endsAt);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")} left`;
-}
 
 function setTimer(event: Event) {
   const value = (event.target as HTMLSelectElement).value;
@@ -65,10 +55,15 @@ function setTimer(event: Event) {
         :class="{ you: holder.personId === youId }"
       >
         <span class="name">{{ holder.nickname }}</span>
-        <span v-if="holder.timeUp" class="tag time-up">Time's up</span>
-        <span v-else-if="holder.endsAt !== null" class="tag subtle">{{
-          timeLeft(holder.endsAt)
-        }}</span>
+        <Timer
+          v-if="holder.endsAt !== null"
+          :ends-at="holder.endsAt"
+          :total-seconds="floor.timerSeconds ?? 0"
+          :time-up="holder.timeUp"
+          :label="
+            holder.personId === youId ? 'Your speaking time' : `${holder.nickname}'s speaking time`
+          "
+        />
         <button
           v-if="isHost"
           type="button"

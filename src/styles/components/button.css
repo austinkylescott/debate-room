@@ -1,45 +1,131 @@
-/* Button. Spec: docs/design/components/Button.md (restyled in its own issue). */
+/*
+ * Button. Spec: docs/design/components/Button.md, reference: components.css (.dr-btn).
+ *
+ * Plain <button>s, styled by variant class:
+ *   (none)      secondary: ink outline
+ *   .primary    the spark, full width and 52px: the screen's one "your move" action
+ *   .danger     destructive: spicy outline, never filled (also on .link)
+ *   .link       quiet: underlined text, still a 44px target
+ * States use native hooks: :disabled, [aria-busy="true"] for loading.
+ * State selectors sit in :where() so a component's own file (mood.css) can restyle its buttons.
+ */
 
 button {
-  font: inherit;
-  font-weight: 600;
-  padding: 12px 16px;
-  border-radius: 10px;
-  border: 1px solid var(--muted);
-  background: var(--surface);
-  color: var(--ink);
+  --btn-bg: transparent;
+  --btn-fg: var(--ink);
+  --btn-bd: var(--ink);
+  --btn-sh: transparent;
+  --btn-hover-bg: var(--raised);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 20px;
+  border: 2px solid var(--btn-bd);
+  border-radius: var(--radius-pill);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font: 600 1rem/1.2 var(--font-body);
+  text-align: center;
+  overflow-wrap: normal;
   cursor: pointer;
+  box-shadow: 0 4px 0 var(--btn-sh);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
 }
 
-/* The screen's one primary action: the spark. */
 button.primary {
-  width: 100%;
-  border-color: var(--primary);
-  background: var(--primary);
-  color: var(--on-primary);
-  margin-top: 4px;
-}
+  --btn-bg: var(--primary);
+  --btn-fg: var(--on-primary);
+  --btn-sh: var(--ink);
+  --btn-hover-bg: var(--primary);
 
-button:disabled {
-  opacity: 0.6;
-  cursor: default;
+  width: 100%;
+  min-height: 52px;
+  margin-top: 4px;
+  font-size: 1.125rem;
 }
 
 button.link {
-  padding: 4px 8px;
-  border: none;
-  background: none;
-  color: var(--ink);
-  font-size: 0.85rem;
+  --btn-bd: transparent;
+  --btn-hover-bg: transparent;
+
+  /* Narrower than the spec's 20px: quiet buttons sit in rows beside names. */
+  padding-inline: 10px;
   text-decoration: underline;
   text-underline-offset: 4px;
 }
 
-button.link.danger {
-  color: var(--spicy);
+button.danger {
+  --btn-fg: var(--spicy);
+  --btn-bd: var(--spicy);
+  --btn-hover-bg: var(--raised);
+
+  text-decoration: none;
 }
 
-button.danger:not(.link) {
-  border-color: var(--spicy);
-  color: var(--spicy);
+/*
+ * One primary per screen (hard rule 2). When the Stage is waiting on your move (Lock in,
+ * Take the chair, picking a Side, your Mood Check-in), the Floor's Raise hand steps down.
+ */
+.stage:has(button.primary, .is-your-move) ~ .floor button.primary {
+  --btn-bg: transparent;
+  --btn-fg: var(--ink);
+  --btn-sh: transparent;
+  --btn-hover-bg: var(--raised);
+
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+button:where(:hover:not(:disabled)) {
+  transform: translateY(-1px);
+  background: var(--btn-hover-bg);
+  box-shadow: 0 5px 0 var(--btn-sh);
+}
+
+button:where(:active:not(:disabled)) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--btn-sh);
+}
+
+button:disabled:where(:not([aria-busy="true"])) {
+  --btn-bg: var(--raised);
+  --btn-fg: var(--muted);
+  --btn-bd: var(--muted);
+  --btn-sh: transparent;
+
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+button[aria-busy="true"] {
+  cursor: progress;
+}
+
+.btn-spin {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  animation: btn-spin 1.2s linear infinite;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button {
+    transition: none;
+  }
+
+  .btn-spin {
+    animation: none;
+  }
 }

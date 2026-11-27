@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import AtomSpinner from "../components/AtomSpinner.vue";
 import CopyField from "../components/CopyField.vue";
 import NicknameField from "../components/NicknameField.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
@@ -70,7 +71,8 @@ async function createRoom() {
       </p>
       <ParticipantLimitField v-model="participantLimit" />
       <p v-if="error" class="error" role="alert">{{ error }}</p>
-      <button class="primary" type="submit" :disabled="creating">
+      <button class="primary" type="submit" :disabled="creating" :aria-busy="creating">
+        <AtomSpinner v-if="creating" />
         {{ creating ? "Creating…" : "Create a Room" }}
       </button>
     </form>

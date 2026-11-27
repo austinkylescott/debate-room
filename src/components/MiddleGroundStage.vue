@@ -133,14 +133,9 @@ const advanceLabel = computed(() => {
     <div v-if="yours && middle.step !== 'summary'" class="stack">
       <template v-if="yours.side === null">
         <p>Pick your Side for this Round. Only the Host can move you after that.</p>
-        <div class="pair">
-          <button
-            v-for="side in [0, 1] as const"
-            :key="side"
-            class="primary"
-            type="button"
-            @click="pick(side)"
-          >
+        <!-- Two equal choices, so neither is the spark; is-your-move still quiets Raise hand -->
+        <div class="pair is-your-move">
+          <button v-for="side in [0, 1] as const" :key="side" type="button" @click="pick(side)">
             {{ middle.sides[side] }}
           </button>
         </div>
@@ -161,9 +156,7 @@ const advanceLabel = computed(() => {
       <template v-else>
         <p class="muted">Choices are out. You can still move.</p>
         <button v-if="yours.inMiddle" type="button" @click="choose(false)">Step back</button>
-        <button v-else class="primary" type="button" @click="choose(true)">
-          Step into the middle
-        </button>
+        <button v-else type="button" @click="choose(true)">Step into the middle</button>
       </template>
     </div>
     <p v-else-if="isSpectator && middle.step !== 'summary'" class="muted">
