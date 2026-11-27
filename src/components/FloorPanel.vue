@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { Select, SelectContent, SelectLabel, SelectTrigger, SelectValue } from "@ui-sdk/vue/select";
 import { computed } from "vue";
 import { useCountdown } from "../lib/serverClock";
 import { TIMER_CHOICES, timerChoice, timerSeconds } from "../lib/speakingTimer";
 import type { FloorView, Intent, WaitingRoomPerson } from "../room/room";
+import SelectField from "./SelectField.vue";
 
 const props = defineProps<{
   floor: FloorView;
@@ -40,8 +40,8 @@ function timeLeft(endsAt: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")} left`;
 }
 
-function setTimer(choice: string | null) {
-  if (choice !== null) emit("send", { type: "set-floor-timer", seconds: timerSeconds(choice) });
+function setTimer(choice: string) {
+  emit("send", { type: "set-floor-timer", seconds: timerSeconds(choice) });
 }
 </script>
 
@@ -110,17 +110,13 @@ function setTimer(choice: string | null) {
         </li>
       </ul>
       <div class="inline-form wrap">
-        <div class="field timer">
-          <Select
-            :items="TIMER_CHOICES"
-            :value="timerChoice(floor.timerSeconds)"
-            @value-change="setTimer"
-          >
-            <SelectLabel>Speaking timer</SelectLabel>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent />
-          </Select>
-        </div>
+        <SelectField
+          class="timer"
+          label="Speaking timer"
+          :items="TIMER_CHOICES"
+          :value="timerChoice(floor.timerSeconds)"
+          @change="setTimer"
+        />
         <button
           v-if="floor.holders.length > 1"
           type="button"

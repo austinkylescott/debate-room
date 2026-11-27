@@ -389,6 +389,11 @@ textarea:focus-visible {
   background: var(--accent-soft);
 }
 
+[data-slot="select-item"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 [data-slot="select-item"][data-selected] {
   color: var(--accent);
   font-weight: 600;

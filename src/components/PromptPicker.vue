@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import {
-  type ListData,
-  Select,
-  SelectContent,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@ui-sdk/vue/select";
+import type { ListData } from "@ui-sdk/vue/select";
 import { computed, ref, watch } from "vue";
 import {
   type Intensity,
@@ -18,6 +11,7 @@ import {
 } from "../content/packs";
 import { customPrompts, forgetCustomPrompt, saveCustomPrompt } from "../lib/customPrompts";
 import { type Format, FORMAT_NAMES, type NewPrompt, PROMPT_MAX_LENGTH } from "../room/lineup";
+import SelectField from "./SelectField.vue";
 
 const props = defineProps<{ format: Format }>();
 // The Pack is passed along so a Middle Ground Round can take its suggested Sides.
@@ -31,7 +25,7 @@ const picked = ref<string[]>([]);
 const draft = ref("");
 const draftSurprise = ref(false);
 
-const sourceChoices = computed<ListData>(() => [
+const sourceChoices = computed<ListData<string>>(() => [
   ...packChoices(topics.value),
   { type: "separator" },
   { value: WRITE, label: "Write your own" },
@@ -42,8 +36,7 @@ const intensityChoices: ListData<Intensity | "any"> = [
   { value: "spicy", label: `${INTENSITY_NAMES.spicy} only` },
 ];
 
-function chooseSource(choice: string | null) {
-  if (choice === null) return;
+function chooseSource(choice: string) {
   source.value = choice;
   picked.value = [];
 }
@@ -87,24 +80,18 @@ function addWritten() {
 <template>
   <div class="picker stack">
     <div class="pair">
-      <div class="field">
-        <Select :items="sourceChoices" :value="source" @value-change="chooseSource">
-          <SelectLabel>Add Prompts from</SelectLabel>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent />
-        </Select>
-      </div>
-      <div class="field">
-        <Select
-          :items="intensityChoices"
-          :value="intensity"
-          @value-change="(choice) => choice && (intensity = choice)"
-        >
-          <SelectLabel>Intensity</SelectLabel>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent />
-        </Select>
-      </div>
+      <SelectField
+        label="Add Prompts from"
+        :items="sourceChoices"
+        :value="source"
+        @change="chooseSource"
+      />
+      <SelectField
+        label="Intensity"
+        :items="intensityChoices"
+        :value="intensity"
+        @change="intensity = $event"
+      />
     </div>
 
     <form v-if="pack" class="stack" @submit.prevent="addPicked">
