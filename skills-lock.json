@@ -257,6 +257,13 @@
       "computedHash": "4342a07c9ebe0696713ec93a883c46e56503a587a34d824fabab5ca61e3bdfbb",
       "installMode": "copy"
     },
+    "ui-sdk": {
+      "source": "vercel-labs/ui",
+      "commit": "025d6d7a89dcd8f541f950774e66b0f92133ce1b",
+      "sourceType": "github",
+      "skillPath": "packages/core/skills/ui-sdk/SKILL.md",
+      "computedHash": "1af8b09475fd1c8784489c4c1099eb167e28297c344e1102fb017ca07ce74d00"
+    },
     "wait-what": {
       "source": "mattpocock/skills",
       "commit": "6f7f7831a625f040a8e06a0e7954826b87ce775a",

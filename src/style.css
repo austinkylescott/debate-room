@@ -1,3 +1,6 @@
+/* UI SDK's CSS (web.css, and the rules it adds at runtime) lives in this layer; declaring it first keeps it below all of ours. See ADR 0003. */
+@layer ui-sdk;
+
 :root {
   --text: #3f3a48;
   --text-h: #0d0b12;
