@@ -47,3 +47,7 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 ### UI SDK
 
 Every interactive control is built on UI SDK (`@ui-sdk/vue`), per `docs/adr/0003-ui-sdk-for-interactive-components.md`. Before using UI SDK, follow the `ui-sdk` skill and read `node_modules/@ui-sdk/vue/docs/llms.txt`, the docs that match the installed version. To build a new component, also search `node_modules/@ui-sdk/vue/docs/core.md` by heading and read `rendering.md` beside it.
+
+### Visual design
+
+Any UI or styling change follows `docs/design/HANDOFF.md` (hard rules, build order, gauntlet) and the per-component specs in `docs/design/components/`. `docs/design/` is the designer's package: read it, don't edit it.

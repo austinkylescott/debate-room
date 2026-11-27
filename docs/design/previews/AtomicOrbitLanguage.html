@@ -1,0 +1,406 @@
+<!doctype html>
+<html data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AtomicOrbitLanguage · Debate Room</title>
+<style>
+/* Debate Room tokens. Generated from tokens.json. Dark is the default theme. */
+:root, [data-theme="dark"] {
+  --ground: #132229;
+  --surface: #1b2f38;
+  --raised: #26414c;
+  --line: #355561;
+  --ink: #fbf1dc;
+  --muted: #b5c3c0;
+  --primary: #f2733a;
+  --on-primary: #1a0f08;
+  --primary-text: #ff9a63;
+  --mustard: #f5b82e;
+  --teal: #3fb8a9;
+  --on-teal: #10181c;
+  --avocado: #a3c255;
+  --pink: #ef86b4;
+  --sky: #5bb4e4;
+  --disagree: #1f6f9e;
+  --on-disagree: #ffffff;
+  --agree: #f5b82e;
+  --on-agree: #1a0f08;
+  --chill: #a3c255;
+  --spicy: #ff8796;
+  --focus: #f5b82e;
+  --lift: 0 6px 0 #0b161b;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground: #f5e8cf;
+    --surface: #fffaf0;
+    --raised: #eedcbc;
+    --line: #d9c6a3;
+    --ink: #1d2b33;
+    --muted: #55605f;
+    --primary: #e3602a;
+    --on-primary: #1a0f08;
+    --primary-text: #a3401a;
+    --mustard: #f2ad1d;
+    --teal: #2f8f8a;
+    --on-teal: #10181c;
+    --avocado: #8c9a2e;
+    --pink: #e2739f;
+    --sky: #4aa3d8;
+    --disagree: #1f6f9e;
+    --on-disagree: #ffffff;
+    --agree: #f5b82e;
+    --on-agree: #1a0f08;
+    --chill: #4d6b12;
+    --spicy: #a92e45;
+    --focus: #1d2b33;
+    --lift: 0 6px 0 #e0c99f;
+  }
+}
+[data-theme="light"] {
+  --ground: #f5e8cf;
+  --surface: #fffaf0;
+  --raised: #eedcbc;
+  --line: #d9c6a3;
+  --ink: #1d2b33;
+  --muted: #55605f;
+  --primary: #e3602a;
+  --on-primary: #1a0f08;
+  --primary-text: #a3401a;
+  --mustard: #f2ad1d;
+  --teal: #2f8f8a;
+  --on-teal: #10181c;
+  --avocado: #8c9a2e;
+  --pink: #e2739f;
+  --sky: #4aa3d8;
+  --disagree: #1f6f9e;
+  --on-disagree: #ffffff;
+  --agree: #f5b82e;
+  --on-agree: #1a0f08;
+  --chill: #4d6b12;
+  --spicy: #a92e45;
+  --focus: #1d2b33;
+  --lift: 0 6px 0 #e0c99f;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius: 14px;
+  --radius-lg: 28px;
+  --radius-pill: 999px;
+  --font-display: Righteous, system-ui, sans-serif;
+  --font-body: Jost, system-ui, sans-serif;
+}
+
+/* Type styles */
+.t-prompt { font-family: var(--font-display); font-size: 30px; line-height: 34px; font-weight: 400; }
+.t-title { font-family: var(--font-display); font-size: 20px; line-height: 24px; font-weight: 400; }
+.t-count { font-family: var(--font-display); font-size: 40px; line-height: 40px; font-weight: 400; }
+.t-body-text { font-family: var(--font-body); font-size: 16px; line-height: 24px; font-weight: 500; }
+.t-label { font-family: var(--font-body); font-size: 13px; line-height: 16px; font-weight: 600; }
+
+/* Debate Room components. Plain CSS on the system's tokens; every class is prefixed dr-.
+   States are driven by native attributes first ([disabled], [aria-pressed], [aria-invalid], [aria-selected]),
+   then by is-* classes for app state the browser can't know (is-you, is-speaking, is-low…). */
+
+/* ---------- Button ---------- */
+.dr-btn{--btn-bg:var(--primary);--btn-fg:var(--on-primary);--btn-bd:var(--ink);--btn-sh:var(--ink);
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:44px;padding:0 20px;
+  border:2px solid var(--btn-bd);border-radius:var(--radius-pill);background:var(--btn-bg);color:var(--btn-fg);
+  font:600 16px/1 var(--font-body);white-space:nowrap;cursor:pointer;box-shadow:0 4px 0 var(--btn-sh);
+  transition:transform .12s ease,box-shadow .12s ease}
+.dr-btn:hover{transform:translateY(-1px);box-shadow:0 5px 0 var(--btn-sh)}
+.dr-btn:active,.dr-btn.is-active{transform:translateY(3px);box-shadow:0 1px 0 var(--btn-sh)}
+.dr-btn:focus-visible,.dr-btn.is-focus{outline:3px solid var(--focus);outline-offset:3px}
+.dr-btn--secondary{--btn-bg:transparent;--btn-fg:var(--ink);--btn-sh:transparent;box-shadow:none}
+.dr-btn--secondary:hover{background:var(--raised);box-shadow:none}
+.dr-btn--destructive{--btn-bg:transparent;--btn-fg:var(--spicy);--btn-bd:var(--spicy);--btn-sh:transparent;box-shadow:none}
+.dr-btn--destructive:hover{background:var(--raised);box-shadow:none}
+.dr-btn--quiet{--btn-bg:transparent;--btn-fg:var(--ink);--btn-bd:transparent;--btn-sh:transparent;box-shadow:none;text-decoration:underline;text-underline-offset:4px}
+.dr-btn--lg{min-height:52px;font-size:18px;width:100%}
+.dr-btn--icon{width:44px;padding:0}
+.dr-btn[disabled],.dr-btn[aria-disabled=true]{--btn-bg:var(--raised);--btn-fg:var(--muted);--btn-bd:var(--muted);box-shadow:none;transform:none;cursor:not-allowed;border-style:dashed}
+.dr-btn.is-loading{cursor:progress}
+.dr-btn.is-loading .dr-spin{width:18px;height:18px}
+.dr-spin{display:inline-block;width:20px;height:20px;animation:dr-spin 1.2s linear infinite}
+@keyframes dr-spin{to{transform:rotate(360deg)}}
+
+/* ---------- Tag ---------- */
+.dr-tag{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 12px;border-radius:var(--radius-pill);
+  background:var(--raised);color:var(--ink);font:600 13px/1 var(--font-body);white-space:nowrap}
+.dr-tag--chill{color:var(--chill)}.dr-tag--chill::before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor}
+.dr-tag--spicy{color:var(--spicy)}.dr-tag--spicy::before{content:"";width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid currentColor}
+.dr-tag--host{background:var(--mustard);color:var(--on-agree)}
+.dr-tag--cohost{background:transparent;box-shadow:inset 0 0 0 2px var(--mustard)}
+.dr-tag--spectator{background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted);color:var(--muted)}
+.dr-tag--live{background:var(--primary);color:var(--on-primary)}
+.dr-tag svg{width:14px;height:14px}
+
+/* ---------- Electron (person marker) ---------- */
+.dr-electron{--e:38px;--pole:var(--surface);--pole-ink:var(--ink);position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:4px;min-width:0;max-width:72px}
+.dr-electron[data-pole=disagree]{--pole:var(--disagree);--pole-ink:var(--on-disagree)}
+.dr-electron[data-pole=agree]{--pole:var(--agree);--pole-ink:var(--on-agree)}
+.dr-electron--sm{--e:28px}.dr-electron--lg{--e:52px}
+.dr-electron__dot{position:relative;width:var(--e);height:var(--e);border-radius:50%;background:var(--pole);color:var(--pole-ink);
+  border:2px solid var(--ink);display:grid;place-items:center;font:700 calc(var(--e)*.34)/1 var(--font-body)}
+.dr-electron__name{max-width:100%;font:600 12px/1.25 var(--font-body);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dr-electron__mood{position:absolute;right:-8px;bottom:-5px;font-size:15px;line-height:1}
+.dr-electron__hand{position:absolute;left:-9px;top:-8px;width:16px;height:22px;display:grid;place-items:center;font:700 9px/1 var(--font-body);color:var(--ink)}
+.dr-electron__hand::before{content:"";position:absolute;inset:0;background:var(--sky);border:1.5px solid var(--ink);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.dr-electron__hand span{position:relative}
+.dr-electron__role{position:absolute;right:-6px;top:-6px;width:16px;height:16px;border-radius:50%;background:var(--mustard);border:1.5px solid var(--ink)}
+.dr-electron.is-speaking .dr-electron__dot{outline:3px solid var(--primary);outline-offset:3px}
+.dr-electron.is-you .dr-electron__dot::after{content:"YOU";position:absolute;top:-10px;padding:2px 5px;border-radius:999px;background:var(--ink);color:var(--ground);font:700 9px/1 var(--font-body);letter-spacing:.08em}
+.dr-electron.is-hidden .dr-electron__dot{background:var(--raised);color:var(--muted);border-style:dashed}
+.dr-electron.is-locked .dr-electron__dot{background:var(--raised);color:var(--ink)}
+.dr-electron.is-locked .dr-electron__dot::before{content:"✦";position:absolute;right:-7px;top:-7px;width:18px;height:18px;border-radius:50%;background:var(--mustard);color:var(--on-agree);border:1.5px solid var(--ink);display:grid;place-items:center;font-size:10px}
+.dr-electron.is-away{opacity:.5}.dr-electron.is-away .dr-electron__dot{border-style:dashed}
+.dr-electron.is-spectator .dr-electron__dot{background:transparent;border:1.5px dashed var(--ink);color:var(--ink)}
+.dr-electron.is-peek .dr-electron__dot{opacity:.55;border-style:dashed}
+button.dr-electron{background:none;border:0;padding:0;cursor:pointer;color:inherit}
+button.dr-electron:focus-visible .dr-electron__dot{outline:3px solid var(--focus);outline-offset:3px}
+
+/* ---------- Mood ---------- */
+.dr-moods{display:flex;justify-content:space-between;gap:4px}
+.dr-mood{width:44px;height:44px;border-radius:50%;border:0;background:var(--raised);display:grid;place-items:center;font-size:20px;line-height:1;cursor:pointer;transition:transform .15s ease}
+.dr-mood:hover{transform:scale(1.08)}
+.dr-mood[aria-pressed=true]{background:var(--mustard);box-shadow:0 0 0 2px var(--ink)}
+.dr-mood:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.dr-mood[disabled]{opacity:.4;cursor:not-allowed;transform:none}
+.dr-mood-inline{display:inline-flex;align-items:center;gap:4px;font:600 13px var(--font-body)}
+
+/* ---------- Timer ---------- */
+.dr-timer{position:relative;display:inline-grid;place-items:center;width:86px;height:86px}
+.dr-timer svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.dr-timer__num{position:relative;font:400 18px/1 var(--font-display);font-variant-numeric:tabular-nums;color:var(--ink);min-width:3.2ch;text-align:center}
+.dr-timer__arc{fill:none;stroke:var(--primary);stroke-width:5;stroke-linecap:round;transform:rotate(-90deg);transform-origin:center;transition:stroke-dasharray 1s linear}
+.dr-timer.is-low .dr-timer__arc{stroke:var(--ink);stroke-width:6}
+.dr-timer.is-low .dr-timer__num{font-size:22px}
+.dr-timer.is-low{animation:dr-beat 1s ease-in-out infinite}
+@keyframes dr-beat{50%{transform:scale(1.04)}}
+.dr-timer.is-paused .dr-timer__arc{stroke-dasharray:3 6!important;stroke:var(--muted)}
+.dr-timer.is-done .dr-timer__num{font-size:15px}
+.dr-timer-bar{display:block;width:100%;height:24px}
+
+/* ---------- Field ---------- */
+.dr-field{display:grid;gap:6px;min-width:0}
+.dr-field__label{font:600 14px/1.2 var(--font-body);color:var(--ink)}
+.dr-field__input{min-height:48px;width:100%;padding:0 16px;border-radius:var(--radius);border:2px solid var(--muted);background:var(--surface);color:var(--ink);font:500 16px var(--font-body)}
+.dr-field__input::placeholder{color:var(--muted)}
+.dr-field__input:hover{border-color:var(--ink)}
+.dr-field__input:focus,.dr-field__input.is-focus{outline:3px solid var(--focus);outline-offset:2px;border-color:var(--ink)}
+.dr-field__input[aria-invalid=true]{border-color:var(--spicy)}
+.dr-field__input[disabled]{background:var(--raised);border-style:dashed;color:var(--muted);cursor:not-allowed}
+.dr-field__help{display:flex;justify-content:space-between;gap:8px;font:500 13px/1.35 var(--font-body);color:var(--muted)}
+.dr-field__error{font:600 13px/1.35 var(--font-body);color:var(--spicy);display:flex;gap:6px;align-items:baseline}
+.dr-field__error::before{content:"▲";font-size:10px}
+.dr-choice{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 14px;border-radius:var(--radius);border:2px solid var(--muted);background:var(--surface);cursor:pointer;font:600 15px var(--font-body);color:var(--ink)}
+.dr-choice input{appearance:none;margin:0;flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--ink);background:var(--surface);display:grid;place-items:center}
+.dr-choice input:checked{background:var(--primary)}
+.dr-choice input:checked::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--on-primary)}
+.dr-choice:has(input:checked){border-color:var(--ink);background:var(--raised)}
+.dr-choice:has(input:focus-visible){outline:3px solid var(--focus);outline-offset:2px}
+.dr-choice small{display:block;font-weight:500;color:var(--muted);font-size:13px}
+
+/* ---------- Menu / Select ---------- */
+.dr-select{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:48px;padding:0 14px 0 16px;border-radius:var(--radius);border:2px solid var(--muted);background:var(--surface);color:var(--ink);font:500 16px var(--font-body);cursor:pointer;width:100%}
+.dr-select[aria-expanded=true]{border-color:var(--ink)}
+.dr-select:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.dr-select svg{width:18px;height:18px;flex:none}
+.dr-menu{list-style:none;margin:0;padding:6px;min-width:220px;background:var(--surface);border-radius:var(--radius-lg) 8px var(--radius-lg) 8px;box-shadow:var(--lift),0 0 0 2px var(--ink)}
+.dr-menu__item{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border-radius:10px;font:500 15px var(--font-body);color:var(--ink);cursor:pointer}
+.dr-menu__item:hover,.dr-menu__item.is-hover{background:var(--raised)}
+.dr-menu__item[aria-selected=true]{font-weight:700}
+.dr-menu__item .dr-menu__check{margin-left:auto;width:16px;height:16px}
+.dr-menu__item.is-focus{outline:3px solid var(--focus);outline-offset:-3px}
+.dr-menu__item--danger{color:var(--spicy)}
+.dr-menu__item[aria-disabled=true]{color:var(--muted);cursor:not-allowed}
+.dr-menu__sep{height:0;border-top:1.5px dashed var(--line);margin:6px 8px}
+
+/* ---------- Toast / Notice ---------- */
+.dr-toast{position:relative;display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;min-height:52px;padding:10px 12px 10px 14px;
+  background:var(--surface);border-radius:var(--radius-lg) 8px var(--radius-lg) 8px;box-shadow:var(--lift),0 0 0 2px var(--ink);font:500 15px/1.35 var(--font-body);color:var(--ink)}
+.dr-toast::before{content:"";position:absolute;left:28px;top:-18px;height:18px;border-left:1.5px solid var(--ink)}
+.dr-toast svg{width:26px;height:26px}
+.dr-toast b{font-weight:700}
+.dr-toast button{min-width:44px;min-height:44px;border:0;background:none;color:var(--muted);font:600 14px var(--font-body);cursor:pointer}
+.dr-notice{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:var(--radius);border:1.5px dashed var(--ink);font:500 14px/1.4 var(--font-body);color:var(--ink);background:transparent}
+.dr-notice--host{border-color:var(--primary-text)}
+
+/* ---------- Card ---------- */
+.dr-card{background:var(--surface);color:var(--ink);border-radius:var(--radius-lg) 8px var(--radius-lg) 8px;box-shadow:var(--lift);padding:var(--space-4)}
+.dr-card--flip{border-radius:8px var(--radius-lg) 8px var(--radius-lg)}
+.dr-card--raised{background:var(--raised);box-shadow:none}
+.dr-card__title{margin:0 0 6px;font:400 20px/1.15 var(--font-display)}
+.dr-card__meta{font:500 13px var(--font-body);color:var(--muted)}
+button.dr-card,a.dr-card{display:block;text-align:left;border:0;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease;font:inherit}
+button.dr-card:hover,a.dr-card:hover{transform:translateY(-2px)}
+button.dr-card:focus-visible,a.dr-card:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.dr-card.is-selected{box-shadow:var(--lift),0 0 0 3px var(--ink)}
+
+@media (prefers-reduced-motion: reduce){
+  .dr-btn,.dr-mood,.dr-card{transition:none}
+  .dr-spin,.dr-timer.is-low{animation:none}
+}
+
+</style></head>
+<body>
+<p style="position:fixed;right:12px;top:8px;z-index:9;font:600 13px system-ui"><button onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'">Toggle theme</button></p>
+<!-- @dsCard group="Atomic" height=760 width=960 subtitle="One metaphor everywhere: a nucleus is what you gather around, electrons are people" -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Righteous&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:500 16px/1.5 var(--font-body)}
+.a-stroke{stroke:var(--ink);stroke-width:2;fill:none;stroke-linecap:round}
+.a-stroke-f{fill:var(--ink)}
+.a-hair{stroke:var(--ink);stroke-width:1.25;stroke-linecap:round}
+.f-or{fill:var(--primary)}.f-mu{fill:var(--mustard)}.f-te{fill:var(--teal)}.f-av{fill:var(--avocado)}.f-pk{fill:var(--pink)}.f-sky{fill:var(--sky)}.f-bl{fill:var(--disagree)}.f-ink{fill:var(--ink)}.f-sur{fill:var(--surface)}.f-gr{fill:var(--ground)}.f-ra{fill:var(--raised)}
+.ol{stroke:var(--ink);stroke-width:2}
+.sheet{display:grid;grid-template-columns:390px minmax(0,1fr);gap:40px;padding:32px;width:960px;align-items:start}
+.about .kick{font:600 13px/1 var(--font-body);letter-spacing:.14em;text-transform:uppercase;color:var(--primary-text)}
+.about h2{font:400 44px/1 var(--font-display);margin:10px 0 12px}
+.about p{color:var(--muted);margin:0 0 16px;max-width:52ch}
+.about ul{margin:0 0 18px;padding:0;list-style:none;display:grid;gap:10px}
+.about li{display:grid;grid-template-columns:28px 1fr;gap:10px;color:var(--muted);font-size:15px}
+.about li b{color:var(--ink)}
+.about li svg{width:28px;height:28px}
+.meter{display:flex;align-items:center;gap:10px;font:600 14px var(--font-body);color:var(--ink)}
+.meter i{width:14px;height:14px;border-radius:50%;border:2px solid var(--ink)}.meter i.on{background:var(--primary)}
+.phone{width:390px;background:var(--ground);border:2px solid var(--line);border-radius:36px;padding:16px;display:flex;flex-direction:column;gap:14px;overflow:hidden;position:relative}
+.top{display:flex;justify-content:space-between;align-items:center;position:relative}
+.top .d{font:400 18px var(--font-display);display:flex;align-items:center;gap:6px}
+.top small{color:var(--muted);font-size:13px;font-weight:600}
+.tag{min-height:28px;padding:0 12px;border-radius:var(--radius-pill);font:600 13px var(--font-body);display:inline-flex;align-items:center;gap:6px;background:var(--raised);color:var(--ink)}
+.tag.ch{color:var(--chill)}
+.state{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;color:var(--muted)}
+.lit{background:var(--primary);color:var(--on-primary);padding:3px 12px;border-radius:var(--radius-pill)}
+.btn{min-height:44px;padding:0 18px;border-radius:var(--radius-pill);font:600 16px var(--font-body);border:2px solid var(--ink);display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--primary);color:var(--on-primary);box-shadow:0 4px 0 var(--ink);white-space:nowrap}
+.av{position:relative;width:38px;height:38px;flex:none;border-radius:50%;background:var(--pole);color:var(--pole-ink);border:2px solid var(--ink);display:grid;place-items:center;font:700 13px var(--font-body)}
+.speaking .av{outline:3px solid var(--primary);outline-offset:3px}
+.you .av::after{content:"YOU";position:absolute;top:-10px;font:700 9px/1 var(--font-body);letter-spacing:.08em;background:var(--ink);color:var(--ground);padding:2px 5px;border-radius:999px}
+.mood{position:absolute;right:-8px;bottom:-5px;font-size:15px;line-height:1}
+.hand{position:absolute;left:-8px;top:-6px;width:18px;height:18px;border-radius:50%;background:var(--primary);color:var(--on-primary);border:1.5px solid var(--ink);font:700 10px/15px var(--font-body);text-align:center}
+.nm{max-width:100%;font:600 12px/1.25 var(--font-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbl{font:600 12px/1.2 var(--font-body);color:var(--muted);hyphens:none;overflow-wrap:normal;text-align:center}
+.mc{width:44px;height:44px;border-radius:50%;background:var(--raised);display:grid;place-items:center;font-size:20px;position:relative}
+
+.lib{padding:32px;width:960px}
+.lib h2{font:400 40px/1 var(--font-display);margin:8px 0 6px}
+.lib>p{color:var(--muted);margin:0 0 22px;max-width:74ch}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.tile{background:var(--surface);border-radius:var(--radius-lg) 8px var(--radius-lg) 8px;padding:10px 12px 14px;box-shadow:var(--lift)}
+.tile svg{display:block;width:100%;height:150px;overflow:visible}
+.tile b{display:block;font:400 17px/1.2 var(--font-display);margin-top:4px}
+.tile span{display:block;font:500 13px/1.4 var(--font-body);color:var(--muted);margin-top:4px}
+.tile text{font:700 9px var(--font-body)}
+.tile .cap{font:600 10px var(--font-body);fill:var(--muted)}
+.drift{transform-box:fill-box;transform-origin:center;animation:drift var(--d,8s) ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate(var(--x,3px),var(--y,-3px))}}
+@media (prefers-reduced-motion: reduce){.drift{animation:none}}
+</style>
+<div class="lib">
+  <div class="about"><div class="kick">Atomic · orbit language</div></div>
+  <h2>Whose orbit are you in?</h2>
+  <p>The atom from the Stage becomes the app's grammar. A <b>nucleus</b> is whatever people gather around: the Room, a notch, a Side, the Center, the speaker. <b>Electrons</b> are people, and the orbit you're in is always the one that's open. Moving between orbits is a small quantum jump, which is also the notch-crossing moment.</p>
+  <div class="grid" id="grid"></div>
+</div>
+<script>
+// Atomic shape vocabulary. Every path is drawn in a 100×100 box centred on 0,0.
+const A=(()=>{
+const T=(x,y,s,r)=>`transform="translate(${x} ${y}) rotate(${r||0}) scale(${(s/100).toFixed(3)})"`;
+const P={
+ boomerang:"M-50,-22 C-47,-32 -37,-32 -31,-25 C-19,-11 -9,-2 2,-1 C14,-2 26,-14 38,-32 C43,-40 53,-38 51,-28 C45,-6 24,26 2,28 C-20,28 -42,2 -50,-22Z",
+ kidney:"M-40,-6 C-44,-30 -14,-40 8,-34 C34,-28 48,-6 42,14 C36,34 10,40 -6,32 C-14,28 -12,16 -22,16 C-34,16 -38,8 -40,-6Z",
+ amoeba:"M-44,-6 C-48,-34 -10,-46 18,-40 C44,-34 52,-8 40,12 C30,28 34,40 16,44 C-4,48 -10,30 -26,30 C-42,30 -42,12 -44,-6Z",
+ leaf:"M0,-48 C26,-26 30,18 0,48 C-30,18 -26,-26 0,-48Z",
+ teardrop:"M0,-46 C10,-18 24,0 24,16 A24,24 0 0 1 -24,16 C-24,0 -10,-18 0,-46Z",
+ diamond:"M0,-48 L20,0 L0,48 L-20,0Z",
+ sparkle:"M0,-50 C4,-8 8,-4 50,0 C8,4 4,8 0,50 C-4,8 -8,4 -50,0 C-8,-4 -4,-8 0,-50Z",
+ bowl:"M-48,-12 A48,48 0 0 0 48,-12Z",
+ arrow:"M-48,-5 L20,-5 L20,-18 L48,0 L20,18 L20,5 L-48,5Z"
+};
+const path=(k,x,y,s,r,c,st="")=>`<path class="${c}" ${T(x,y,s,r)} d="${P[k]}" ${st}/>`;
+const compass=(x,y,s,r,c)=>{let p=[];for(let i=0;i<16;i++){const a=Math.PI*i/8-Math.PI/2,R=i%4===0?50:i%2===0?24:9;p.push((Math.cos(a)*R).toFixed(1)+","+(Math.sin(a)*R).toFixed(1))}return `<polygon class="${c}" ${T(x,y,s,r)} points="${p.join(" ")}"/>`};
+const burst=(x,y,s,n=8,c="a-stroke",r=0)=>{const R=s/2;let o="";for(let i=0;i<n;i++){const a=Math.PI*2*i/n+r*Math.PI/180,L=i%2?R*.72:R,ex=x+Math.cos(a)*L,ey=y+Math.sin(a)*L;o+=`<line class="${c}" x1="${x}" y1="${y}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}"/><circle class="${c}-f" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="${Math.max(1.8,s/22).toFixed(1)}"/>`}return o+`<circle class="${c}-f" cx="${x}" cy="${y}" r="${Math.max(2,s/18).toFixed(1)}"/>`};
+const cross=(x,y,w,h,c="a-hair")=>`<line class="${c}" x1="${x-w/2}" y1="${y}" x2="${x+w/2}" y2="${y}"/><line class="${c}" x1="${x}" y1="${y-h/2}" x2="${x}" y2="${y+h/2}"/>`;
+const atom=(x,y,s,c="a-stroke")=>[0,60,120].map(a=>`<ellipse class="${c}" style="fill:none" cx="${x}" cy="${y}" rx="${s/2}" ry="${s*.18}" transform="rotate(${a} ${x} ${y})"/>`).join("")+`<circle class="${c}-f" cx="${x}" cy="${y}" r="${s/14}"/>`;
+const surf=(x,y,s,r,c,c2)=>`<g ${T(x,y,s,r)}><ellipse class="${c}" rx="15" ry="48"/><ellipse class="${c2}" rx="4.5" ry="34"/><circle class="${c}" cy="-20" r="3"/></g>`;
+const leafSpine=(x,y,s,r,c)=>`<g ${T(x,y,s,r)}><path class="${c}" d="${P.leaf}"/><line class="a-stroke" x1="0" y1="-38" x2="0" y2="44" style="stroke-width:${(200/s).toFixed(2)}"/></g>`;
+return {T,P,path,compass,burst,cross,atom,surf,leafSpine};
+})();
+// Morph helpers: wob() nudges every coordinate of a path (same commands, so SMIL can interpolate);
+// morph() returns an <animate> that breathes between variants. Skipped under reduced motion.
+const RM=typeof matchMedia!=="undefined"&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+const wob=(d,amp,seed)=>{let i=0;return d.replace(/-?\d+(\.\d+)?/g,m=>{i++;return (+m+Math.sin(seed*12.9898+i*78.233)*amp).toFixed(1)})};
+const morph=(d,amp=4,dur=10)=>RM?"":`<animate attributeName="d" dur="${dur}s" repeatCount="indefinite" calcMode="spline" keyTimes="0;.33;.66;1" keySplines=".45 0 .55 1;.45 0 .55 1;.45 0 .55 1" values="${d};${wob(d,amp,1)};${wob(d,amp,2)};${d}"/>`;
+const blob=(k,tf,c,amp,dur)=>`<path class="${c}" transform="${tf}" d="${A.P[k]}">${morph(A.P[k],amp,dur)}</path>`;
+
+const E=(x,y,l,f="var(--raised)",k="var(--ink)",r=10,ring="")=>`${ring?`<circle cx="${x}" cy="${y}" r="${r+4}" style="fill:none;stroke:var(--primary);stroke-width:2.5"/>`:""}<circle cx="${x}" cy="${y}" r="${r}" style="fill:${f};stroke:var(--ink);stroke-width:1.5"/><text x="${x}" y="${y+3}" text-anchor="middle" style="fill:${k}">${l}</text>`;
+const BL=["var(--disagree)","var(--on-disagree)"],MU=["var(--agree)","var(--on-agree)"];
+const orbit=(x,y,rx,ry,rot=0,dash="")=>`<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" transform="rotate(${rot} ${x} ${y})" style="fill:none;stroke:var(--ink);stroke-width:1.2;${dash?"stroke-dasharray:"+dash:""}"/>`;
+const on=(x,y,rx,ry,rot,deg)=>{const a=deg*Math.PI/180,px=Math.cos(a)*rx,py=Math.sin(a)*ry,r=rot*Math.PI/180;return [x+px*Math.cos(r)-py*Math.sin(r),y+px*Math.sin(r)+py*Math.cos(r)]};
+const dr=(s,x=3,y=-3,d=7)=>`<g class="drift" style="--x:${x}px;--y:${y}px;--d:${d}s">${s}</g>`;
+const diamond=(x,y,n)=>`<g transform="translate(${x} ${y})"><path d="M0,-9 L6,0 L0,9 L-6,0Z" style="fill:var(--sky);stroke:var(--ink);stroke-width:1.5"/><text x="0" y="3.5" text-anchor="middle" style="fill:var(--ink)">${n}</text></g>`;
+const T=[];
+// 1 Waiting Room
+{let s=orbit(100,72,74,30,-18)+orbit(100,72,74,30,22)+orbit(100,72,94,58,0,"2 4");
+ s+=`<circle cx="100" cy="72" r="20" style="fill:var(--surface);stroke:var(--ink);stroke-width:2"/><text x="100" y="69" text-anchor="middle" style="font:400 11px var(--font-display);fill:var(--ink)">KZ4Q</text><text class="cap" x="100" y="81" text-anchor="middle">Room</text>`;
+ [[-18,200,"M"],[-18,20,"J"],[22,120,"S"],[22,320,"P",1],[-18,110,"D"]].forEach(([rot,d,l,h])=>{const [x,y]=on(100,72,74,30,rot,d);s+=dr(E(x,y,l,"var(--raised)","var(--ink)",10,h?"y":""),2,-2,5+d%4)});
+ [[60,"·"],[250,"·"]].forEach(([d])=>{const [x,y]=on(100,72,94,58,0,d);s+=`<circle cx="${x}" cy="${y}" r="7" style="fill:none;stroke:var(--ink);stroke-width:1.5;stroke-dasharray:2 2"/>`});
+ s+=`<path d="M196,8 Q178,10 168,26" style="fill:none;stroke:var(--ink);stroke-width:1.2;stroke-dasharray:2 3"/>`+E(166,30,"K","var(--mustard)","var(--on-agree)",9)+A.path("sparkle",186,14,12,0,"f-ink");
+ T.push(["Waiting Room",s,"The Room code is the nucleus. People orbit it as they arrive, newcomers fly in with a sparkle, the Host wears the orange ring, and Spectators sit on the dashed outer orbit."]);}
+// 2 Spectrum
+{let s=`<path d="M22,128 A78,78 0 0 1 178,128" style="fill:none;stroke:var(--ink);stroke-width:1.8"/>`+A.atom(100,110,30,"a-hair");
+ const P=[[22,128,BL,["M","D"]],[45,73,BL,["J"]],[100,50,["var(--surface)","var(--ink)"],["A"]],[155,73,MU,["P","Y","K"],1],[178,128,MU,["L","B"]]];
+ P.forEach(([x,y,c,ps,mine])=>{s+=orbit(x,y,mine?22:15,mine?22:15,0,"2 3");s+=mine?A.compass(x,y,20,0,"f-or"):A.burst(x,y,10,8);ps.forEach((l,j)=>{const a=-Math.PI/2+j*2*Math.PI/ps.length,r=ps.length>1?(mine?22:15):0;s+=E(x+Math.cos(a)*r,y+Math.sin(a)*r,l==="Y"?"You":l,c[0],c[1],l==="Y"?11:8)})});
+ T.push(["Spectrum",s,"Five notches on an arc. Each notch is a nucleus with its electrons. Yours is open with names. Crossing a notch is a quantum jump."]);}
+// 3 Middle Ground
+{let s=orbit(46,70,36,36)+orbit(154,70,36,36)+A.path("bowl",100,96,58,0,"f-av")+`<text class="cap" x="100" y="128" text-anchor="middle">The middle</text>`;
+ s+=`<circle cx="46" cy="70" r="13" style="fill:var(--disagree)"/><text x="46" y="73" text-anchor="middle" style="fill:var(--on-disagree)">Cats</text><circle cx="154" cy="70" r="13" style="fill:var(--agree)"/><text x="154" y="73" text-anchor="middle" style="fill:var(--on-agree)">Dogs</text>`;
+ [[200,"M"],[260,"J"],[140,"S"]].forEach(([d,l])=>{s+=E(46+Math.cos(d*Math.PI/180)*36,70+Math.sin(d*Math.PI/180)*36,l,...BL,9)});
+ [[340,"L"],[280,"B"]].forEach(([d,l])=>{s+=E(154+Math.cos(d*Math.PI/180)*36,70+Math.sin(d*Math.PI/180)*36,l,...MU,9)});
+ s+=dr(E(86,88,"D",...BL,9),0,-3,4)+dr(E(112,88,"K",...MU,9,"y"),0,-3,5);
+ T.push(["Middle Ground",s,"Two Sides are two atoms. Stepping in pulls an electron into the shared bond between them: the avocado bowl. Electrons keep their Side's colour, so the middle shows who crossed over."]);}
+// 4 Surrounded
+{let s=orbit(100,76,34,34)+orbit(100,76,70,56,0,"2 4");
+ s+=A.compass(100,76,44,0,"f-or")+E(100,76,"C","var(--surface)","var(--ink)",14);
+ s+=`<line x1="100" y1="76" x2="100" y2="42" style="stroke:var(--primary);stroke-width:2.5"/>`+E(100,42,"R",...MU,10,"y")+`<text class="cap" x="116" y="46">chair</text>`;
+ [[200,"J"],[250,"S"],[320,"B"],[20,"M"],[150,"D"]].forEach(([d,l])=>{const [x,y]=on(100,76,70,56,0,d);s+=dr(E(x,y,l,"var(--raised)","var(--ink)",9),2,2,6)});
+ s+=`<path d="M152,112 Q176,126 192,140" style="fill:none;stroke:var(--ink);stroke-width:1.2;stroke-dasharray:2 3"/>`+diamond(176,108,"3");
+ T.push(["Surrounded",s,"The Center is the nucleus. The chair is the inner orbit, joined to the Center by an orange bond. Challengers wait on the outer shell. Three vote diamonds fling the challenger out of the chair."]);}
+// 5 The Floor
+{let s=A.compass(100,72,56,0,"f-or")+E(100,72,"P","var(--agree)","var(--on-agree)",15)+orbit(100,72,40,40);
+ const c=2*Math.PI*40;s+=`<circle cx="100" cy="72" r="40" style="fill:none;stroke:var(--primary);stroke-width:4;stroke-dasharray:${(c*.7).toFixed(0)} ${c};transform:rotate(-90deg);transform-origin:100px 72px"/>`;
+ s+=orbit(100,72,74,62,0,"2 4");[[210,1],[240,2],[270,3]].forEach(([d,n])=>{const [x,y]=on(100,72,74,62,0,d);s+=diamond(x,y,n)});
+ s+=`<text class="cap" x="100" y="146" text-anchor="middle">0:42 left · 3 hands up</text>`;
+ T.push(["The Floor",s,"Whoever is speaking is the excited nucleus. Their time is the orange orbit draining. Raised hands queue as numbered diamonds on the outer shell, in order."]);}
+// 6 Mood Check-in
+{let s=orbit(100,70,58,58,0,"2 4")+`<circle cx="100" cy="70" r="24" style="fill:var(--surface);stroke:var(--ink);stroke-width:2"/><text x="100" y="67" text-anchor="middle" style="font:400 15px var(--font-display);fill:var(--ink)">0:11</text><text class="cap" x="100" y="80" text-anchor="middle">Check-in</text>`;
+ ["😀","😂","😂","🤔","😮","❤️","😂","😢"].forEach((m,j)=>{const a=j*Math.PI*2/8-Math.PI/2;s+=dr(`<text x="${(100+Math.cos(a)*58).toFixed(1)}" y="${(76+Math.sin(a)*58).toFixed(1)}" text-anchor="middle" style="font-size:16px">${m}</text>`,2,-2,4+j%3)});
+ T.push(["Mood Check-in",s,"For 15 seconds each Mood flies into orbit around the countdown. The most common Mood swells a little, so the room's feeling is visible before anyone reads a number."]);}
+// 7 Lineup
+{let s="";const X=[24,74,132,182],kinds=["arc","bowl","ring","arc"]; /* glyphs: Spectrum = notches on a line, Middle Ground = two linked atoms, Surrounded = ring and dot */
+ s+=`<path d="M24,76 L182,76" style="stroke:var(--ink);stroke-width:2"/>`;
+ X.forEach((x,i)=>{const cur=i===1,done=i<1;s+=`<circle cx="${x}" cy="76" r="${cur?24:17}" style="fill:${done?"var(--raised)":cur?"var(--primary)":"var(--surface)"};stroke:var(--ink);stroke-width:2"/>`;
+  const ink=cur?"var(--on-primary)":"var(--ink)";
+  const g=kinds[i]==="arc"?`<line x1="${x-9}" y1="76" x2="${x+9}" y2="76" style="stroke:${ink};stroke-width:1.5"/>`+[-9,0,9].map(d=>`<circle cx="${x+d}" cy="76" r="2.6" style="fill:${ink}"/>`).join(""):kinds[i]==="bowl"?`<circle cx="${x-5}" cy="76" r="6" style="fill:none;stroke:${ink};stroke-width:2"/><circle cx="${x+5}" cy="76" r="6" style="fill:none;stroke:${ink};stroke-width:2"/>`:`<circle cx="${x}" cy="76" r="7" style="fill:none;stroke:${ink};stroke-width:2.5"/><circle cx="${x}" cy="76" r="2.5" style="fill:${ink}"/>`;
+  s+=g;if(cur)s+=orbit(x,76,34,14,-20)+`<circle cx="${on(x,76,34,14,-20,200)[0]}" cy="${on(x,76,34,14,-20,200)[1]}" r="4" class="a-stroke-f"/>`;
+  s+=`<text class="cap" x="${x}" y="${cur?118:110}" text-anchor="middle">Round ${i+1}</text>`});
+ s+=A.path("arrow",160,32,40,0,"f-sky")+`<text class="cap" x="130" y="22">up next</text>`;
+ T.push(["Lineup and menus",s,"The Lineup is a molecule: one atom per Round, carrying its Format's glyph, joined in order. The live Round is the orange atom with an electron circling it. Menus open as a small orbit of actions around your avatar."]);}
+// 8 Recap
+{let s="";const pr=[[30,88,[2,2,1,4,2]],[80,60,[0,1,2,6,2]],[130,92,[5,3,1,1,1]],[178,58,[1,1,2,3,4]]];
+ s+=`<path d="M30,88 L80,60 L130,92 L178,58" style="fill:none;stroke:var(--ink);stroke-width:1.5"/>`;
+ pr.forEach(([x,y,c],i)=>{s+=`<circle cx="${x}" cy="${y}" r="14" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.5"/>`;
+  const cols=["var(--disagree)","var(--sky)","var(--raised)","var(--mustard)","var(--agree)"];let n=0;const tot=c.reduce((a,b)=>a+b,0);
+  c.forEach((v,j)=>{for(let q=0;q<v;q++){const a=(n++)/tot*Math.PI*2-Math.PI/2;s+=`<circle cx="${(x+Math.cos(a)*22).toFixed(1)}" cy="${(y+Math.sin(a)*22).toFixed(1)}" r="3.6" style="fill:${cols[j]};stroke:var(--ink);stroke-width:1"/>`}});
+  s+=`<text x="${x}" y="${y+3}" text-anchor="middle" style="fill:var(--ink)">P${i+1}</text>`});
+ s+=A.path("sparkle",80,26,14,0,"f-or")+`<text class="cap" x="92" y="22">most split</text>`+`<text class="cap" x="104" y="140" text-anchor="middle">Food Fights · 4 Prompts</text>`;
+ T.push(["Recap",s,"Every Prompt leaves an atom whose electrons show how the room split. The night becomes a molecule you can scroll back through. The most divided Prompt gets a sparkle."]);}
+document.getElementById("grid").innerHTML=T.map(([n,s,t])=>`<div class="tile"><svg viewBox="0 0 200 150" aria-hidden="true">${s}</svg><b>${n}</b><span>${t}</span></div>`).join("");
+</script>
+
+</body></html>
