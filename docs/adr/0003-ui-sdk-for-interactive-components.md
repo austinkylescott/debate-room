@@ -6,7 +6,7 @@ The spike in [#41](https://github.com/austinkylescott/debate-room/issues/41) (fi
 
 ## Consequences
 
-- The migration lands with the redesign, one component at a time, so `main` never ships a half-migrated UI where some controls are UI SDK and others native.
+- The migration lands with the redesign, one component at a time. The one exception is the Spectrum slider, which moved early with its spike ([#45](https://github.com/austinkylescott/debate-room/issues/45), findings in [`docs/spikes/ui-sdk-spectrum/`](../spikes/ui-sdk-spectrum/README.md)). The rest of the UI stays native until its redesigned component lands, and we accept that mix until then. The spike's open questions (crowded name labels, held-key settles, `Field` labels) are settled by the redesign.
 - About +50 kB gzip of shared UI SDK runtime on first load (measured with the Select entry); later components add less. Measure each new entry when it's added.
 - UI SDK is in public beta. Pin the exact version (the spike used `0.1.0-beta.17`) and expect API changes on upgrade.
 - Component styles are global `[data-slot]` CSS inside `@layer ui-sdk` in `src/style.css`, not Vue scoped styles, which don't reach UI SDK's parts.
