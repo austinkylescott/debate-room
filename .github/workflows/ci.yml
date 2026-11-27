@@ -1,0 +1,66 @@
+# Checks, tests, build and the design gauntlet on every PR and on main.
+# No secrets and no deploy: Cloudflare builds the previews.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          # Matches devEngines.packageManager in package.json.
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          # vite-plus 1.8 needs ^22.18.0 || ^24.11.0 || >=26.
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+      - run: vp check
+      - run: vp test
+      - run: vp run build
+
+  gauntlet:
+    name: Design gauntlet
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+      # The Chromium for the pinned @playwright/test. /opt/pw-browsers/chromium
+      # doesn't exist here, so the config falls back to this one
+      # (channel "chromium", not the headless shell; see playwright.config.ts).
+      - run: pnpm exec playwright install --with-deps --no-shell chromium
+      - run: vp run gauntlet
+        env:
+          CI: "1"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gauntlet-report
+          path: node_modules/.tmp/gauntlet-report/
+          retention-days: 14
