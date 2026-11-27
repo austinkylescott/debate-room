@@ -129,6 +129,14 @@ test("names flags names that wrap, break, lack a title or overlap", async ({ pag
   ]);
   await plant(
     page,
+    `<div aria-label="Person"><span title="Ada" style="white-space: nowrap">Ada</span></div>
+     <section aria-label="Notifications"><span title="Linus" style="white-space: nowrap">Linus</span></section>`,
+  );
+  expect(await checks.names(page, ["Ada", "Linus"], SCOPE)).toEqual([
+    expect.stringContaining('"Ada" is missing from the accessible name'),
+  ]);
+  await plant(
+    page,
     `<span title="${name}" style="display: block; width: 60px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">${name}</span>
      <p>${name} said something long enough to wrap onto a second line in a sentence.</p>`,
   );

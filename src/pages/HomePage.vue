@@ -3,6 +3,7 @@ import { ref } from "vue";
 import AtomSpinner from "../components/AtomSpinner.vue";
 import CopyField from "../components/CopyField.vue";
 import NicknameField from "../components/NicknameField.vue";
+import Notice from "../components/Notice.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
 import PinField from "../components/PinField.vue";
 import { saveHostSecret } from "../lib/device";
@@ -48,11 +49,11 @@ async function createRoom() {
 <template>
   <section v-if="created" class="card">
     <h1>Your Room is ready</h1>
-    <p class="warning" role="alert">
+    <Notice tone="warning" role="alert">
       <strong>Save this Host link now.</strong> It's shown only once. It gets you back in as the
       Host on any device, so keep it private. If you lose it, open the invite link, choose "I'm the
       Host" and enter your PIN.
-    </p>
+    </Notice>
     <CopyField label="Host link" :value="created.hostLink" />
     <button class="primary" type="button" @click="navigate(roomPath(created.roomId))">
       I've saved it, go to my Room
