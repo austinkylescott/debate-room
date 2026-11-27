@@ -583,6 +583,41 @@ export async function tags(page: Page, scope: Scope = null): Promise<Violations>
   );
 }
 
+/**
+ * Mood.md and hard rule 8: a Mood row offers all seven Moods, each a 44px circle,
+ * on one line, inside the row's own box (nothing wraps or spills out).
+ */
+export async function moods(page: Page, scope: Scope = null): Promise<Violations> {
+  await withHelpers(page);
+  return page.evaluate(
+    ({ scope }) => {
+      const { describe, visible, inScope } = window.__gauntlet;
+      const found: string[] = [];
+      for (const row of document.querySelectorAll(".dr-moods")) {
+        if (!visible(row) || !inScope(row, scope)) continue;
+        const where = describe(row);
+        const moods = [...row.querySelectorAll(".dr-mood")];
+        if (moods.length !== 7) found.push(`${where} offers ${moods.length} Moods, not 7`);
+        const box = row.getBoundingClientRect();
+        const tops = new Set<number>();
+        for (const mood of moods) {
+          const rect = mood.getBoundingClientRect();
+          tops.add(Math.round(rect.top));
+          if (Math.round(rect.width) !== 44 || Math.round(rect.height) !== 44)
+            found.push(
+              `${describe(mood)} is ${Math.round(rect.width)}×${Math.round(rect.height)}px, not 44×44`,
+            );
+          if (rect.left < box.left - 0.5 || rect.right > box.right + 0.5)
+            found.push(`${describe(mood)} spills out of its row`);
+        }
+        if (tops.size > 1) found.push(`${where} wraps onto ${tops.size} lines`);
+      }
+      return found;
+    },
+    { scope },
+  );
+}
+
 export interface Secret {
   /** The other person's nickname. */
   name: string;

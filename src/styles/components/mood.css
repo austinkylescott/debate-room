@@ -1,20 +1,99 @@
-/* Mood. Spec: docs/design/components/Mood.md (restyled in its own issue). */
+/*
+ * Mood. Spec: docs/design/components/Mood.md, reference rules in docs/design/components.css.
+ *
+ *   .dr-moods         the row: a UI SDK ToggleGroup, seven on one line at 358px
+ *   .dr-mood          each Mood: a 44px round toggle, [aria-pressed=true] when it's yours
+ *   .dr-mood-inline   a Mood next to a name in running text
+ *   .mood-check-in    the Check-in card: question, countdown, picker, "Keep [Mood]"
+ *
+ * Selected is mustard with an ink ring, never the spark (hard rule 2).
+ */
 
-.moods {
+/* No fixed gap: inside a padded card the row is narrower than 358px, so space-between
+   spreads the seven 44px Moods over whatever width there is (308px is the least). */
+.dr-moods {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  justify-content: space-between;
+  max-width: 358px;
 }
 
-button.mood {
-  min-width: 44px;
-  padding: 6px 8px;
-  font-size: 1.4rem;
+button.dr-mood {
+  --btn-bg: var(--raised);
+  --btn-bd: transparent;
+  --btn-hover-bg: var(--raised);
+
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-width: 0;
+  border-radius: 50%;
+  font-size: 20px;
   line-height: 1;
+  transition: transform 0.15s ease;
 }
 
-/* Your Mood: selected, so mustard with an ink ring rather than the spark. */
-button.mood.picked {
-  border-color: var(--ink);
-  background: var(--mustard);
+button.dr-mood:hover:not(:disabled) {
+  transform: scale(1.08);
+  box-shadow: none;
+}
+
+button.dr-mood:active:not(:disabled) {
+  transform: scale(1);
+  box-shadow: none;
+}
+
+button.dr-mood[aria-pressed="true"] {
+  --btn-bg: var(--mustard);
+  --btn-hover-bg: var(--mustard);
+
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+button.dr-mood[aria-pressed="true"]:hover:not(:disabled) {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+button.dr-mood:disabled,
+button.dr-mood[aria-disabled="true"] {
+  opacity: 0.4;
+  border-style: none;
+  transform: none;
+}
+
+/* In a raised card the resting fill would vanish, so it rests on surface instead. */
+.dr-card--raised button.dr-mood:not([aria-pressed="true"]) {
+  --btn-bg: var(--surface);
+  --btn-hover-bg: var(--surface);
+}
+
+.dr-mood-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 600 13px var(--font-body);
+  white-space: nowrap;
+}
+
+.mood-check-in {
+  display: grid;
+  gap: 12px;
+}
+
+.mood-check-in > * {
+  margin: 0;
+}
+
+.mood-check-in .dr-card__title {
+  font-size: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.dr-mood {
+    transition: none;
+  }
+}
+
+.mood-check-in > button {
+  width: 100%;
 }

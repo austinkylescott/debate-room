@@ -26,6 +26,9 @@ export const REDESIGNED: RedesignedEntry[] = [
   { selector: ".dr-electron", issue: "#61" },
   { selector: ".dr-toast", issue: "#60" },
   { selector: ".dr-notice", issue: "#60" },
+  { selector: ".dr-moods", issue: "#62" },
+  { selector: ".mood-check-in", issue: "#62" },
+  { selector: ".dr-mood-inline", issue: "#62" },
   // Buttons (#55), Tags (#56) and Timers (#63), registered in #74. Tags and
   // timers aren't controls, so targets don't apply to them, and no tag holds a
   // name yet. The tags check (harness/checks.ts) covers every tag, on every screen.
