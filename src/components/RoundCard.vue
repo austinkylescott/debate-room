@@ -17,6 +17,7 @@ import {
   SIDE_MAX_LENGTH,
 } from "../room/lineup";
 import type { WaitingRoomPerson } from "../room/room";
+import ChoiceCheckbox from "./ChoiceCheckbox.vue";
 import PromptPicker from "./PromptPicker.vue";
 
 const props = defineProps<{
@@ -187,22 +188,22 @@ const value = (event: Event) => (event.target as HTMLInputElement).value;
         </form>
         <template v-else>
           <span class="name">{{ prompt.text }}</span>
-          <label class="check small">
-            <input
-              type="checkbox"
-              :checked="prompt.surprise"
-              @change="
+          <ChoiceCheckbox
+            inline
+            :checked="prompt.surprise"
+            @update:checked="
+              (surprise: boolean) =>
                 emit('send', {
                   type: 'edit-prompt',
                   roundId: round.id,
                   promptId: prompt.id,
                   text: prompt.text,
-                  surprise: !prompt.surprise,
+                  surprise,
                 })
-              "
-            />
+            "
+          >
             Surprise
-          </label>
+          </ChoiceCheckbox>
           <span class="actions">
             <button
               type="button"

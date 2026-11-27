@@ -40,7 +40,7 @@ async function createRoom(request: Request, env: Env): Promise<Response> {
     pin: body.pin,
     participantLimit: body.participantLimit,
   });
-  if (rejection) return json({ ok: false, message: rejection.message }, 400);
+  if (rejection) return json({ ok: false, code: rejection.code, message: rejection.message }, 400);
   return json({ ok: true, roomId, hostSecret }, 201);
 }
 

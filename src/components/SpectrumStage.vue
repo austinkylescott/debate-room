@@ -15,6 +15,7 @@ import type { FloorView, Intent, StageView } from "../room/room";
 import { notchesCrossed, SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
 import Electron from "./Electron.vue";
 import MoodPanel from "./MoodPanel.vue";
+import Notice from "./Notice.vue";
 import SpectrumSummary from "./SpectrumSummary.vue";
 
 const props = defineProps<{
@@ -241,6 +242,13 @@ const rowCount = computed(() => Math.max(0, ...Object.values(rows.value).map((r)
   <section class="card stage">
     <p class="eyebrow">Spectrum · Prompt {{ stage.promptNumber }} of {{ stage.promptCount }}</p>
     <h1>{{ stage.prompt.text }}</h1>
+    <Notice
+      v-if="spectrum.step === 'positioning' && spectrum.positionsVisible"
+      tone="host"
+      glyph="👁"
+    >
+      <b>Only you can see this.</b> You aren't Playing, so positions show before the reveal.
+    </Notice>
 
     <component :is="yours ? Field : 'div'" v-if="spectrum.step !== 'summary'" class="spectrum">
       <FieldLabel v-if="yours" class="spectrum-label">Your position</FieldLabel>

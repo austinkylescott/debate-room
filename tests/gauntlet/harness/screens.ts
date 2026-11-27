@@ -93,6 +93,24 @@ async function busyFloor(room: TestRoom, people: Bot[], { give = true } = {}) {
   }
 }
 
+/**
+ * Lets the page's WebSocket to the Room be dropped on cue, and kept down, so
+ * the page shows itself reconnecting. Call before opening the page.
+ */
+async function droppableConnection(page: Page) {
+  let online = true;
+  const sockets: { close(): Promise<void> }[] = [];
+  await page.routeWebSocket(/\/api\/parties\//, (ws) => {
+    if (!online) return void ws.close();
+    ws.connectToServer();
+    sockets.push(ws);
+  });
+  return async function drop() {
+    online = false;
+    for (const ws of sockets) await ws.close();
+  };
+}
+
 export const SCREENS: Screen[] = [
   {
     name: "Home",
@@ -139,6 +157,37 @@ export const SCREENS: Screen[] = [
     redesignedOnly: [],
   },
   {
+    // Toasts (#60): someone joins, then the connection drops. The pointer rests on the
+    // toasts, which pauses them, so they stay for the checks.
+    name: "Waiting Room (Host), with toasts",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin" });
+      await join(room, ["Ada"]);
+      const drop = await droppableConnection(page);
+      await openRoom(page, room, "host");
+      await join(room, ["Marcus Okonkwo-Hale"]);
+      await expect(page.getByText("joined the Room")).toBeVisible();
+      await drop();
+      await expect(page.getByText("Connection lost. Reconnecting…")).toBeVisible();
+      await page.locator("[data-slot=toast]").first().hover();
+      return { room, names: ["Robin", "Ada", "Marcus Okonkwo-Hale"] };
+    },
+    redesignedOnly: NOT_YET,
+  },
+  {
+    // Notices (#60): a Host who isn't Playing sees positions, and is told only they can.
+    name: "Spectrum Stage, before the reveal (Host, not Playing)",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin" });
+      await join(room, ["Ada", "Linus"]);
+      await startRound(room, { format: "spectrum" });
+      await openRoom(page, room, "host");
+      await expect(page.getByText("Only you can see this.")).toBeVisible();
+      return { room, names: ["Robin", "Ada", "Linus"] };
+    },
+    redesignedOnly: [...NOT_YET, "flat"],
+  },
+  {
     name: "Join",
     async open(page, baseURL) {
       const room = await createRoom(baseURL, { hostNickname: "Robin" });
@@ -147,6 +196,46 @@ export const SCREENS: Screen[] = [
       return { room, names: [] };
     },
     redesignedOnly: [],
+  },
+  {
+    name: "Join, nickname taken",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin" });
+      await join(room, ["Ada"]);
+      await openRoom(page, room, "visitor");
+      await page.getByRole("textbox", { name: "Your nickname" }).fill("Ada");
+      await page.getByRole("button", { name: "Join" }).click();
+      await expect(page.getByRole("textbox", { name: "Your nickname" })).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      return { room, names: [] };
+    },
+    redesignedOnly: [],
+  },
+  {
+    name: "Take back Host control, wrong PIN",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin" });
+      await openRoom(page, room, "visitor");
+      await page.getByRole("button", { name: "I'm the Host" }).click();
+      await page.getByLabel("Your Host PIN").fill("9999");
+      await page.getByRole("button", { name: "Continue as the Host" }).click();
+      await expect(page.getByLabel("Your Host PIN")).toHaveAttribute("aria-invalid", "true");
+      return { room, names: [] };
+    },
+    redesignedOnly: [],
+  },
+  {
+    name: "Planning, picking Prompts (Host)",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin", open: false });
+      await planRound(room, { format: "spectrum" }, []);
+      await openRoom(page, room, "host");
+      await expect(page.getByRole("checkbox").first()).toBeVisible();
+      return { room, names: ["Robin"] };
+    },
+    redesignedOnly: NOT_YET,
   },
   {
     name: "Waiting Room (Host)",

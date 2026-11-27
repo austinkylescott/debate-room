@@ -14,6 +14,8 @@ export interface RedesignedEntry {
 
 export const REDESIGNED: RedesignedEntry[] = [
   { selector: "[data-redesigned]", issue: "#54" },
+  { selector: ".field", issue: "#57" },
+  { selector: ".choice", issue: "#57" },
   // Interactive cards. Card containers (.dr-card) aren't listed: they hold other
   // components' controls (old link buttons, selects) that their own issues
   // restyle. The cards check (harness/checks.ts) covers the cards themselves,
@@ -21,6 +23,8 @@ export const REDESIGNED: RedesignedEntry[] = [
   { selector: "button.dr-card", issue: "#58" },
   { selector: "a.dr-card", issue: "#58" },
   { selector: ".dr-electron", issue: "#61" },
+  { selector: ".dr-toast", issue: "#60" },
+  { selector: ".dr-notice", issue: "#60" },
   // Buttons (#55), Tags (#56) and Timers (#63), registered in #74. Tags and
   // timers aren't controls, so targets don't apply to them, and no tag holds a
   // name yet. The tags check (harness/checks.ts) covers every tag, on every screen.

@@ -5,6 +5,7 @@ import type { SideIndex } from "../room/middle-ground";
 import type { FloorView, Intent, StageView } from "../room/room";
 import Electron from "./Electron.vue";
 import MoodPanel from "./MoodPanel.vue";
+import Notice from "./Notice.vue";
 
 const props = defineProps<{
   stage: Extract<StageView, { format: "middle-ground" }>;
@@ -82,6 +83,9 @@ const advanceLabel = computed(() => {
       Middle Ground · Prompt {{ stage.promptNumber }} of {{ stage.promptCount }}
     </p>
     <h1>{{ stage.prompt.text }}</h1>
+    <Notice v-if="middle.step === 'choosing' && middle.choicesVisible" tone="host" glyph="👁">
+      <b>Only you can see this.</b> You aren't Playing, so choices show before the reveal.
+    </Notice>
 
     <!-- The Sides and the middle -->
     <div v-if="middle.step !== 'summary'" class="middle-ground">
