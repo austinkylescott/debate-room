@@ -14,4 +14,10 @@ export const SPARK_ALLOWLIST: SparkAllowed[] = [
   { selector: "button.primary", why: "The screen's one primary action" },
   { selector: ".dr-tag--live", why: "The Live status pill" },
   { selector: ".spectrum [data-slot='slider-thumb']", why: "Your own notch on the Spectrum" },
+  // Timer.md draws countdowns orange: the speaker's time, and your Check-in.
+  { selector: ".dr-timer__arc", why: "Whoever has the Floor: their time draining (Timer.md)" },
+  {
+    selector: ".dr-timer-bar__stripe",
+    why: "The Mood Check-in countdown: your move to pick a Mood (Timer.md)",
+  },
 ];
