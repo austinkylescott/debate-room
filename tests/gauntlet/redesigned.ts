@@ -12,6 +12,10 @@ export interface RedesignedEntry {
   issue: string;
 }
 
-export const REDESIGNED: RedesignedEntry[] = [{ selector: "[data-redesigned]", issue: "#54" }];
+export const REDESIGNED: RedesignedEntry[] = [
+  { selector: "[data-redesigned]", issue: "#54" },
+  { selector: ".field", issue: "#57" },
+  { selector: ".choice", issue: "#57" },
+];
 
 export const REDESIGNED_SELECTORS = REDESIGNED.map((entry) => entry.selector);

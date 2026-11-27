@@ -1,6 +1,6 @@
 // Messages between a client and its Room's Durable Object. Clients send
 // intents (see `Intent` in ./room); the server answers with these.
-import type { RecapEvent, Rejection, View } from "./room";
+import type { RecapEvent, Rejection, RejectionCode, View } from "./room";
 
 export type ServerMessage =
   /** The connection's own view, sent on connect and after every change. */
@@ -30,7 +30,8 @@ export interface CreateRoomRequest {
 
 export type CreateRoomResponse =
   | { ok: true; roomId: string; hostSecret: string }
-  | { ok: false; message: string };
+  /** `code` is there when the Room refused it, so the form can show it on the right field. */
+  | { ok: false; code?: RejectionCode; message: string };
 
 /** Path prefix for Room WebSockets, under /api so the Worker handles them first. */
 export const PARTY_PREFIX = "api/parties";

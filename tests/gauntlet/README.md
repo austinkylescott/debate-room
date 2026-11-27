@@ -28,6 +28,7 @@ The per-screen checks (`harness/checks.ts`, run by `harness/gauntlet.ts`):
 | `focus`          | Gauntlet 4, hard rule 5 | Tabbing from the top visits stops in DOM order, and each shows a 3px solid `--focus` ring offset 2px                                                             |
 | `reduced motion` | Gauntlet 5, hard rule 6 | No `<animate>`, `<animateMotion>`, `<animateTransform>` or `<set>`, and no CSS animation running                                                                 |
 | `flat`           | Hard rule 7             | No gradients, blur or backdrop filters                                                                                                                           |
+| `choices`        | Hard rule 8             | Every radio and checkbox sits on the same line as its label, at most 16px before its first letter                                                                |
 | `targets`        | Gauntlet 4, hard rule 5 | Every visible control is at least 44×44px (a wrapping `<label>` counts)                                                                                          |
 | `names`          | Gauntlet 1, hard rule 3 | Every name label is one line, `white-space: nowrap`, cut only with an ellipsis, has the full name in `title` and its accessible name, and overlaps no other name |
 
@@ -37,7 +38,7 @@ The crowd test (gauntlet 1) is two of the screens: `crowd()` gives a Waiting Roo
 
 Some checks fail on parts of the app the redesign hasn't reached (old 28px link buttons, names that wrap letter by letter, the Spectrum track's gradient). Those checks are never skipped. Instead, each screen lists in `redesignedOnly` the checks its old parts still fail, and on that screen those checks look only at the **redesigned elements**: anything matching a selector in `redesigned.ts`, or inside one, or carrying a `data-redesigned` attribute. Everything else runs on the whole page.
 
-So on `main` today, contrast, spark, focus, reduced motion and flat hold on every screen except flat on the two Spectrum screens. Targets and names hold nowhere yet, so they run on the redesigned parts only.
+So on `main` today, contrast, spark, focus, reduced motion, flat and choices hold on every screen except flat on the two Spectrum screens. Targets hold on Home, Join and taking back Host control; elsewhere targets and names run on the redesigned parts only.
 
 ## Adding a component's checks
 

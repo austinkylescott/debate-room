@@ -11,6 +11,7 @@ export const CHECKS = {
   focus: (page, scope) => checks.focus(page, scope),
   "reduced motion": (page, scope) => checks.reducedMotion(page, scope),
   flat: (page, scope) => checks.flat(page, scope),
+  choices: (page, scope) => checks.choices(page, scope),
   targets: (page, scope) => checks.targets(page, scope),
   names: (page, scope, names) => checks.names(page, names, scope),
 } satisfies Record<string, (page: Page, scope: Scope, names: string[]) => Promise<Violations>>;

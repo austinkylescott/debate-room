@@ -31,7 +31,10 @@ test("contrast flags low-contrast text", async ({ page }) => {
 });
 
 test("targets flags controls under 44×44px, counting a wrapping label", async ({ page }) => {
-  await plant(page, `<button style="width: 40px; height: 44px">Go</button>`);
+  await plant(
+    page,
+    `<button style="min-width: 0; padding: 0; width: 40px; height: 44px">Go</button>`,
+  );
   expect(await checks.targets(page, SCOPE)).toEqual([expect.stringContaining("40×44px")]);
   await plant(
     page,
@@ -96,6 +99,30 @@ test("flat flags gradients and blur", async ({ page }) => {
   ]);
   await plant(page, `<div style="height: 4px; background: var(--teal)"></div>`);
   expect(await checks.flat(page, SCOPE)).toEqual([]);
+});
+
+test("choices flags a radio or checkbox that sits away from its label", async ({ page }) => {
+  await plant(
+    page,
+    `<label style="display: flex"><input type="radio" style="width: 200px"> Far away</label>
+     <label style="display: block"><input type="checkbox" style="display: block"> Underneath</label>
+     <span role="checkbox" aria-checked="false" aria-labelledby="fixture-off" tabindex="0" style="display: inline-block; width: 22px; height: 22px"></span>
+     <span id="fixture-off" style="margin-left: 80px">Off to the side</span>`,
+  );
+  expect(await checks.choices(page, SCOPE)).toEqual([
+    expect.stringMatching(/input sits \d+px from its label$/),
+    expect.stringContaining("on another line"),
+    expect.stringMatching(/span sits \d+px from its label$/),
+  ]);
+  await plant(
+    page,
+    `<label style="display: flex; gap: 12px; align-items: center"><input type="checkbox"> Right here</label>
+     <label style="display: flex; gap: 12px; align-items: center">
+       <span role="radio" aria-checked="true" aria-labelledby="fixture-near" tabindex="0" style="display: inline-block; width: 22px; height: 22px"><input type="radio" aria-hidden="true" style="position: absolute; opacity: 0"></span>
+       <span id="fixture-near">Beside it</span>
+     </label>`,
+  );
+  expect(await checks.choices(page, SCOPE)).toEqual([]);
 });
 
 test("names flags names that wrap, break, lack a title or overlap", async ({ page }) => {
