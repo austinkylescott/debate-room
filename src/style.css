@@ -77,6 +77,9 @@ p {
 
 a {
   color: var(--accent);
+  /* web.css greys the underline and offsets it; keep the browser's look. */
+  text-decoration-color: currentColor;
+  text-underline-offset: auto;
 }
 
 /* Mobile-first: a single column that stays readable on wider screens. */
@@ -127,6 +130,8 @@ input {
   color: var(--text-h);
 }
 
+a:focus-visible,
+summary:focus-visible,
 input:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--accent);
