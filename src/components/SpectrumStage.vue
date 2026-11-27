@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { Intent, StageView } from "../room/room";
 import { MOODS } from "../room/mood";
 import { notchesCrossed, SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
+import { useSpectrumDraft } from "../lib/spectrumDraft";
 import MoodPanel from "./MoodPanel.vue";
 import SpectrumSummary from "./SpectrumSummary.vue";
 
@@ -28,16 +29,7 @@ const canMove = computed(
 );
 const lockedCount = computed(() => spectrum.value.people.filter((p) => p.lockedIn).length);
 
-const midpoint = (SPECTRUM_MIN + SPECTRUM_MAX) / 2;
-const draft = ref(yours.value?.position ?? midpoint);
-
-// A new Prompt (or a reconnect) starts the slider from where the Room has it.
-watch(
-  () => [props.stage.prompt.id, spectrum.value.step] as const,
-  () => {
-    draft.value = yours.value?.position ?? midpoint;
-  },
-);
+const draft = useSpectrumDraft(() => props.stage);
 
 let lastSent = 0;
 let pending: ReturnType<typeof setTimeout> | undefined;
