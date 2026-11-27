@@ -83,6 +83,8 @@ describe("the script index.html runs before first paint", () => {
 
   function boot(storage: object) {
     const root = fakeRoot();
+    // Runs the exact script index.html ships, with fakes for what it touches.
+    // oxlint-disable-next-line no-implied-eval
     new Function("document", "localStorage", script)({ documentElement: root }, storage);
     return root.theme;
   }

@@ -1,0 +1,89 @@
+/*
+ * Theme toggle (#67): System, Dark or Light, in the app bar at the top right of every
+ * screen. Not designed in the handoff: built from the core tokens, pending design review.
+ * UI SDK SegmentedControl (a radio group); its items are <button>s, so button.css applies
+ * and is undone here. Selection is ink on raised (hard rule 2: never the spark).
+ */
+
+.app-bar {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.app-bar + .shell {
+  padding-top: var(--space-2);
+}
+
+@media (min-width: 720px) {
+  .app-bar + .shell {
+    padding-top: var(--space-6);
+  }
+}
+
+[data-slot="segmented-control"].theme-toggle {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 2px solid var(--muted);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+.theme-toggle [data-slot="segmented-control-item"] {
+  --btn-bd: transparent;
+  --btn-hover-bg: transparent;
+  --btn-fg: var(--muted);
+
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 var(--space-3);
+  box-shadow: none;
+  font: 600 13px/16px var(--font-body);
+  white-space: nowrap;
+}
+
+.theme-toggle [data-slot="segmented-control-item"]:hover {
+  --btn-fg: var(--ink);
+
+  transform: none;
+  box-shadow: none;
+}
+
+.theme-toggle [data-slot="segmented-control-item"]:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.theme-toggle [data-slot="segmented-control-item"][data-checked] {
+  --btn-fg: var(--ink);
+}
+
+.theme-toggle [data-slot="segmented-control-indicator"] {
+  position: absolute;
+  z-index: -1;
+  top: var(--segmented-control-indicator-top);
+  left: var(--segmented-control-indicator-left);
+  width: var(--segmented-control-indicator-width);
+  height: var(--segmented-control-indicator-height);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  background: var(--raised);
+  transition-property: top, left, width, height;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+}
+
+.theme-toggle [data-slot="segmented-control-indicator"][data-activation-direction="none"] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle [data-slot="segmented-control-indicator"] {
+    transition: none;
+  }
+}

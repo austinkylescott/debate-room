@@ -20,6 +20,7 @@ export const REDESIGNED: RedesignedEntry[] = [
   // on every screen.
   { selector: "button.dr-card", issue: "#58" },
   { selector: "a.dr-card", issue: "#58" },
+  { selector: ".theme-toggle", issue: "#67" },
 ];
 
 export const REDESIGNED_SELECTORS = REDESIGNED.map((entry) => entry.selector);

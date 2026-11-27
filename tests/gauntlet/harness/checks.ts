@@ -128,8 +128,11 @@ export async function targets(page: Page, scope: Scope = null): Promise<Violatio
   return page.evaluate(
     ({ controls, scope, min }) => {
       const { describe, visible, inScope } = window.__gauntlet;
+      // UI SDK's hidden native input mirrors a role=radio for forms: nobody can press it.
+      const pressable = (el: Element) =>
+        !(el.matches("input[aria-hidden=true]") && getComputedStyle(el).pointerEvents === "none");
       return [...document.querySelectorAll(controls)]
-        .filter((el) => visible(el) && inScope(el, scope))
+        .filter((el) => visible(el) && inScope(el, scope) && pressable(el))
         .flatMap((el) => {
           const own = el.getBoundingClientRect();
           const label = el.closest("label")?.getBoundingClientRect();

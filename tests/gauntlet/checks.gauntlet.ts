@@ -44,6 +44,23 @@ test("targets flags controls under 44×44px, counting a wrapping label", async (
   expect(await checks.targets(page, SCOPE)).toEqual([]);
 });
 
+test("targets skips UI SDK's hidden form input, but not a small input that can be pressed", async ({
+  page,
+}) => {
+  await plant(
+    page,
+    `<input type="radio" aria-hidden="true" style="width: 10px; height: 10px; margin: 0">`,
+  );
+  expect(await checks.targets(page, SCOPE)).toEqual([expect.stringContaining("10×10px")]);
+  await plant(
+    page,
+    `<button role="radio" aria-checked="true" style="width: 44px; height: 44px">On</button>
+     <input type="radio" aria-hidden="true" tabindex="-1"
+       style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none">`,
+  );
+  expect(await checks.targets(page, SCOPE)).toEqual([]);
+});
+
 test("focus flags a missing ring and focus out of DOM order", async ({ page }) => {
   await plant(page, `<button style="outline: none !important">No ring</button>`);
   expect(await checks.focus(page, SCOPE)).toEqual([expect.stringContaining("No ring")]);

@@ -13,11 +13,12 @@ The by-hand checks (glance, tone, side by side with Discord) stay by hand.
 
 ## What runs
 
-| File                  | What it checks                                                                                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `screens.gauntlet.ts` | Every check below, on every screen in `harness/screens.ts`, in light and dark, at 390×844 and 1280×800, with reduced motion on                                      |
-| `leak.gauntlet.ts`    | Gauntlet 2, the leak test, for the Spectrum and Middle Ground before the reveal, plus a control that proves the probes still see what a Host who isn't Playing sees |
-| `checks.gauntlet.ts`  | The checks themselves: each must flag a planted violation and pass a good fixture                                                                                   |
+| File                  | What it checks                                                                                                                                                       |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `screens.gauntlet.ts` | Every check below, on every screen in `harness/screens.ts`, in light and dark, at 390×844 and 1280×800, with reduced motion on                                       |
+| `leak.gauntlet.ts`    | Gauntlet 2, the leak test, for the Spectrum and Middle Ground before the reveal, plus a control that proves the probes still see what a Host who isn't Playing sees  |
+| `theme.gauntlet.ts`   | The theme toggle (#67): no flash of the wrong theme on load, switching repaints at once and survives a reload, System follows the OS live, same spot on every screen |
+| `checks.gauntlet.ts`  | The checks themselves: each must flag a planted violation and pass a good fixture                                                                                    |
 
 The per-screen checks (`harness/checks.ts`, run by `harness/gauntlet.ts`):
 
@@ -28,7 +29,7 @@ The per-screen checks (`harness/checks.ts`, run by `harness/gauntlet.ts`):
 | `focus`          | Gauntlet 4, hard rule 5 | Tabbing from the top visits stops in DOM order, and each shows a 3px solid `--focus` ring offset 2px                                                             |
 | `reduced motion` | Gauntlet 5, hard rule 6 | No `<animate>`, `<animateMotion>`, `<animateTransform>` or `<set>`, and no CSS animation running                                                                 |
 | `flat`           | Hard rule 7             | No gradients, blur or backdrop filters                                                                                                                           |
-| `targets`        | Gauntlet 4, hard rule 5 | Every visible control is at least 44×44px (a wrapping `<label>` counts)                                                                                          |
+| `targets`        | Gauntlet 4, hard rule 5 | Every visible control is at least 44×44px (a wrapping `<label>` counts; UI SDK's hidden form input doesn't)                                                      |
 | `names`          | Gauntlet 1, hard rule 3 | Every name label is one line, `white-space: nowrap`, cut only with an ellipsis, has the full name in `title` and its accessible name, and overlaps no other name |
 
 The crowd test (gauntlet 1) is two of the screens: `crowd()` gives a Waiting Room of 15 Participants with 20-character names, and `crowdOnOneNotch()` puts all of them on one Spectrum notch and reveals.
