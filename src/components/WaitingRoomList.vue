@@ -69,7 +69,7 @@ const canRemove = (person: WaitingRoomPerson) =>
           Host
         </span>
         <span v-if="person.isCoHost" class="dr-tag dr-tag--cohost">Co-Host</span>
-        <span v-if="person.id === youId" class="dr-tag">You</span>
+        <span v-if="person.id === youId" class="dr-tag dr-tag--outline">You</span>
         <span v-if="canManage" class="actions">
           <button type="button" class="link" @click="startRename(person)">Rename</button>
           <template v-if="isHost && canBeCoHosts && !person.isHost">
