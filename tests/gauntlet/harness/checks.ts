@@ -450,6 +450,72 @@ export async function cards(page: Page, scope: Scope = null): Promise<Violations
   );
 }
 
+/** What the Tag spec calls a tag: the new class and the Stages' legacy one. */
+const TAGS = ".dr-tag, .tag";
+
+/**
+ * Tags (docs/design/components/Tag.md): every tag sits on one of the three
+ * documented grounds (`ground`, `surface`, `raised`) and reads there as a pill:
+ * its fill, border or outline shadow differs from the ground behind it. So a
+ * `raised` tag on a `raised` card, whose edge vanishes, fails.
+ */
+export async function tags(page: Page, scope: Scope = null): Promise<Violations> {
+  await withHelpers(page);
+  return page.evaluate(
+    ({ selector, scope }) => {
+      const { describe, visible, inScope, resolveColor } = window.__gauntlet;
+      const grounds = new Map(
+        ["ground", "surface", "raised"].map((token) => [resolveColor(`var(--${token})`), token]),
+      );
+      const clear = (color: string) => color === "transparent" || /rgba\(.*,\s*0\)$/.test(color);
+      /** The colour behind `el`: the nearest ancestor with a fill. */
+      const groundOf = (el: Element) => {
+        for (let node = el.parentElement; node; node = node.parentElement) {
+          const fill = getComputedStyle(node).backgroundColor;
+          if (!clear(fill)) return fill;
+        }
+        return getComputedStyle(document.documentElement).backgroundColor;
+      };
+      /** The colour of each shadow in a computed `box-shadow` that draws something. */
+      const shadowColors = (value: string) =>
+        value === "none"
+          ? []
+          : value.split(/,(?![^(]*\))/).flatMap((shadow) => {
+              const color = shadow.match(/rgba?\([^)]*\)/)?.[0] ?? "";
+              const lengths = shadow.replace(color, "").match(/-?[\d.]+px/g) ?? [];
+              return color && lengths.some((n) => parseFloat(n) !== 0) ? [color] : [];
+            });
+      const found: string[] = [];
+      for (const el of document.querySelectorAll(selector)) {
+        if (!visible(el) || !inScope(el, scope)) continue;
+        const where = describe(el);
+        const ground = groundOf(el);
+        const token = grounds.get(ground);
+        if (!token) {
+          found.push(`${where} sits on ${ground}, not on --ground, --surface or --raised`);
+          continue;
+        }
+        const style = getComputedStyle(el);
+        const borders = ["top", "right", "bottom", "left"]
+          .filter(
+            (side) =>
+              parseFloat(style.getPropertyValue(`border-${side}-width`)) > 0 &&
+              style.getPropertyValue(`border-${side}-style`) !== "none",
+          )
+          .map((side) => style.getPropertyValue(`border-${side}-color`));
+        const edges = [style.backgroundColor, ...shadowColors(style.boxShadow), ...borders];
+        if (!edges.some((color) => !clear(color) && color !== ground)) {
+          found.push(
+            `${where} doesn't read as a pill on --${token}: no fill or outline apart from it`,
+          );
+        }
+      }
+      return found;
+    },
+    { selector: TAGS, scope },
+  );
+}
+
 export interface Secret {
   /** The other person's nickname. */
   name: string;
