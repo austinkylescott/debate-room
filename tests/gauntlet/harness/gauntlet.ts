@@ -13,6 +13,7 @@ export const CHECKS = {
   flat: (page, scope) => checks.flat(page, scope),
   targets: (page, scope) => checks.targets(page, scope),
   names: (page, scope, names) => checks.names(page, names, scope),
+  cards: (page, scope) => checks.cards(page, scope),
 } satisfies Record<string, (page: Page, scope: Scope, names: string[]) => Promise<Violations>>;
 
 export type CheckName = keyof typeof CHECKS;

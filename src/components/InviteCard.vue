@@ -12,7 +12,7 @@ watchEffect(async () => {
 </script>
 
 <template>
-  <div class="invite">
+  <div class="invite dr-card dr-card--raised">
     <img v-if="qrDataUrl" class="qr" :src="qrDataUrl" alt="QR code for the invite link" />
     <CopyField label="Invite link" :value="url" />
   </div>

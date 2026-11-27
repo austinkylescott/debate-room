@@ -34,7 +34,9 @@ describe("the pole a position fills the disc with", () => {
 
 describe("the Floor marks on someone's electron", () => {
   const floor = {
-    holders: [{ personId: "linus", nickname: "Linus", endsAt: null, timeUp: false }],
+    holders: [
+      { personId: "linus", nickname: "Linus", endsAt: null, durationSeconds: null, timeUp: false },
+    ],
     timerSeconds: null,
     raisedHands: [
       { personId: "grace", nickname: "Grace" },

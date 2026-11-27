@@ -31,10 +31,9 @@ test("contrast flags low-contrast text", async ({ page }) => {
 });
 
 test("targets flags controls under 44×44px, counting a wrapping label", async ({ page }) => {
-  // No min-width or padding, or button.css (a 44px floor, 20px side padding) would hide the plant.
   await plant(
     page,
-    `<button style="width: 40px; min-width: 0; padding: 0; height: 44px">Go</button>`,
+    `<button style="min-width: 0; padding: 0; width: 40px; height: 44px">Go</button>`,
   );
   expect(await checks.targets(page, SCOPE)).toEqual([expect.stringContaining("40×44px")]);
   await plant(
@@ -134,6 +133,37 @@ test("names flags names that wrap, break, lack a title or overlap", async ({ pag
      <p>${name} said something long enough to wrap onto a second line in a sentence.</p>`,
   );
   expect(await checks.names(page, [name], SCOPE)).toEqual([]);
+});
+
+test("cards flags the wrong fill, corners or shadow, a same-way lean and a div that acts as a button", async ({
+  page,
+}) => {
+  await plant(
+    page,
+    `<div class="dr-card" style="background: var(--raised)">Wrong fill</div>
+     <div class="dr-card dr-card--flip" style="border-radius: 14px">Round corners</div>
+     <div class="dr-card dr-card--raised" style="box-shadow: var(--lift)">Raised with a shadow</div>
+     <div class="dr-card" style="box-shadow: none">Same lean, no lift</div>
+     <div class="dr-card dr-card--flip"></div>
+     <div class="dr-card" role="button" tabindex="0"
+       style="border-radius: var(--radius-lg) 8px var(--radius-lg) 8px">Pretend button</div>`,
+  );
+  expect(await checks.cards(page, SCOPE)).toEqual([
+    expect.stringContaining("not --surface"),
+    expect.stringContaining("has corners 14 14 14 14"),
+    expect.stringContaining("is raised but has a shadow"),
+    expect.stringContaining("doesn't have the --lift shadow"),
+    expect.stringContaining("lean the same way"),
+    expect.stringContaining("isn't a <button> or <a href>"),
+  ]);
+  await plant(
+    page,
+    `<div class="dr-card"><h4 class="dr-card__title">Food Fights</h4>
+       <div class="dr-card dr-card--raised">Nested</div></div>
+     <button type="button" class="dr-card is-selected">Spectrum</button>
+     <a class="dr-card" href="#">Middle Ground</a>`,
+  );
+  expect(await checks.cards(page, SCOPE)).toEqual([]);
 });
 
 test("leak flags hidden values in attributes, styles and the accessibility tree", async ({

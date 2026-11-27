@@ -113,6 +113,32 @@ export const SCREENS: Screen[] = [
     redesignedOnly: NOT_YET,
   },
   {
+    // Cards (#58): an empty Round opens the Prompt picker, with the chosen Pack as a card.
+    name: "Planning (Host), adding Prompts",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin", open: false });
+      await planRound(room, { format: "spectrum" }, ["Pineapple belongs on pizza"]);
+      await planRound(room, { format: "middle-ground", sides: ["Cats", "Dogs"] }, []);
+      await openRoom(page, room, "host");
+      return { room, names: ["Robin"] };
+    },
+    redesignedOnly: NOT_YET,
+  },
+  {
+    // Cards (#58): the Lineup Preview's Rounds, before the Room opens.
+    name: "Planning (visitor)",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin", open: false });
+      await planRound(room, { format: "spectrum" }, ["Pineapple belongs on pizza"]);
+      await planRound(room, { format: "middle-ground", sides: ["Cats", "Dogs"] }, [
+        "Who makes the better pet",
+      ]);
+      await openRoom(page, room, "visitor");
+      return { room, names: [] };
+    },
+    redesignedOnly: ["targets"],
+  },
+  {
     name: "Join",
     async open(page, baseURL) {
       const room = await createRoom(baseURL, { hostNickname: "Robin" });

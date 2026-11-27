@@ -24,6 +24,7 @@ import {
   setFloorTimer,
   takeFloor,
   tickFloor,
+  upgradeFloor,
   viewFloor,
 } from "./floor";
 import {
@@ -671,7 +672,7 @@ export function upgradeState(stored: RoomState, now: number): RoomState {
         }
       : null,
     playedRoundIds: stored.playedRoundIds ?? [],
-    floor: stored.floor ?? emptyFloor(),
+    floor: upgradeFloor(stored.floor, now),
     lastActivityAt: stored.lastActivityAt ?? now,
   };
 }

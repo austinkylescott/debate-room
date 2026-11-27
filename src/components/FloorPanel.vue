@@ -59,7 +59,7 @@ function setTimer(event: Event) {
         <Timer
           v-if="holder.endsAt !== null"
           :ends-at="holder.endsAt"
-          :total-seconds="floor.timerSeconds ?? 0"
+          :total-seconds="holder.durationSeconds ?? 0"
           :time-up="holder.timeUp"
           :label="
             holder.personId === youId ? 'Your speaking time' : `${holder.nickname}'s speaking time`
