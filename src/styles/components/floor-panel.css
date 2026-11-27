@@ -1,0 +1,10 @@
+/* The Floor (FloorPanel). Becomes the kidney container and Timer (docs/design/components/Timer.md). */
+
+.floor h3 {
+  margin: 16px 0 8px;
+}
+
+.floor .grow {
+  flex: 1;
+  margin: 0;
+}

@@ -243,7 +243,7 @@ const advanceLabel = computed(() => {
 
 <style scoped>
 .surrounded .seat {
-  border: 1px solid var(--border);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 0.75rem;
   text-align: center;

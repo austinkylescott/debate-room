@@ -1,0 +1,28 @@
+/* Card. Spec: docs/design/components/Card.md (restyled in its own issue). */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+/* A Round in the Lineup (RoundCard, LineupPreview). */
+.round {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.round-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.round-head .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}

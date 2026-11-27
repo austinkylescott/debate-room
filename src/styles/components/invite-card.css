@@ -1,0 +1,20 @@
+/* InviteCard: the invite link and its QR code. */
+
+.invite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.invite .field {
+  width: 100%;
+}
+
+/* The QR image brings its own light quiet zone, so it scans in either theme. */
+.qr {
+  width: 240px;
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+}

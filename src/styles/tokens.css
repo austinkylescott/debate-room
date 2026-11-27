@@ -1,0 +1,125 @@
+/* Copied from the design handoff (docs/design/tokens.css); tokens.test.ts checks it against tokens.json. */
+/* Debate Room tokens. Generated from tokens.json. Dark is the default theme. */
+:root,
+[data-theme="dark"] {
+  --ground: #132229;
+  --surface: #1b2f38;
+  --raised: #26414c;
+  --line: #355561;
+  --ink: #fbf1dc;
+  --muted: #b5c3c0;
+  --primary: #f2733a;
+  --on-primary: #1a0f08;
+  --primary-text: #ff9a63;
+  --mustard: #f5b82e;
+  --teal: #3fb8a9;
+  --on-teal: #10181c;
+  --avocado: #a3c255;
+  --pink: #ef86b4;
+  --sky: #5bb4e4;
+  --disagree: #1f6f9e;
+  --on-disagree: #ffffff;
+  --agree: #f5b82e;
+  --on-agree: #1a0f08;
+  --chill: #a3c255;
+  --spicy: #ff8796;
+  --focus: #f5b82e;
+  --lift: 0 6px 0 #0b161b;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground: #f5e8cf;
+    --surface: #fffaf0;
+    --raised: #eedcbc;
+    --line: #d9c6a3;
+    --ink: #1d2b33;
+    --muted: #55605f;
+    --primary: #e3602a;
+    --on-primary: #1a0f08;
+    --primary-text: #a3401a;
+    --mustard: #f2ad1d;
+    --teal: #2f8f8a;
+    --on-teal: #10181c;
+    --avocado: #8c9a2e;
+    --pink: #e2739f;
+    --sky: #4aa3d8;
+    --disagree: #1f6f9e;
+    --on-disagree: #ffffff;
+    --agree: #f5b82e;
+    --on-agree: #1a0f08;
+    --chill: #4d6b12;
+    --spicy: #a92e45;
+    --focus: #1d2b33;
+    --lift: 0 6px 0 #e0c99f;
+  }
+}
+[data-theme="light"] {
+  --ground: #f5e8cf;
+  --surface: #fffaf0;
+  --raised: #eedcbc;
+  --line: #d9c6a3;
+  --ink: #1d2b33;
+  --muted: #55605f;
+  --primary: #e3602a;
+  --on-primary: #1a0f08;
+  --primary-text: #a3401a;
+  --mustard: #f2ad1d;
+  --teal: #2f8f8a;
+  --on-teal: #10181c;
+  --avocado: #8c9a2e;
+  --pink: #e2739f;
+  --sky: #4aa3d8;
+  --disagree: #1f6f9e;
+  --on-disagree: #ffffff;
+  --agree: #f5b82e;
+  --on-agree: #1a0f08;
+  --chill: #4d6b12;
+  --spicy: #a92e45;
+  --focus: #1d2b33;
+  --lift: 0 6px 0 #e0c99f;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius: 14px;
+  --radius-lg: 28px;
+  --radius-pill: 999px;
+  --font-display: Righteous, system-ui, sans-serif;
+  --font-body: Jost, system-ui, sans-serif;
+}
+
+/* Type styles */
+.t-prompt {
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 34px;
+  font-weight: 400;
+}
+.t-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 400;
+}
+.t-count {
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 40px;
+  font-weight: 400;
+}
+.t-body-text {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+}
+.t-label {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 600;
+}

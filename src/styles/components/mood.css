@@ -1,0 +1,20 @@
+/* Mood. Spec: docs/design/components/Mood.md (restyled in its own issue). */
+
+.moods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+button.mood {
+  min-width: 44px;
+  padding: 6px 8px;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+/* Your Mood: selected, so mustard with an ink ring rather than the spark. */
+button.mood.picked {
+  border-color: var(--ink);
+  background: var(--mustard);
+}
