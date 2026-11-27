@@ -22,6 +22,7 @@ export const REDESIGNED: RedesignedEntry[] = [
   // on every screen.
   { selector: "button.dr-card", issue: "#58" },
   { selector: "a.dr-card", issue: "#58" },
+  { selector: ".theme-toggle", issue: "#67" },
   { selector: ".dr-electron", issue: "#61" },
   { selector: ".dr-toast", issue: "#60" },
   { selector: ".dr-notice", issue: "#60" },

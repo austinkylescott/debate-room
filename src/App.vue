@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { watchEffect } from "vue";
+import ThemeToggle from "./components/ThemeToggle.vue";
 import ToastStack from "./components/ToastStack.vue";
 import { saveHostSecret } from "./lib/device";
 import { navigate, roomPath, route } from "./lib/route";
@@ -17,6 +18,9 @@ watchEffect(() => {
 </script>
 
 <template>
+  <header class="app-bar">
+    <ThemeToggle />
+  </header>
   <main class="shell">
     <HomePage v-if="route.name === 'home'" />
     <RoomPage v-else-if="route.name === 'room'" :key="route.roomId" :room-id="route.roomId" />

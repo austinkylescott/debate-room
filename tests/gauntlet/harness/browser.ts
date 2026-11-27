@@ -13,13 +13,14 @@ export const VIEWPORTS = {
 } as const;
 
 /**
- * Sets the theme the way the app's own override does (`data-theme` on `<html>`),
- * and the OS preference to match. Call before or after navigating: it sticks
- * across navigations and applies to the page now.
+ * Sets the theme the way the app's own override does (`data-theme` on `<html>`,
+ * saved as the theme toggle saves it), and the OS preference to match. Call
+ * before or after navigating: it sticks across navigations and applies to the page now.
  */
 export async function setTheme(page: Page, theme: Theme) {
   await page.emulateMedia({ colorScheme: theme });
   await page.addInitScript((value) => {
+    localStorage.setItem("debate-room:theme", value);
     document.documentElement.dataset.theme = value;
   }, theme);
   await page.evaluate((value) => {

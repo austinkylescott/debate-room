@@ -13,11 +13,12 @@ The by-hand checks (glance, tone, side by side with Discord) stay by hand.
 
 ## What runs
 
-| File                  | What it checks                                                                                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `screens.gauntlet.ts` | Every check below, on every screen in `harness/screens.ts`, in light and dark, at 390×844 and 1280×800, with reduced motion on                                      |
-| `leak.gauntlet.ts`    | Gauntlet 2, the leak test, for the Spectrum and Middle Ground before the reveal, plus a control that proves the probes still see what a Host who isn't Playing sees |
-| `checks.gauntlet.ts`  | The checks themselves: each must flag a planted violation and pass a good fixture                                                                                   |
+| File                  | What it checks                                                                                                                                                       |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `screens.gauntlet.ts` | Every check below, on every screen in `harness/screens.ts`, in light and dark, at 390×844 and 1280×800, with reduced motion on                                       |
+| `leak.gauntlet.ts`    | Gauntlet 2, the leak test, for the Spectrum and Middle Ground before the reveal, plus a control that proves the probes still see what a Host who isn't Playing sees  |
+| `theme.gauntlet.ts`   | The theme toggle (#67): no flash of the wrong theme on load, switching repaints at once and survives a reload, System follows the OS live, same spot on every screen |
+| `checks.gauntlet.ts`  | The checks themselves: each must flag a planted violation and pass a good fixture                                                                                    |
 
 The per-screen checks (`harness/checks.ts`, run by `harness/gauntlet.ts`):
 
@@ -29,7 +30,7 @@ The per-screen checks (`harness/checks.ts`, run by `harness/gauntlet.ts`):
 | `reduced motion` | Gauntlet 5, hard rule 6 | No `<animate>`, `<animateMotion>`, `<animateTransform>` or `<set>`, and no CSS animation running                                                                                                                                   |
 | `flat`           | Hard rule 7             | No gradients, blur or backdrop filters                                                                                                                                                                                             |
 | `choices`        | Hard rule 8             | Every radio and checkbox sits on the same line as its label, at most 16px before its first letter                                                                                                                                  |
-| `targets`        | Gauntlet 4, hard rule 5 | Every visible control is at least 44×44px (a wrapping `<label>` counts)                                                                                                                                                            |
+| `targets`        | Gauntlet 4, hard rule 5 | Every visible control is at least 44×44px (a wrapping `<label>` counts; UI SDK's hidden form input doesn't)                                                                                                                        |
 | `names`          | Gauntlet 1, hard rule 3 | Every name label is one line, `white-space: nowrap`, cut only with an ellipsis, has the full name in `title` and its accessible name (a landmark's label, like the toasts' "Notifications", isn't one), and overlaps no other name |
 | `tags`           | Tag.md, hard rule 5     | Every tag sits on `ground`, `surface` or `raised`, and its fill, border or outline differs from that ground, so it reads as a pill                                                                                                 |
 
