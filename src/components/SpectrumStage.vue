@@ -1,9 +1,18 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { Field, FieldLabel } from "@ui-sdk/vue/field";
+import {
+  Slider,
+  SliderControl,
+  SliderThumb,
+  SliderTrack,
+  type SliderValueChangeDetails,
+} from "@ui-sdk/vue/slider";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useSpectrumDraft } from "../lib/spectrumDraft";
+import { describePosition, nextNotch, stackLabels } from "../lib/spectrumTrack";
 import type { Intent, StageView } from "../room/room";
 import { MOODS } from "../room/mood";
 import { notchesCrossed, SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "../room/spectrum";
-import { useSpectrumDraft } from "../lib/spectrumDraft";
 import MoodPanel from "./MoodPanel.vue";
 import SpectrumSummary from "./SpectrumSummary.vue";
 
@@ -34,7 +43,12 @@ const draft = useSpectrumDraft(() => props.stage);
 let lastSent = 0;
 let pending: ReturnType<typeof setTimeout> | undefined;
 
-function onSlide() {
+/** Page Up, Page Down and Shift with an arrow jump to the next notch, instead of UI SDK's fixed large step. */
+function onSlide(value: number | number[], details: SliderValueChangeDetails) {
+  const next = value as number;
+  const event = details.reason === "step-key" ? details.event : undefined;
+  const largeStep = event && (event.key === "PageUp" || event.key === "PageDown" || event.shiftKey);
+  draft.value = largeStep ? nextNotch(draft.value, next > draft.value ? 1 : -1) : next;
   clearTimeout(pending);
   const wait = lastSent + MOVE_INTERVAL_MS - Date.now();
   if (wait <= 0) sendMove();
@@ -144,6 +158,76 @@ const callOn = computed(() => {
 function percent(position: number) {
   return `${((position - SPECTRUM_MIN) / (SPECTRUM_MAX - SPECTRUM_MIN)) * 100}%`;
 }
+
+/** Everyone this viewer may see on the track. Your own label follows your slider, not the Room's echo. */
+const markers = computed(() => {
+  if (!spectrum.value.positionsVisible || spectrum.value.step === "summary") return [];
+  return spectrum.value.people.flatMap((person) => {
+    if (person.position === null) return [];
+    const own = person.personId === props.personId && canMove.value;
+    return [
+      {
+        ...person,
+        position: own ? draft.value : person.position,
+        hovering: spectrum.value.step === "positioning" && !person.lockedIn,
+      },
+    ];
+  });
+});
+
+// Label widths, measured in percent of the track, so they can be stacked into rows.
+const labelsEl = ref<HTMLElement | null>(null);
+const labelWidths = ref<Record<string, number>>({});
+
+function measureLabels() {
+  const el = labelsEl.value;
+  if (!el?.clientWidth) return;
+  const widths: Record<string, number> = {};
+  for (const label of el.querySelectorAll<HTMLElement>("[data-person]")) {
+    widths[label.dataset.person!] = Math.round((label.offsetWidth / el.clientWidth) * 1000) / 10;
+  }
+  const before = labelWidths.value;
+  const changed =
+    Object.keys(widths).length !== Object.keys(before).length ||
+    Object.entries(widths).some(([id, width]) => before[id] !== width);
+  if (changed) labelWidths.value = widths;
+}
+
+let resize: ResizeObserver | undefined;
+onMounted(() => {
+  // Measured a frame later: re-stacking changes the rows' height inside the observer's
+  // own callback otherwise, which browsers report as a ResizeObserver loop error.
+  resize = new ResizeObserver(() => requestAnimationFrame(measureLabels));
+  watch(
+    labelsEl,
+    (el, old) => {
+      if (old) resize?.unobserve(old);
+      if (el) resize?.observe(el);
+    },
+    { immediate: true },
+  );
+});
+// A label's width changes only with its text and styling, not as it moves.
+watch(
+  () =>
+    markers.value
+      .map((m) => [m.personId, m.nickname, moodOf(m.personId), m.hovering].join())
+      .join("|"),
+  measureLabels,
+  { flush: "post" },
+);
+onBeforeUnmount(() => resize?.disconnect());
+
+const rows = computed(() =>
+  stackLabels(
+    markers.value.map((m) => ({
+      id: m.personId,
+      position: m.position,
+      width: labelWidths.value[m.personId] ?? 0,
+    })),
+  ),
+);
+const rowCount = computed(() => Math.max(0, ...Object.values(rows.value).map((r) => r + 1)));
 </script>
 
 <template>
@@ -151,65 +235,79 @@ function percent(position: number) {
     <p class="eyebrow">Spectrum · Prompt {{ stage.promptNumber }} of {{ stage.promptCount }}</p>
     <h1>{{ stage.prompt.text }}</h1>
 
-    <!-- Where everyone stands, once this viewer may see it -->
-    <div v-if="spectrum.positionsVisible && spectrum.step !== 'summary'" class="track">
-      <div class="track-line" />
-      <template v-for="person in spectrum.people" :key="person.personId">
+    <component :is="yours ? Field : 'div'" v-if="spectrum.step !== 'summary'" class="spectrum">
+      <FieldLabel v-if="yours" class="spectrum-label">Your position</FieldLabel>
+      <!-- Where everyone stands, once this viewer may see it: names stacked in rows, each with a stem down to its spot -->
+      <div
+        v-if="markers.length"
+        ref="labelsEl"
+        class="track-labels"
+        :style="{ '--rows': rowCount }"
+      >
         <span
-          v-if="spectrum.step === 'positioning' && person.position !== null && !person.lockedIn"
-          class="marker hover"
-          :style="{ left: percent(person.position) }"
-          :title="`${person.nickname} (hovering)`"
-        >
-          {{ moodOf(person.personId) }} {{ person.nickname }}
-        </span>
-        <span
-          v-else-if="person.position !== null"
+          v-for="person in markers"
+          :key="person.personId"
+          :data-person="person.personId"
           class="marker"
           :class="{
+            hover: person.hovering,
+            you: person.personId === personId,
             apart: furthestIds.includes(person.personId),
             crossed: crossedPeople.includes(person.personId),
           }"
-          :style="{ left: percent(person.position) }"
+          :style="{ '--at': percent(person.position), '--row': rows[person.personId] ?? 0 }"
+          :title="person.hovering ? `${person.nickname} (hovering)` : person.nickname"
         >
-          {{ moodOf(person.personId) }} {{ person.nickname }}
+          <span class="marker-name">{{ moodOf(person.personId) }} {{ person.nickname }}</span>
         </span>
-      </template>
-    </div>
-    <div v-if="spectrum.step !== 'summary'" class="notch-labels" aria-hidden="true">
-      <span
-        v-for="notch in SPECTRUM_NOTCHES"
-        :key="notch.value"
-        :class="{ crossed: crossedNotch === notch.value }"
-      >
-        {{ notch.label }}
-      </span>
-    </div>
+      </div>
 
-    <!-- Your own slider -->
-    <div v-if="yours && spectrum.step !== 'summary'" class="stack">
-      <label class="field">
-        <span>Your position</span>
-        <input
-          v-model.number="draft"
-          type="range"
-          list="spectrum-notches"
-          :min="SPECTRUM_MIN"
-          :max="SPECTRUM_MAX"
-          step="1"
-          :disabled="!canMove"
-          @input="onSlide"
-          @change="onSettle"
-        />
-      </label>
-      <datalist id="spectrum-notches">
-        <option
+      <!-- Your own position: the track with your thumb on it -->
+      <Slider
+        v-if="yours"
+        :value="draft"
+        :min="SPECTRUM_MIN"
+        :max="SPECTRUM_MAX"
+        :step="1"
+        :large-step="25"
+        :format="describePosition"
+        :disabled="!canMove"
+        @value-change="onSlide"
+        @value-commit="onSettle"
+      >
+        <SliderControl>
+          <SliderTrack>
+            <span
+              v-for="notch in SPECTRUM_NOTCHES"
+              :key="notch.value"
+              class="notch-tick"
+              :style="{ left: percent(notch.value) }"
+            />
+            <SliderThumb />
+          </SliderTrack>
+        </SliderControl>
+      </Slider>
+      <div v-else class="track-line" aria-hidden="true">
+        <span
           v-for="notch in SPECTRUM_NOTCHES"
           :key="notch.value"
-          :value="notch.value"
-          :label="notch.label"
+          class="notch-tick"
+          :style="{ left: percent(notch.value) }"
         />
-      </datalist>
+      </div>
+
+      <div class="notch-labels" aria-hidden="true">
+        <span
+          v-for="notch in SPECTRUM_NOTCHES"
+          :key="notch.value"
+          :class="{ crossed: crossedNotch === notch.value }"
+        >
+          {{ notch.label }}
+        </span>
+      </div>
+    </component>
+
+    <div v-if="yours && spectrum.step !== 'summary'" class="stack">
       <button
         v-if="spectrum.step === 'positioning' && !lockedIn"
         class="primary"
