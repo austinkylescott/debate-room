@@ -15,4 +15,10 @@ export const SPARK_ALLOWLIST: SparkAllowed[] = [
   { selector: ".spectrum [data-slot='slider-thumb']", why: "Your own notch on the Spectrum" },
   { selector: ".dr-electron.is-speaking .dr-electron__dot", why: "Whoever has the Floor" },
   { selector: ".dr-tag--live", why: "The Live status pill" },
+  // Timer.md draws countdowns orange: the speaker's time, and your Check-in.
+  { selector: ".dr-timer__arc", why: "Whoever has the Floor: their time draining (Timer.md)" },
+  {
+    selector: ".dr-timer-bar__stripe",
+    why: "The Mood Check-in countdown: your move to pick a Mood (Timer.md)",
+  },
 ];

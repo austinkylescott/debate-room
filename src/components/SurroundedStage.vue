@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { floorMarks } from "../lib/electron";
-import { useCountdown } from "../lib/serverClock";
 import type { FloorView, Intent, StageView } from "../room/room";
 import type { ExchangeEnd, Yielder } from "../room/surrounded";
 import Electron from "./Electron.vue";
 import MoodPanel from "./MoodPanel.vue";
+import Timer from "./Timer.vue";
 
 const props = defineProps<{
   stage: Extract<StageView, { format: "surrounded" }>;
@@ -31,15 +31,6 @@ const canVote = computed(
 );
 const over = computed(() => surrounded.value.step === "summary");
 const checkInOpen = computed(() => props.stage.checkIn?.status === "open");
-
-// The exchange countdown runs on the server's clock, only while someone is in the chair.
-const secondsLeft = useCountdown(() => chair.value !== null);
-
-const timeLeft = computed(() => {
-  if (!chair.value) return "";
-  const seconds = secondsLeft(chair.value.endsAt);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-});
 
 const ENDED_BY: Record<ExchangeEnd, string> = {
   timer: "Time ran out",
@@ -102,7 +93,12 @@ const advanceLabel = computed(() => {
               :mood="moodOf(chair.challenger.personId)"
               v-bind="marks(chair.challenger.personId)"
             />
-            <p class="countdown" role="timer" aria-live="off">{{ timeLeft }}</p>
+            <Timer
+              class="exchange-timer"
+              :ends-at="chair.endsAt"
+              :total-seconds="(chair.endsAt - chair.startedAt) / 1000"
+              label="Exchange time"
+            />
             <p class="small">
               Votes to remove: {{ chair.votes.length }} of {{ chair.votesNeeded }} needed
               <template v-if="chair.votes.length">
@@ -257,9 +253,7 @@ const advanceLabel = computed(() => {
   padding: 0.75rem;
   text-align: center;
 }
-.countdown {
-  font-size: 1.5rem;
-  font-variant-numeric: tabular-nums;
+.exchange-timer {
   margin: 0.25rem 0;
 }
 </style>

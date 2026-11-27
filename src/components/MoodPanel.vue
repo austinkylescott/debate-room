@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useCountdown } from "../lib/serverClock";
-import { type Mood, MOODS } from "../room/mood";
+import { CHECK_IN_MS, type Mood, MOODS } from "../room/mood";
 import type { Intent, StageView } from "../room/room";
+import Timer from "./Timer.vue";
 
 const props = defineProps<{ stage: StageView; personId: string }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
@@ -28,15 +28,6 @@ const canPick = computed(
   () => props.stage.playing && (!promptOver.value || checkIn.value?.status === "open"),
 );
 
-// The Check-in countdown, on the server's clock, running only while it's open.
-const countdown = useCountdown(() => checkIn.value?.status === "open");
-
-const secondsLeft = computed(() => {
-  const open = checkIn.value;
-  if (open?.status !== "open") return 0;
-  return countdown(open.closesAt);
-});
-
 const tally = computed(() => (checkIn.value?.status === "closed" ? checkIn.value.tally : null));
 const tallyMax = computed(() =>
   tally.value ? Math.max(1, tally.value.noMood, ...Object.values(tally.value.moods)) : 1,
@@ -50,10 +41,13 @@ function pick(mood: Mood) {
 <template>
   <!-- The Check-in, when the Prompt has ended -->
   <template v-if="checkIn?.status === 'open'">
-    <h2>
-      Mood Check-in
-      <span class="count">{{ secondsLeft }}s</span>
-    </h2>
+    <h2>Mood Check-in</h2>
+    <Timer
+      variant="bar"
+      :ends-at="checkIn.closesAt"
+      :total-seconds="CHECK_IN_MS / 1000"
+      label="Mood Check-in"
+    />
     <p class="muted">
       <template v-if="stage.playing && !youAnswered">
         How did that Prompt leave you? Confirm your Mood or pick another.
