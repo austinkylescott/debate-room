@@ -46,6 +46,24 @@ async function waitingRoom(baseURL: string) {
 }
 const WAITING_ROOM_NAMES = ["Robin", "Ada", "Grace Hopper", "Linus", "Margaret"];
 
+/**
+ * Lets the page's WebSocket to the Room be dropped on cue, and kept down, so
+ * the page shows itself reconnecting. Call before opening the page.
+ */
+async function droppableConnection(page: Page) {
+  let online = true;
+  const sockets: { close(): Promise<void> }[] = [];
+  await page.routeWebSocket(/\/api\/parties\//, (ws) => {
+    if (!online) return void ws.close();
+    ws.connectToServer();
+    sockets.push(ws);
+  });
+  return async function drop() {
+    online = false;
+    for (const ws of sockets) await ws.close();
+  };
+}
+
 export const SCREENS: Screen[] = [
   {
     name: "Home",
@@ -90,6 +108,37 @@ export const SCREENS: Screen[] = [
       return { room, names: [] };
     },
     redesignedOnly: [],
+  },
+  {
+    // Toasts (#60): someone joins, then the connection drops. The pointer rests on the
+    // toasts, which pauses them, so they stay for the checks.
+    name: "Waiting Room (Host), with toasts",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin" });
+      await join(room, ["Ada"]);
+      const drop = await droppableConnection(page);
+      await openRoom(page, room, "host");
+      await join(room, ["Marcus Okonkwo-Hale"]);
+      await expect(page.getByText("joined the Room")).toBeVisible();
+      await drop();
+      await expect(page.getByText("Connection lost. Reconnecting…")).toBeVisible();
+      await page.locator("[data-slot=toast]").first().hover();
+      return { room, names: ["Robin", "Ada", "Marcus Okonkwo-Hale"] };
+    },
+    redesignedOnly: NOT_YET,
+  },
+  {
+    // Notices (#60): a Host who isn't Playing sees positions, and is told only they can.
+    name: "Spectrum Stage, before the reveal (Host, not Playing)",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin" });
+      await join(room, ["Ada", "Linus"]);
+      await startRound(room, { format: "spectrum" });
+      await openRoom(page, room, "host");
+      await expect(page.getByText("Only you can see this.")).toBeVisible();
+      return { room, names: ["Robin", "Ada", "Linus"] };
+    },
+    redesignedOnly: [...NOT_YET, "flat"],
   },
   {
     name: "Join",

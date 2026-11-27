@@ -6,7 +6,8 @@ import type { Intent, RecapEvent, Rejection, View } from "../room/room";
 import { deviceToken, forgetHostSecret, savedHostSecret } from "./device";
 import { serverClock } from "./serverClock";
 
-export type ConnectionStatus = "connecting" | "open" | "missing" | "removed";
+/** "connecting" is the first connection; "reconnecting" follows a dropped one. */
+export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "missing" | "removed";
 
 export function useRoom(roomId: string) {
   const view = shallowRef<View | null>(null);
@@ -37,7 +38,7 @@ export function useRoom(roomId: string) {
   });
 
   socket.addEventListener("close", () => {
-    if (status.value === "open") status.value = "connecting";
+    if (status.value === "open") status.value = "reconnecting";
   });
 
   socket.addEventListener("message", (event: MessageEvent<string>) => {
@@ -70,7 +71,12 @@ export function useRoom(roomId: string) {
     }
   });
 
+  /** Tries again now, instead of waiting for the next automatic attempt. */
+  function reconnect() {
+    socket.reconnect();
+  }
+
   onBeforeUnmount(() => socket.close());
 
-  return { view, rejection, status, recap, send };
+  return { view, rejection, status, recap, send, reconnect };
 }
