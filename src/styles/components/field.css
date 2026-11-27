@@ -1,45 +1,131 @@
-/* Field and Choice. Spec: docs/design/components/Field.md (restyled in its own issue). */
+/*
+ * Field and Choice. Spec: docs/design/components/Field.md, reference: components.css
+ * (.dr-field, .dr-choice).
+ *
+ * Text field (TextField.vue): .field > .field__label, .field__control > .field__input,
+ * then .field__help (with .field__counter) or .field__error. States use native hooks:
+ * :hover, :focus-visible, [aria-invalid="true"], :disabled.
+ *
+ * Choice (ChoiceRadio.vue, ChoiceCheckbox.vue): .choice wraps UI SDK's Radio or Checkbox
+ * and its label. The whole row is the target and the control sits right beside its label.
+ * The checked row gets the raised fill. Inputs and rows sit on `ground`, not the spec's
+ * `surface`, so they stand out from the surface cards they're in (approved on #52).
+ */
 
 .field {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 6px;
-  font-weight: 600;
+  min-width: 0;
+}
+
+/* Fields not yet on TextField label their control with a leading <span>. */
+.field__label,
+label.field > span:first-child {
+  padding: 0;
+  font: 600 0.875rem/1.2 var(--font-body);
   color: var(--ink);
 }
 
-input,
+.field__control {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.field__control > button {
+  flex: none;
+}
+
+/* Every text input, select and textarea, not only TextField's: they share the look. */
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"]),
 select,
 textarea {
-  font: inherit;
+  font: 500 1rem/1.25 var(--font-body);
   width: 100%;
   min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--muted);
-  border-radius: 10px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 2px solid var(--muted);
+  border-radius: var(--radius);
   background: var(--ground);
   color: var(--ink);
 }
 
-input[type="checkbox"] {
-  width: auto;
-  accent-color: var(--ink);
+textarea {
+  padding-block: 12px;
 }
 
-.check {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink);
+:is(input, select, textarea)::placeholder {
+  color: var(--muted);
 }
 
-.copy-row {
+:is(input, select, textarea):hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+:is(input, select, textarea):focus-visible {
+  border-color: var(--ink);
+}
+
+:is(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--spicy);
+}
+
+:is(input, select, textarea):disabled {
+  background: var(--raised);
+  border-style: dashed;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.field__help,
+.field__error {
+  margin: 0;
   display: flex;
+  gap: 8px;
+  font: 500 0.8125rem/1.35 var(--font-body);
+}
+
+.field__help {
+  justify-content: space-between;
+  color: var(--muted);
+}
+
+.field__counter {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.field__error {
+  gap: 6px;
+  align-items: baseline;
+  font-weight: 600;
+  color: var(--spicy);
+}
+
+.field__error::before {
+  content: "▲";
+  font-size: 10px;
+}
+
+.inline-form {
+  display: flex;
+  align-items: flex-end;
   gap: 8px;
 }
 
-.copy-row button {
-  flex: none;
+.inline-form .field {
+  flex: 1;
+}
+
+/* Beside a field, the button lines up with the input, whatever help or error sits below. */
+.inline-form:has(> .field) {
+  align-items: flex-start;
+}
+
+.inline-form > .field ~ button {
+  margin-top: calc(0.875rem * 1.2 + 6px + 2px);
 }
 
 .rename-row {
@@ -58,15 +144,7 @@ input[type="checkbox"] {
   padding: 8px 12px;
 }
 
-.inline-form {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.inline-form .field {
-  flex: 1;
-}
+/* ---------- Choice ---------- */
 
 .join-as {
   border: 0;
@@ -76,42 +154,135 @@ input[type="checkbox"] {
 }
 
 .join-as legend {
-  padding: 0;
   margin-bottom: 6px;
-  color: var(--ink);
 }
 
-/* Choice rows: the join form, the Prompt picker, the Recap's download options. */
 .choices {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
-.choices label {
+/* The control lines up with the first line of its label, however many lines follow. */
+.choice {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 10px;
+  gap: 12px;
+  min-height: 48px;
+  padding: 11px 14px;
+  border: 2px solid var(--muted);
+  border-radius: var(--radius);
   background: var(--ground);
+  color: var(--ink);
+  font: 600 0.9375rem/1.3 var(--font-body);
   cursor: pointer;
 }
 
-.choices label .small {
-  display: block;
+.choice:has([data-checked]) {
+  border-color: var(--ink);
+  background: var(--raised);
 }
 
+.choice:has([data-disabled]) {
+  border-style: dashed;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+/* Inline: a bare control and label inside a row of other things (a Prompt's Surprise). */
+.choice--inline {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  font-size: 0.875rem;
+}
+
+.choice--inline:has([data-checked]) {
+  background: transparent;
+}
+
+.choice__text {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.choice__hint {
+  display: block;
+  font: 500 0.8125rem/1.35 var(--font-body);
+  color: var(--muted);
+}
+
+/* UI SDK renders each control as a <button>: undo the Button look (button.css). */
+.choice :is([data-slot="radio"], [data-slot="checkbox"]) {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 2px solid var(--ink);
+  background: var(--ground);
+  color: var(--ground);
+  box-shadow: none;
+  transform: none;
+  transition: none;
+  margin-top: calc((1.3em - 22px) / 2);
+  cursor: inherit;
+}
+
+.choice [data-slot="radio"] {
+  border-radius: 50%;
+}
+
+.choice [data-slot="checkbox"] {
+  border-radius: 6px;
+}
+
+/* Selection is ink, never the spark (hard rule 2). */
+.choice [data-slot="radio-indicator"] {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.choice [data-slot="checkbox"][data-checked] {
+  background: var(--ink);
+}
+
+.choice [data-slot="checkbox-indicator"] {
+  display: grid;
+}
+
+.choice [data-slot="checkbox-indicator"] svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.choice :is([data-slot="radio"], [data-slot="checkbox"])[data-disabled] {
+  border-color: var(--muted);
+  border-style: dashed;
+}
+
+/* The Prompt picker's saved Prompts: a row with its own buttons, not a choice. */
 .choices .saved {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
   align-items: center;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: var(--ground);
 }
 
