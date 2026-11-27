@@ -22,6 +22,12 @@ export const REDESIGNED: RedesignedEntry[] = [
   { selector: "a.dr-card", issue: "#58" },
   { selector: ".dr-toast", issue: "#60" },
   { selector: ".dr-notice", issue: "#60" },
+  // Buttons (#55), Tags (#56) and Timers (#63), registered in #74. Tags and
+  // timers aren't controls, so targets don't apply to them, and no tag holds a
+  // name yet. The tags check (harness/checks.ts) covers every tag, on every screen.
+  { selector: "button", issue: "#55" },
+  { selector: ".dr-tag", issue: "#56" },
+  { selector: ".dr-timer-wrap", issue: "#63" },
 ];
 
 export const REDESIGNED_SELECTORS = REDESIGNED.map((entry) => entry.selector);

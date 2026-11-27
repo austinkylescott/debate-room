@@ -71,7 +71,7 @@ export const SCREENS: Screen[] = [
       await openHome(page);
       return { room: null, names: [] };
     },
-    redesignedOnly: ["targets"],
+    redesignedOnly: [],
   },
   {
     name: "Planning (Host)",
@@ -107,7 +107,7 @@ export const SCREENS: Screen[] = [
       await openRoom(page, room, "visitor");
       return { room, names: [] };
     },
-    redesignedOnly: ["targets"],
+    redesignedOnly: [],
   },
   {
     // Toasts (#60): someone joins, then the connection drops. The pointer rests on the
@@ -148,7 +148,7 @@ export const SCREENS: Screen[] = [
       await openRoom(page, room, "visitor");
       return { room, names: [] };
     },
-    redesignedOnly: ["targets"],
+    redesignedOnly: [],
   },
   {
     name: "Waiting Room (Host)",
@@ -225,6 +225,75 @@ export const SCREENS: Screen[] = [
       await startRound(room, { format: "surrounded", centerId: linus.personId });
       await openRoom(page, room, ada);
       return { room, names: ["Robin", "Ada", "Linus", "Grace"] };
+    },
+    redesignedOnly: NOT_YET,
+  },
+  {
+    // Timers (#63, registered in #74): the Floor's atom dial, counting down. On a
+    // Middle Ground Stage, whose old parts pass flat, unlike the Spectrum's track.
+    name: "The Floor, a speaking timer running (Participant)",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin" });
+      const [ada] = await join(room, ["Ada", "Linus"]);
+      await startRound(room, { format: "middle-ground" });
+      await room.host.act(
+        { type: "set-floor-timer", seconds: 120 },
+        (view) => view.floor?.timerSeconds === 120,
+      );
+      await room.host.act({ type: "give-floor", personId: ada.personId }, (view) =>
+        Boolean(view.floor?.holders.some((h) => h.endsAt !== null)),
+      );
+      await openRoom(page, room, room.people.get("Linus")!);
+      await expect(page.getByRole("timer")).toBeVisible();
+      return { room, names: ["Robin", "Ada", "Linus"] };
+    },
+    redesignedOnly: NOT_YET,
+  },
+  {
+    // Timers (#63, registered in #74): the Exchange's atom dial, as the Center sees it.
+    name: "Surrounded Stage, an Exchange (Center)",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin" });
+      const [ada, linus] = await join(room, ["Ada", "Linus", "Grace"]);
+      await startRound(room, { format: "surrounded", centerId: linus.personId });
+      await ada.act({ type: "take-chair" }, (view) =>
+        Boolean(
+          view.stage?.format === "surrounded" &&
+          view.stage.surrounded.chair?.challenger.personId === ada.personId,
+        ),
+      );
+      await openRoom(page, room, linus);
+      await expect(page.getByRole("timer")).toBeVisible();
+      return { room, names: ["Robin", "Ada", "Linus", "Grace"] };
+    },
+    redesignedOnly: NOT_YET,
+  },
+  {
+    // Timers (#63, registered in #74): the Mood Check-in's surfboard bar, open for
+    // 15 seconds after a Prompt ends. Linus has answered; Ada hasn't, so it stays open.
+    name: "Mood Check-in (Participant)",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin" });
+      const [ada, linus] = await join(room, ["Ada", "Linus"]);
+      await startRound(room, { format: "spectrum" });
+      for (const [bot, position] of [
+        [ada, 20],
+        [linus, 80],
+      ] as const) {
+        bot.send({ type: "lock-in", position });
+      }
+      await room.host.until(
+        (view) => view.stage?.format === "spectrum" && view.stage.spectrum.step === "revealed",
+        "the reveal",
+      );
+      await room.host.act({ type: "advance" }, (view) => view.stage?.checkIn?.status === "open");
+      await linus.act(
+        { type: "set-mood", mood: "thinking" },
+        (view) => view.stage?.checkIn?.status === "open" && view.stage.checkIn.answered.length > 0,
+      );
+      await openRoom(page, room, ada);
+      await expect(page.getByRole("timer")).toBeVisible();
+      return { room, names: ["Robin", "Ada", "Linus"] };
     },
     redesignedOnly: NOT_YET,
   },

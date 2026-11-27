@@ -174,6 +174,53 @@ test("cards flags the wrong fill, corners or shadow, a same-way lean and a div t
   expect(await checks.cards(page, SCOPE)).toEqual([]);
 });
 
+/** Every Tag variant, as Tag.md lists them, plus "You". */
+const ALL_TAGS = ["", "chill", "spicy", "host", "cohost", "spectator", "outline", "live"]
+  .map((variant) => `<span class="dr-tag${variant ? ` dr-tag--${variant}` : ""}">Tag</span>`)
+  .join("");
+
+test("tags flags a tag that loses its pill on its ground, or sits on an undocumented one", async ({
+  page,
+}) => {
+  for (const theme of ["light", "dark"] as const) {
+    await setTheme(page, theme);
+    await plant(
+      page,
+      `<div style="background: var(--raised)"><span class="dr-tag">Fill like the card</span></div>
+       <div style="background: var(--surface)">
+         <span class="dr-tag" style="background: var(--surface)">Fill like the card</span>
+       </div>
+       <div style="background: var(--teal)"><span class="dr-tag">Off the grounds</span></div>`,
+    );
+    expect(await checks.tags(page, SCOPE)).toEqual([
+      expect.stringContaining("doesn't read as a pill on --raised"),
+      expect.stringContaining("doesn't read as a pill on --surface"),
+      expect.stringContaining("not on --ground, --surface or --raised"),
+    ]);
+    // Every variant, on each of the grounds the app puts tags on.
+    await plant(
+      page,
+      `<div style="background: var(--ground)">${ALL_TAGS}</div>
+       <div class="dr-card">${ALL_TAGS}<div class="dr-card dr-card--raised">${ALL_TAGS}</div></div>
+       <ul class="people"><li>${ALL_TAGS}</li><li class="you">${ALL_TAGS}</li></ul>`,
+    );
+    expect(await checks.tags(page, SCOPE)).toEqual([]);
+  }
+});
+
+test("reduced motion stops the Timer's last-10-seconds pulse", async ({ page }) => {
+  const lowDial = `<span class="dr-timer is-low" role="timer" aria-label="Time: 9 seconds remaining">
+    <span class="dr-timer__num">9</span></span>`;
+  await setReducedMotion(page, false);
+  await plant(page, lowDial);
+  expect(await checks.reducedMotion(page, SCOPE)).toEqual([
+    expect.stringContaining("dr-timer-beat"),
+  ]);
+  await setReducedMotion(page, true);
+  await plant(page, lowDial);
+  expect(await checks.reducedMotion(page, SCOPE)).toEqual([]);
+});
+
 test("leak flags hidden values in attributes, styles and the accessibility tree", async ({
   page,
 }) => {

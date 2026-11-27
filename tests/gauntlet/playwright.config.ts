@@ -36,7 +36,13 @@ export default defineConfig({
   retries: 0,
   timeout: 30_000,
   expect: { timeout: 5_000 },
-  reporter: [["list"]],
+  // CI also writes an HTML report, uploaded when the job fails.
+  reporter: process.env.CI
+    ? [
+        ["list"],
+        ["html", { open: "never", outputFolder: "../../node_modules/.tmp/gauntlet-report" }],
+      ]
+    : [["list"]],
   use: {
     baseURL,
     headless: true,
