@@ -22,17 +22,17 @@ The by-hand checks (glance, tone, side by side with Discord) stay by hand.
 
 The per-screen checks (`harness/checks.ts`, run by `harness/gauntlet.ts`):
 
-| Check            | Rule                    | Passes when                                                                                                                                                      |
-| ---------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `contrast`       | Gauntlet 3, hard rule 5 | axe's WCAG AA `color-contrast` finds nothing, in each theme                                                                                                      |
-| `spark`          | Gauntlet 6, hard rule 2 | Nothing resolves to `--primary` (colour, background, border, outline, shadow, fill, stroke, accent) unless it matches `spark-allowlist.ts`                       |
-| `focus`          | Gauntlet 4, hard rule 5 | Tabbing from the top visits stops in DOM order, and each shows a 3px solid `--focus` ring offset 2px                                                             |
-| `reduced motion` | Gauntlet 5, hard rule 6 | No `<animate>`, `<animateMotion>`, `<animateTransform>` or `<set>`, and no CSS animation running                                                                 |
-| `flat`           | Hard rule 7             | No gradients, blur or backdrop filters                                                                                                                           |
-| `targets`        | Gauntlet 4, hard rule 5 | Every visible control is at least 44×44px (a wrapping `<label>` counts; UI SDK's hidden form input doesn't)                                                      |
-| `choices`        | Hard rule 8             | Every radio and checkbox sits on the same line as its label, at most 16px before its first letter                                                                |
-| `names`          | Gauntlet 1, hard rule 3 | Every name label is one line, `white-space: nowrap`, cut only with an ellipsis, has the full name in `title` and its accessible name, and overlaps no other name |
-| `tags`           | Tag.md, hard rule 5     | Every tag sits on `ground`, `surface` or `raised`, and its fill, border or outline differs from that ground, so it reads as a pill                               |
+| Check            | Rule                    | Passes when                                                                                                                                                                                                                        |
+| ---------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contrast`       | Gauntlet 3, hard rule 5 | axe's WCAG AA `color-contrast` finds nothing, in each theme                                                                                                                                                                        |
+| `spark`          | Gauntlet 6, hard rule 2 | Nothing resolves to `--primary` (colour, background, border, outline, shadow, fill, stroke, accent) unless it matches `spark-allowlist.ts`                                                                                         |
+| `focus`          | Gauntlet 4, hard rule 5 | Tabbing from the top visits stops in DOM order, and each shows a 3px solid `--focus` ring offset 2px                                                                                                                               |
+| `reduced motion` | Gauntlet 5, hard rule 6 | No `<animate>`, `<animateMotion>`, `<animateTransform>` or `<set>`, and no CSS animation running                                                                                                                                   |
+| `flat`           | Hard rule 7             | No gradients, blur or backdrop filters                                                                                                                                                                                             |
+| `choices`        | Hard rule 8             | Every radio and checkbox sits on the same line as its label, at most 16px before its first letter                                                                                                                                  |
+| `targets`        | Gauntlet 4, hard rule 5 | Every visible control is at least 44×44px (a wrapping `<label>` counts; UI SDK's hidden form input doesn't)                                                                                                                        |
+| `names`          | Gauntlet 1, hard rule 3 | Every name label is one line, `white-space: nowrap`, cut only with an ellipsis, has the full name in `title` and its accessible name (a landmark's label, like the toasts' "Notifications", isn't one), and overlaps no other name |
+| `tags`           | Tag.md, hard rule 5     | Every tag sits on `ground`, `surface` or `raised`, and its fill, border or outline differs from that ground, so it reads as a pill                                                                                                 |
 
 The crowd test (gauntlet 1) is two of the screens: `crowd()` gives a Waiting Room of 15 Participants with 20-character names, and `crowdOnOneNotch()` puts all of them on one Spectrum notch and reveals.
 
@@ -40,7 +40,7 @@ The crowd test (gauntlet 1) is two of the screens: `crowd()` gives a Waiting Roo
 
 Some checks fail on parts of the app the redesign hasn't reached (old 28px link buttons, names that wrap letter by letter, the Spectrum track's gradient). Those checks are never skipped. Instead, each screen lists in `redesignedOnly` the checks its old parts still fail, and on that screen those checks look only at the **redesigned elements**: anything matching a selector in `redesigned.ts`, or inside one, or carrying a `data-redesigned` attribute. Everything else runs on the whole page.
 
-So on `main` today, contrast, spark, focus, reduced motion, flat and choices hold on every screen except flat on the two Spectrum screens. Targets hold on Home, Join, the visitor's Planning screen and taking back Host control; elsewhere (old `<summary>`s and checkboxes) targets and names run on the redesigned parts only, which include every button, tag, timer and field.
+So on `main` today, contrast, spark, focus, reduced motion, flat and choices hold on every screen except flat on the two Spectrum screens. Targets hold on Home, Join, the visitor's Planning screen and taking back Host control; elsewhere (old `<summary>`s and checkboxes) targets and names run on the redesigned parts only, which include every button, tag, timer, field, toast and notice.
 
 ## Adding a component's checks
 

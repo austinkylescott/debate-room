@@ -1,0 +1,146 @@
+/*
+ * Toast. Spec: docs/design/components/Toast.md, reference: components.css (.dr-toast).
+ * Toasts hang from the top of the screen on a string (components/ToastStack.vue, UI SDK's
+ * Toast). At most two show; they leave after 5 seconds, errors stay until resolved.
+ * Never the spark: an error is ringed in spicy instead of ink.
+ */
+
+.dr-toasts {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 100;
+  display: grid;
+  gap: 30px;
+  width: min(380px, 100% - 2 * var(--space-4));
+  margin: 0 auto;
+  padding: 18px 0 0;
+  /* UI SDK centres the region with left: 50% and this; ours is centred by its margins. */
+  translate: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.dr-toasts > ol,
+.dr-toasts > ul {
+  display: grid;
+  gap: 30px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dr-toast {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 52px;
+  padding: 4px 4px 4px 14px;
+  border-radius: var(--radius-lg) 8px var(--radius-lg) 8px;
+  background: var(--surface);
+  box-shadow:
+    var(--lift),
+    0 0 0 2px var(--ink);
+  color: var(--ink);
+  font: 500 15px/1.35 var(--font-body);
+  overflow-wrap: normal;
+  pointer-events: auto;
+  transition:
+    opacity 0.2s ease,
+    translate 0.2s ease;
+}
+
+.dr-toast:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.dr-toast[data-type="error"] {
+  box-shadow:
+    var(--lift),
+    0 0 0 2px var(--spicy);
+}
+
+/* The string it hangs from. */
+.dr-toast::before {
+  content: "";
+  position: absolute;
+  left: 28px;
+  top: -18px;
+  height: 18px;
+  border-left: 1.5px solid var(--ink);
+}
+
+.dr-toast[data-starting-style],
+.dr-toast[data-ending-style] {
+  opacity: 0;
+  translate: 0 -12px;
+}
+
+.dr-toast__message {
+  min-width: 0;
+  margin: 0;
+  padding-block: 6px;
+}
+
+.dr-toast__name {
+  display: inline-block;
+  max-width: 75%;
+  overflow: hidden;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+.dr-toast__button {
+  --btn-bd: transparent;
+  --btn-fg: var(--muted);
+  --btn-hover-bg: var(--raised);
+
+  padding-inline: 12px;
+  font-size: 14px;
+}
+
+.status-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.status-icon[data-type="info"] .status-icon__fill {
+  fill: var(--sky);
+}
+
+.status-icon[data-type="success"] .status-icon__fill {
+  fill: var(--avocado);
+}
+
+.status-icon[data-type="warning"] .status-icon__fill {
+  fill: var(--mustard);
+}
+
+.status-icon__outline {
+  fill: none;
+  stroke: var(--spicy);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.status-icon__mark {
+  fill: var(--spicy);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dr-toast {
+    transition: opacity 0.15s ease;
+  }
+
+  .dr-toast[data-starting-style],
+  .dr-toast[data-ending-style] {
+    translate: none;
+  }
+}

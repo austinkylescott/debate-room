@@ -1,20 +1,62 @@
-/* Notice and status lines. Spec: docs/design/components/Toast.md (restyled in its own issue). */
+/*
+ * Notice. Spec: docs/design/components/Toast.md, reference: components.css (.dr-notice).
+ * A dashed inline box that explains state, on the ground it sits on (components/Notice.vue).
+ *
+ *   .dr-notice            ink outline: plain notices and heads-ups (Room full, save your Host link)
+ *   .dr-notice--host      what only you see because you aren't Playing ("Only you can see this")
+ *   .dr-notice--error     a refusal or failure: spicy outline and an outlined triangle, never orange
+ *
+ * Error lines still written as <p class="error"> get the same look as .dr-notice--error.
+ */
 
-/* A notice: dashed ink outline on the ground it sits on (the design's dr-notice). */
-.warning {
-  background: transparent;
+.dr-notice,
+.error {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 14px;
   border: 1.5px dashed var(--ink);
-  border-radius: 10px;
-  padding: 12px;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  font: 500 14px/1.4 var(--font-body);
+  overflow-wrap: normal;
+}
+
+.dr-notice > :last-child {
+  min-width: 0;
+}
+
+.dr-notice--host {
+  border-color: var(--primary-text);
+}
+
+.dr-notice--error,
+.error {
+  border-color: var(--spicy);
 }
 
 .error {
-  color: var(--spicy);
   margin: 0;
 }
 
-.banner {
+.dr-notice__glyph,
+.dr-notice .status-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
   text-align: center;
-  color: var(--muted);
-  margin: 0;
+}
+
+/* The outlined triangle, drawn as a mask so it takes the spicy token. */
+.dr-notice--error::before,
+.error::before {
+  content: "";
+  flex: none;
+  width: 20px;
+  height: 20px;
+  background: var(--spicy);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Cpath d='M13 3 24 22H2Z' fill='none' stroke='black' stroke-width='2.5' stroke-linejoin='round'/%3E%3Cpath d='M12 10h2v6h-2zM12 18h2v2h-2z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
 }

@@ -7,6 +7,7 @@ import FloorPanel from "../components/FloorPanel.vue";
 import InviteCard from "../components/InviteCard.vue";
 import LineupEditor from "../components/LineupEditor.vue";
 import LineupPreview from "../components/LineupPreview.vue";
+import Notice from "../components/Notice.vue";
 import MiddleGroundStage from "../components/MiddleGroundStage.vue";
 import NicknameField from "../components/NicknameField.vue";
 import ParticipantLimitField from "../components/ParticipantLimitField.vue";
@@ -19,11 +20,14 @@ import { forgetHostSecret } from "../lib/device";
 import { rejectedField } from "../lib/rejectedField";
 import { inviteUrl, navigate } from "../lib/route";
 import { useRoom } from "../lib/useRoom";
+import { useRoomToasts } from "../lib/useRoomToasts";
 import { FORMAT_NAMES } from "../room/lineup";
 import { DEFAULT_PARTICIPANT_LIMIT, type JoinRole } from "../room/room";
 
 const props = defineProps<{ roomId: string }>();
-const { view, rejection, status, recap, send } = useRoom(props.roomId);
+const room = useRoom(props.roomId);
+const { view, rejection, status, recap } = room;
+const send = useRoomToasts(room);
 
 const nickname = ref("");
 const hostFormOpen = ref(false);
@@ -136,8 +140,6 @@ function claimHostWithPin(pin: string) {
   </section>
 
   <template v-else>
-    <p v-if="status === 'connecting'" class="banner">Reconnecting…</p>
-
     <!-- Ended: everyone, whatever their role, sees the Recap -->
     <template v-if="view.phase === 'ended'">
       <section class="card">
@@ -341,12 +343,12 @@ function claimHostWithPin(pin: string) {
       </template>
       <template v-else-if="view.phase === 'live'">
         <h1>Join the Room</h1>
-        <p v-if="participantsFull && spectatorsFull" class="warning">
+        <Notice v-if="participantsFull && spectatorsFull" tone="warning">
           This Room is full right now, for Participants and Spectators.
-        </p>
-        <p v-else-if="participantsFull" class="warning">
+        </Notice>
+        <Notice v-else-if="participantsFull" tone="warning">
           The Participant places are all taken, but you can watch as a Spectator.
-        </p>
+        </Notice>
         <form class="stack" @submit.prevent="send({ type: 'join', nickname, as: joinAs })">
           <NicknameField v-model="nickname" :error="fieldError('nickname')" />
           <fieldset class="join-as">
@@ -385,13 +387,13 @@ function claimHostWithPin(pin: string) {
       </p>
     </section>
 
-    <p
+    <Notice
       v-if="rejection && !rejectionInline && view.phase !== 'ended'"
-      class="error card"
+      tone="error"
       role="alert"
     >
       {{ rejection.message }}
-    </p>
+    </Notice>
 
     <!-- Waiting Room, for everyone in the Room -->
     <section v-if="view.waitingRoom && view.phase !== 'ended'" class="card">

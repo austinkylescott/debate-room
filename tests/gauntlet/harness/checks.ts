@@ -359,7 +359,10 @@ export async function names(page: Page, shown: string[], scope: Scope = null): P
         if (!el.closest("[title]")?.getAttribute("title")?.includes(name)) {
           found.push(`"${name}" has no title with the full name in ${where}`);
         }
-        const labelled = el.closest("[aria-label]");
+        // A landmark's label names the landmark (the toasts' "Notifications"), not what's in it.
+        const labelled = el.closest(
+          "[aria-label]:not(section, nav, aside, form, [role=region], [role=navigation], [role=complementary], [role=form])",
+        );
         if (labelled && !labelled.getAttribute("aria-label")?.includes(name)) {
           found.push(`"${name}" is missing from the accessible name of ${describe(labelled)}`);
         }

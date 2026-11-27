@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { watchEffect } from "vue";
 import ThemeToggle from "./components/ThemeToggle.vue";
+import ToastStack from "./components/ToastStack.vue";
 import { saveHostSecret } from "./lib/device";
 import { navigate, roomPath, route } from "./lib/route";
 import HomePage from "./pages/HomePage.vue";
@@ -28,4 +29,5 @@ watchEffect(() => {
       <p><a href="/" @click.prevent="navigate('/')">Create a Room</a></p>
     </section>
   </main>
+  <ToastStack />
 </template>
