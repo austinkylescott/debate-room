@@ -97,9 +97,9 @@ const value = (event: Event) => (event.target as HTMLInputElement).value;
 </script>
 
 <template>
-  <article class="round stack">
+  <article class="dr-card dr-card--raised stack">
     <header class="round-head">
-      <h3>Round {{ index + 1 }}</h3>
+      <h3 class="dr-card__title">Round {{ index + 1 }}</h3>
       <span class="actions">
         <button
           type="button"

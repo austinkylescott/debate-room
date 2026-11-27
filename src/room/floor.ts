@@ -16,6 +16,8 @@ interface FloorTurn {
   personId: string;
   /** When this turn's speaking timer runs out. Null with no timer. */
   endsAt: number | null;
+  /** This turn's speaking time, in seconds, fixed when it starts. Null with no timer. */
+  durationSeconds: number | null;
   timeUp: boolean;
 }
 
@@ -57,6 +59,11 @@ export interface FloorHolderView {
   nickname: string;
   /** When this turn's speaking timer runs out. Null with no timer. */
   endsAt: number | null;
+  /**
+   * This turn's speaking time, in seconds, fixed when it starts: a later change
+   * to the speaking timer doesn't touch it. Null with no timer.
+   */
+  durationSeconds: number | null;
   /** Whether the speaking timer has run out. The Floor stays theirs until it's taken back. */
   timeUp: boolean;
 }
@@ -71,6 +78,26 @@ export interface FloorView {
 
 export function emptyFloor(): Floor {
   return { holders: [], raisedHands: [], timerSeconds: null };
+}
+
+/**
+ * Fills in what a Floor stored by an earlier version of the app is missing. A
+ * turn stored without its own length gets the speaking timer's, or the time it
+ * has left if that's longer (the timer was turned off or shortened mid-turn).
+ */
+export function upgradeFloor(stored: Floor | undefined, now: number): Floor {
+  if (!stored) return emptyFloor();
+  return {
+    ...stored,
+    holders: stored.holders.map((turn) => {
+      if (turn.durationSeconds !== undefined) return turn;
+      const durationSeconds =
+        turn.endsAt === null
+          ? null
+          : Math.max(stored.timerSeconds ?? 0, Math.ceil((turn.endsAt - now) / 1000));
+      return { ...turn, durationSeconds };
+    }),
+  };
 }
 
 export function isFloorControlIntent(intent: { type: string }): intent is FloorControlIntent {
@@ -95,11 +122,12 @@ const FLOOR_CONTROL_TYPES: string[] = [
 export function giveFloor(floor: Floor, personId: string, now: number): FloorOutcome {
   const raisedHands = floor.raisedHands.filter((id) => id !== personId);
   if (hasFloor(floor, personId)) return { floor: { ...floor, raisedHands }, events: [] };
-  const endsAt = floor.timerSeconds === null ? null : now + floor.timerSeconds * 1000;
+  const durationSeconds = floor.timerSeconds;
+  const endsAt = durationSeconds === null ? null : now + durationSeconds * 1000;
   return {
     floor: {
       ...floor,
-      holders: [...floor.holders, { personId, endsAt, timeUp: false }],
+      holders: [...floor.holders, { personId, endsAt, durationSeconds, timeUp: false }],
       raisedHands,
     },
     events: [{ type: "floor-given", personId }],
@@ -192,6 +220,7 @@ export function viewFloor(floor: Floor, nicknames: Map<string, string>): FloorVi
       personId: turn.personId,
       nickname: nicknames.get(turn.personId) ?? "",
       endsAt: turn.endsAt,
+      durationSeconds: turn.durationSeconds,
       timeUp: turn.timeUp,
     })),
     timerSeconds: floor.timerSeconds,

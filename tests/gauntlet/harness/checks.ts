@@ -437,6 +437,77 @@ export async function choices(page: Page, scope: Scope = null, max = 16): Promis
   );
 }
 
+/** What the Card spec calls a card: the new class and the screens' legacy one. */
+const CARDS = ".dr-card, .card";
+
+/**
+ * Cards (docs/design/components/Card.md): every card has the surface fill (or
+ * `raised` when nested), the asymmetric corners (`radius-lg` and 8px), the
+ * `lift` shadow unless it's raised, and mirrors its corners from the card
+ * before it among its siblings. A card someone can press is a real `<button>`
+ * or `<a href>`, never a div with a role or tabindex.
+ */
+export async function cards(page: Page, scope: Scope = null): Promise<Violations> {
+  await withHelpers(page);
+  return page.evaluate(
+    ({ selector, scope }) => {
+      const { describe, visible, inScope, resolveColor } = window.__gauntlet;
+      const resolve = (property: string, value: string) => {
+        const probe = document.createElement("div");
+        probe.style.setProperty(property, value);
+        document.body.append(probe);
+        const resolved = getComputedStyle(probe).getPropertyValue(property);
+        probe.remove();
+        return resolved;
+      };
+      const surface = resolveColor("var(--surface)");
+      const raised = resolveColor("var(--raised)");
+      const lift = resolve("box-shadow", "var(--lift)");
+      const big = parseFloat(resolve("border-top-left-radius", "var(--radius-lg)"));
+      const corners = (el: Element) => {
+        const style = getComputedStyle(el);
+        return ["top-left", "top-right", "bottom-right", "bottom-left"]
+          .map((corner) => parseFloat(style.getPropertyValue(`border-${corner}-radius`)))
+          .join(" ");
+      };
+      const leans = [`${big} 8 ${big} 8`, `8 ${big} 8 ${big}`];
+      const found: string[] = [];
+      for (const el of document.querySelectorAll(selector)) {
+        if (!visible(el) || !inScope(el, scope)) continue;
+        const where = describe(el);
+        const style = getComputedStyle(el);
+        const isRaised = el.matches(".dr-card--raised");
+        const fill = isRaised ? raised : surface;
+        if (style.backgroundColor !== fill) {
+          found.push(
+            `${where} has background ${style.backgroundColor}, not --${isRaised ? "raised" : "surface"}`,
+          );
+        }
+        const shape = corners(el);
+        if (!leans.includes(shape)) found.push(`${where} has corners ${shape}, not ${leans[0]}`);
+        if (isRaised && style.boxShadow !== "none" && !el.matches(".is-selected")) {
+          found.push(`${where} is raised but has a shadow`);
+        }
+        if (!isRaised && !style.boxShadow.includes(lift)) {
+          found.push(`${where} doesn't have the --lift shadow`);
+        }
+        const next = [...(el.parentElement?.children ?? [])]
+          .slice([...(el.parentElement?.children ?? [])].indexOf(el) + 1)
+          .find((sibling) => sibling.matches(selector) && visible(sibling));
+        if (next && corners(next) === shape && leans.includes(shape)) {
+          found.push(`${where} and the card after it lean the same way`);
+        }
+        const pressable = el.matches("[role=button], [role=link], [tabindex]:not([tabindex='-1'])");
+        if (pressable && !el.matches("button, a[href]")) {
+          found.push(`${where} can be pressed but isn't a <button> or <a href>`);
+        }
+      }
+      return found;
+    },
+    { selector: CARDS, scope },
+  );
+}
+
 export interface Secret {
   /** The other person's nickname. */
   name: string;

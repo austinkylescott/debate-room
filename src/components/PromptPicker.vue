@@ -81,15 +81,19 @@ function addWritten() {
     </div>
 
     <form v-if="pack" class="stack" @submit.prevent="addPicked">
-      <p :id="packLine" class="muted small">
-        {{ pack.topic }} ·
-        <span class="dr-tag" :class="`dr-tag--${pack.intensity}`">
-          {{ INTENSITY_NAMES[pack.intensity] }}
-        </span>
-        <template v-if="format === 'middle-ground' && pack.sides">
-          · Suggested Sides: {{ pack.sides[0] }} / {{ pack.sides[1] }}
-        </template>
-      </p>
+      <div class="dr-card pack">
+        <h4 :id="packLine" class="dr-card__title">{{ pack.title }}</h4>
+        <p class="dr-card__meta">
+          {{ pack.topic }} · {{ pack.prompts.length }}
+          {{ pack.prompts.length === 1 ? "Prompt" : "Prompts" }} ·
+          <span class="dr-tag" :class="`dr-tag--${pack.intensity}`">
+            {{ INTENSITY_NAMES[pack.intensity] }}
+          </span>
+        </p>
+        <p v-if="format === 'middle-ground' && pack.sides" class="dr-card__meta">
+          Suggested Sides: {{ pack.sides[0] }} / {{ pack.sides[1] }}
+        </p>
+      </div>
       <CheckboxGroup v-model:value="picked" class="choices" :aria-labelledby="packLine">
         <ChoiceCheckbox v-for="prompt in packPrompts" :key="prompt.text" :value="prompt.text">
           {{ prompt.text }}
