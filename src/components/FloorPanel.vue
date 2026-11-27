@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { Select, SelectContent, SelectLabel, SelectTrigger, SelectValue } from "@ui-sdk/vue/select";
 import { computed } from "vue";
 import { useCountdown } from "../lib/serverClock";
+import { TIMER_CHOICES, timerChoice, timerSeconds } from "../lib/speakingTimer";
 import type { FloorView, Intent, WaitingRoomPerson } from "../room/room";
 
 const props = defineProps<{
@@ -11,16 +13,6 @@ const props = defineProps<{
   isSpectator?: boolean;
 }>();
 const emit = defineEmits<{ send: [intent: Intent] }>();
-
-/** Speaking timer choices, in seconds. Null is off. */
-const TIMER_CHOICES: { seconds: number | null; label: string }[] = [
-  { seconds: null, label: "Off" },
-  { seconds: 30, label: "30 seconds" },
-  { seconds: 60, label: "1 minute" },
-  { seconds: 120, label: "2 minutes" },
-  { seconds: 180, label: "3 minutes" },
-  { seconds: 300, label: "5 minutes" },
-];
 
 // The countdowns, on the server's clock, running only while a speaking timer is.
 const secondsLeft = useCountdown(() =>
@@ -48,9 +40,8 @@ function timeLeft(endsAt: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")} left`;
 }
 
-function setTimer(event: Event) {
-  const value = (event.target as HTMLSelectElement).value;
-  emit("send", { type: "set-floor-timer", seconds: value === "" ? null : Number(value) });
+function setTimer(choice: string | null) {
+  if (choice !== null) emit("send", { type: "set-floor-timer", seconds: timerSeconds(choice) });
 }
 </script>
 
@@ -118,19 +109,18 @@ function setTimer(event: Event) {
           </button>
         </li>
       </ul>
-      <div class="inline-form">
-        <label class="field">
-          <span>Speaking timer</span>
-          <select :value="floor.timerSeconds ?? ''" @change="setTimer">
-            <option
-              v-for="choice in TIMER_CHOICES"
-              :key="choice.label"
-              :value="choice.seconds ?? ''"
-            >
-              {{ choice.label }}
-            </option>
-          </select>
-        </label>
+      <div class="inline-form wrap">
+        <div class="field timer">
+          <Select
+            :items="TIMER_CHOICES"
+            :value="timerChoice(floor.timerSeconds)"
+            @value-change="setTimer"
+          >
+            <SelectLabel>Speaking timer</SelectLabel>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent />
+          </Select>
+        </div>
         <button
           v-if="floor.holders.length > 1"
           type="button"

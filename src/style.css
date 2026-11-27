@@ -1,3 +1,6 @@
+/* First, so these styles win over the little CSS UI SDK adds for its behaviors. */
+@layer ui-sdk;
+
 :root {
   --text: #3f3a48;
   --text-h: #0d0b12;
@@ -305,6 +308,15 @@ button.link.danger {
   flex: 1;
 }
 
+/* Wraps the button below rather than squeezing the field, at phone width. */
+.inline-form.wrap {
+  flex-wrap: wrap;
+}
+
+.inline-form .field.timer {
+  flex: 1 1 10rem;
+}
+
 select,
 textarea {
   font: inherit;
@@ -321,6 +333,77 @@ select:focus-visible,
 textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* UI SDK Select: styled like the native select it replaces. */
+[data-slot="select-trigger"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--bg);
+  text-align: start;
+  white-space: nowrap;
+}
+
+[data-slot="select-trigger"]::after {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 4px 4px 0;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+[data-slot="select-value"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-slot="select-content"] {
+  min-width: var(--anchor-width);
+  max-height: min(var(--available-height), 24rem);
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-h);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+[data-slot="select-item"] {
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+[data-slot="select-item"][data-highlighted] {
+  background: var(--accent-soft);
+}
+
+[data-slot="select-item"][data-selected] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+[data-slot="select-group-label"] {
+  padding: 8px 12px 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+[data-slot="select-separator"] {
+  margin: 4px 0;
+  border-top: 1px solid var(--border);
 }
 
 input[type="checkbox"] {

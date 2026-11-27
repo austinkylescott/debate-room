@@ -47,5 +47,23 @@ export function packsByTopic(packs: Pack[], intensity: Intensity | "any" = "any"
   return [...groups].map(([topic, packs]) => ({ topic, packs }));
 }
 
+export interface PackChoiceGroup {
+  type: "group";
+  label: string;
+  items: { value: string; label: string }[];
+}
+
+/** Packs grouped by Topic as choices for a list, each named with its Intensity. */
+export function packChoices(groups: TopicPacks[]): PackChoiceGroup[] {
+  return groups.map(({ topic, packs }) => ({
+    type: "group",
+    label: topic,
+    items: packs.map((p) => ({
+      value: p.id,
+      label: `${p.title} · ${INTENSITY_NAMES[p.intensity]}`,
+    })),
+  }));
+}
+
 // Spelled out so a production build drops the dummy Packs entirely.
 export const PACKS: Pack[] = import.meta.env.DEV ? packsFor({ dev: true }) : FEATURED_PACKS;

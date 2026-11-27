@@ -1,6 +1,21 @@
 <script setup lang="ts">
+import {
+  type ListData,
+  Select,
+  SelectContent,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@ui-sdk/vue/select";
 import { computed, ref, watch } from "vue";
-import { type Intensity, INTENSITY_NAMES, type Pack, PACKS, packsByTopic } from "../content/packs";
+import {
+  type Intensity,
+  INTENSITY_NAMES,
+  type Pack,
+  packChoices,
+  PACKS,
+  packsByTopic,
+} from "../content/packs";
 import { customPrompts, forgetCustomPrompt, saveCustomPrompt } from "../lib/customPrompts";
 import { type Format, FORMAT_NAMES, type NewPrompt, PROMPT_MAX_LENGTH } from "../room/lineup";
 
@@ -15,6 +30,23 @@ const source = ref<string>(PACKS[0]?.id ?? WRITE);
 const picked = ref<string[]>([]);
 const draft = ref("");
 const draftSurprise = ref(false);
+
+const sourceChoices = computed<ListData>(() => [
+  ...packChoices(topics.value),
+  { type: "separator" },
+  { value: WRITE, label: "Write your own" },
+]);
+const intensityChoices: ListData<Intensity | "any"> = [
+  { value: "any", label: "Chill or Spicy" },
+  { value: "chill", label: `${INTENSITY_NAMES.chill} only` },
+  { value: "spicy", label: `${INTENSITY_NAMES.spicy} only` },
+];
+
+function chooseSource(choice: string | null) {
+  if (choice === null) return;
+  source.value = choice;
+  picked.value = [];
+}
 
 const pack = computed(() => PACKS.find((p) => p.id === source.value));
 
@@ -55,26 +87,24 @@ function addWritten() {
 <template>
   <div class="picker stack">
     <div class="pair">
-      <label class="field">
-        <span>Add Prompts from</span>
-        <select v-model="source" @change="picked = []">
-          <optgroup v-for="group in topics" :key="group.topic" :label="group.topic">
-            <option v-for="p in group.packs" :key="p.id" :value="p.id">
-              {{ p.title }} · {{ INTENSITY_NAMES[p.intensity] }}
-            </option>
-          </optgroup>
-          <option :value="WRITE">Write your own</option>
-        </select>
-      </label>
-      <label class="field">
-        <span>Intensity</span>
-        <select v-model="intensity">
-          <option value="any">Chill or Spicy</option>
-          <option v-for="(name, key) in INTENSITY_NAMES" :key="key" :value="key">
-            {{ name }} only
-          </option>
-        </select>
-      </label>
+      <div class="field">
+        <Select :items="sourceChoices" :value="source" @value-change="chooseSource">
+          <SelectLabel>Add Prompts from</SelectLabel>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent />
+        </Select>
+      </div>
+      <div class="field">
+        <Select
+          :items="intensityChoices"
+          :value="intensity"
+          @value-change="(choice) => choice && (intensity = choice)"
+        >
+          <SelectLabel>Intensity</SelectLabel>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent />
+        </Select>
+      </div>
     </div>
 
     <form v-if="pack" class="stack" @submit.prevent="addPicked">

@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { FORMATS, PROMPT_MAX_LENGTH, SIDE_MAX_LENGTH } from "../room/lineup";
 import { FEATURED_PACKS } from "./featured-packs";
-import { packsFor } from "./packs";
+import { type Pack, packChoices, packsByTopic, packsFor } from "./packs";
 
 describe("Featured Packs", () => {
   it("covers six to eight Topics, each with one or two Packs", () => {
@@ -78,5 +78,42 @@ describe("the Packs a Host can browse", () => {
     expect(packs.slice(0, FEATURED_PACKS.length)).toEqual(FEATURED_PACKS);
     expect(packs.length).toBeGreaterThan(FEATURED_PACKS.length);
     for (const dummy of packs.slice(FEATURED_PACKS.length)) expect(dummy.title).toMatch(/dummy/);
+  });
+});
+
+describe("the Pack choices, grouped by Topic", () => {
+  const pack = (id: string, title: string, topic: string, intensity: Pack["intensity"]): Pack => ({
+    id,
+    title,
+    topic,
+    intensity,
+    prompts: [],
+  });
+  const packs = [
+    pack("pizza", "Kitchen Table Wars", "Food", "chill"),
+    pack("ai", "Robots at Work", "Technology", "spicy"),
+    pack("brunch", "Brunch Debates", "Food", "spicy"),
+  ];
+
+  it("names each Pack with its Intensity, under its Topic", () => {
+    expect(packChoices(packsByTopic(packs))).toEqual([
+      {
+        type: "group",
+        label: "Food",
+        items: [
+          { value: "pizza", label: "Kitchen Table Wars · Chill" },
+          { value: "brunch", label: "Brunch Debates · Spicy" },
+        ],
+      },
+      {
+        type: "group",
+        label: "Technology",
+        items: [{ value: "ai", label: "Robots at Work · Spicy" }],
+      },
+    ]);
+  });
+
+  it("leaves out Topics the Intensity filter empties", () => {
+    expect(packChoices(packsByTopic(packs, "chill")).map((group) => group.label)).toEqual(["Food"]);
   });
 });
