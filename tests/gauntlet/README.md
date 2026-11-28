@@ -33,6 +33,7 @@ The per-screen checks (`harness/checks.ts`, run by `harness/gauntlet.ts`):
 | `targets`        | Gauntlet 4, hard rule 5 | Every visible control is at least 44×44px (a wrapping `<label>` counts; UI SDK's hidden form input doesn't)                                                                                                                        |
 | `names`          | Gauntlet 1, hard rule 3 | Every name label is one line, `white-space: nowrap`, cut only with an ellipsis, has the full name in `title` and its accessible name (a landmark's label, like the toasts' "Notifications", isn't one), and overlaps no other name |
 | `tags`           | Tag.md, hard rule 5     | Every tag sits on `ground`, `surface` or `raised`, and its fill, border or outline differs from that ground, so it reads as a pill                                                                                                 |
+| `moods`          | Mood.md, hard rule 8    | Every Mood row offers all seven Moods as 44×44px circles, on one line, inside the row                                                                                                                                              |
 
 The crowd test (gauntlet 1) is two of the screens: `crowd()` gives a Waiting Room of 15 Participants with 20-character names, and `crowdOnOneNotch()` puts all of them on one Spectrum notch and reveals.
 

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { CHECK_IN_MS, type Mood, MOODS } from "../room/mood";
 import type { Intent, StageView } from "../room/room";
+import MoodPicker from "./MoodPicker.vue";
 import Timer from "./Timer.vue";
 
 const props = defineProps<{ stage: StageView; personId: string }>();
@@ -40,8 +41,13 @@ function pick(mood: Mood) {
 
 <template>
   <!-- The Check-in, when the Prompt has ended -->
-  <template v-if="checkIn?.status === 'open'">
-    <h2>Mood Check-in</h2>
+  <section
+    v-if="checkIn?.status === 'open'"
+    class="dr-card dr-card--raised mood-check-in"
+    :class="{ 'is-your-move': stage.playing && !youAnswered }"
+    aria-labelledby="mood-check-in-title"
+  >
+    <h2 id="mood-check-in-title" class="dr-card__title">Mood Check-in</h2>
     <Timer
       variant="bar"
       :ends-at="checkIn.closesAt"
@@ -56,32 +62,18 @@ function pick(mood: Mood) {
       <template v-else>Everyone Playing is picking a Mood for that Prompt.</template>
       {{ checkIn.answered.length }} answered.
     </p>
+    <MoodPicker v-if="canPick" :mood="yours" @pick="pick" />
     <button
       v-if="stage.playing && !youAnswered && yoursMood"
-      class="primary"
       type="button"
       @click="pick(yoursMood.id)"
     >
       Keep {{ yoursMood.emoji }} {{ yoursMood.label }}
     </button>
-  </template>
+  </section>
 
-  <!-- Your Mood -->
-  <div v-if="canPick" class="moods" role="group" aria-label="Your Mood">
-    <button
-      v-for="mood in MOODS"
-      :key="mood.id"
-      type="button"
-      class="mood"
-      :class="{ picked: yours === mood.id }"
-      :aria-pressed="yours === mood.id"
-      :title="mood.label"
-      @click="pick(mood.id)"
-    >
-      <span aria-hidden="true">{{ mood.emoji }}</span>
-      <span class="sr-only">{{ mood.label }}</span>
-    </button>
-  </div>
+  <!-- Your Mood, during the Prompt -->
+  <MoodPicker v-else-if="canPick" :mood="yours" @pick="pick" />
 
   <!-- The Check-in tally, on the summary card -->
   <template v-if="tally">

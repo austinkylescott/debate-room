@@ -146,6 +146,30 @@ test("choices flags a radio or checkbox that sits away from its label", async ({
   expect(await checks.choices(page, SCOPE)).toEqual([]);
 });
 
+test("moods flags a Mood row that wraps, spills or isn't seven 44px Moods", async ({ page }) => {
+  const seven = (style = "") =>
+    Array.from(
+      { length: 7 },
+      () => `<button type="button" class="dr-mood" style="${style}">😀</button>`,
+    ).join("");
+  await plant(
+    page,
+    `<div class="dr-moods" style="width: 200px; flex-wrap: wrap">${seven()}</div>
+     <div class="dr-moods" style="width: 200px; justify-content: flex-start">${seven()}</div>
+     <div class="dr-moods">${seven("width: 32px; height: 32px; min-width: 0; min-height: 0")}</div>
+     <div class="dr-moods"><button type="button" class="dr-mood">😀</button></div>`,
+  );
+  expect(await checks.moods(page, SCOPE)).toEqual([
+    expect.stringContaining("wraps onto 2 lines"),
+    // Seven 44px Moods need 308px: in a 200px row, the last three spill out.
+    ...Array.from({ length: 3 }, () => expect.stringContaining("spills out of its row")),
+    ...Array.from({ length: 7 }, () => expect.stringContaining("is 32×32px, not 44×44")),
+    expect.stringContaining("offers 1 Moods, not 7"),
+  ]);
+  await plant(page, `<div class="dr-moods" style="width: 358px">${seven()}</div>`);
+  expect(await checks.moods(page, SCOPE)).toEqual([]);
+});
+
 test("names flags names that wrap, break, lack a title or overlap", async ({ page }) => {
   const name = "Supercalifragilistic";
   await plant(

@@ -7,6 +7,7 @@ import { notchLabel } from "../room/spectrum";
 const props = defineProps<{ moods: PromptMoodInsights; startedAt: number }>();
 
 const emoji = (mood: Mood) => MOODS.find((m) => m.id === mood)?.emoji ?? mood;
+const label = (mood: Mood) => MOODS.find((m) => m.id === mood)?.label ?? mood;
 
 function sincePrompt(at: number): string {
   const seconds = Math.max(0, Math.round((at - props.startedAt) / 1000));
@@ -46,9 +47,11 @@ function describe(change: MoodLink["changes"][number]): string {
     <ul v-if="moods.timelines.length > 0" class="mood-timelines">
       <li v-for="timeline in moods.timelines" :key="timeline.personId">
         <span class="name" :title="timeline.nickname">{{ timeline.nickname }}</span>
-        <span v-for="(change, i) in timeline.changes" :key="i" class="mood-change">
+        <span v-for="(change, i) in timeline.changes" :key="i" class="mood-change dr-mood-inline">
           <span v-if="i > 0" aria-hidden="true">→</span>
-          <span :title="change.mood">{{ emoji(change.mood) }}</span>
+          <span role="img" :aria-label="label(change.mood)" :title="label(change.mood)">{{
+            emoji(change.mood)
+          }}</span>
           <span class="muted">{{ sincePrompt(change.at) }}</span>
         </span>
       </li>
