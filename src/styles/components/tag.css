@@ -10,6 +10,7 @@
  *   .dr-tag--spectator   muted outline, muted text: Spectator, Sitting out
  *   .dr-tag--outline     muted outline, ink text: You
  *   .dr-tag--live        ● Live: the spark, one of the status pills hard rule 2 allows
+ *   .dr-tag--revealed    ✦ Revealed: the spark, the other status pill hard rule 2 allows
  *
  * Long text truncates on one line: wrap it in .dr-tag__text and put the full text in `title`.
  *
@@ -96,7 +97,8 @@
   box-shadow: inset 0 0 0 1.5px var(--muted);
 }
 
-.dr-tag--live {
+.dr-tag--live,
+.dr-tag--revealed {
   background: var(--primary);
   color: var(--on-primary);
 }
@@ -107,7 +109,14 @@
  * Not in the spec; asked for in #74 (found in #75: the Format tag on the Lineup Preview).
  */
 :is(.dr-card--raised, .people li.you)
-  .dr-tag:not(.dr-tag--host, .dr-tag--cohost, .dr-tag--spectator, .dr-tag--outline, .dr-tag--live) {
+  .dr-tag:not(
+    .dr-tag--host,
+    .dr-tag--cohost,
+    .dr-tag--spectator,
+    .dr-tag--outline,
+    .dr-tag--live,
+    .dr-tag--revealed
+  ) {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--muted);
 }
