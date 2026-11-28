@@ -5,6 +5,7 @@ import type { FloorView, Intent, StageView } from "../room/room";
 import type { ExchangeEnd, Yielder } from "../room/surrounded";
 import Electron from "./Electron.vue";
 import MoodPanel from "./MoodPanel.vue";
+import SelectField from "./SelectField.vue";
 import Timer from "./Timer.vue";
 
 const props = defineProps<{
@@ -52,6 +53,24 @@ function endedLabel(endedBy: ExchangeEnd, yieldedBy?: Yielder): string {
 const moodOf = (personId: string) => props.stage.moods[personId] ?? null;
 
 const marks = computed(() => floorMarks(props.floor ?? null));
+
+const centerChoices = computed(() =>
+  props.stage.surrounded.challengers.map((person) => ({
+    value: person.personId,
+    label: person.nickname,
+  })),
+);
+/** Menu.md: a disabled item says why in its label. */
+const chairChoices = computed(() =>
+  props.stage.surrounded.challengers.map((person) => {
+    const seated = person.personId === chair.value?.challenger.personId;
+    return {
+      value: person.personId,
+      label: seated ? `${person.nickname} (in the chair)` : person.nickname,
+      disabled: seated,
+    };
+  }),
+);
 
 function send(intent: Intent) {
   emit("send", intent);
@@ -189,47 +208,22 @@ const advanceLabel = computed(() => {
     <!-- Host controls -->
     <div v-if="isHost" class="host-controls stack">
       <template v-if="!over">
-        <label class="field">
-          <span>{{ surrounded.center ? "Replace the Center" : "Pick the Center" }}</span>
-          <select
-            @change="
-              send({
-                type: 'choose-center',
-                personId: ($event.target as HTMLSelectElement).value,
-              })
-            "
-          >
-            <option value="" disabled selected>Choose someone</option>
-            <option
-              v-for="person in surrounded.challengers"
-              :key="person.personId"
-              :value="person.personId"
-            >
-              {{ person.nickname }}
-            </option>
-          </select>
-        </label>
-        <label v-if="surrounded.center" class="field">
-          <span>Put in the chair</span>
-          <select
-            @change="
-              send({
-                type: 'seat-challenger',
-                personId: ($event.target as HTMLSelectElement).value,
-              })
-            "
-          >
-            <option value="" disabled selected>Choose a Challenger</option>
-            <option
-              v-for="person in surrounded.challengers"
-              :key="person.personId"
-              :value="person.personId"
-              :disabled="person.personId === chair?.challenger.personId"
-            >
-              {{ person.nickname }}
-            </option>
-          </select>
-        </label>
+        <!-- Pick someone and it's sent; the select goes back to its placeholder. -->
+        <SelectField
+          :label="surrounded.center ? 'Replace the Center' : 'Pick the Center'"
+          placeholder="Choose someone"
+          :options="centerChoices"
+          :model-value="null"
+          @update:model-value="(id) => id && send({ type: 'choose-center', personId: id })"
+        />
+        <SelectField
+          v-if="surrounded.center"
+          label="Put in the chair"
+          placeholder="Choose a Challenger"
+          :options="chairChoices"
+          :model-value="null"
+          @update:model-value="(id) => id && send({ type: 'seat-challenger', personId: id })"
+        />
         <button v-if="chair" type="button" @click="send({ type: 'end-exchange' })">
           End this exchange
         </button>

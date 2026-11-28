@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ask } from "../lib/ask";
+import { computed, ref } from "vue";
 import type { Pack } from "../content/packs";
 import {
   DEFAULT_SIDES,
@@ -19,6 +20,7 @@ import {
 import type { WaitingRoomPerson } from "../room/room";
 import ChoiceCheckbox from "./ChoiceCheckbox.vue";
 import PromptPicker from "./PromptPicker.vue";
+import SelectField from "./SelectField.vue";
 
 const props = defineProps<{
   round: Round;
@@ -86,14 +88,34 @@ function saveEdit(prompt: Prompt) {
   editingId.value = null;
 }
 
-function confirmRemoveRound() {
+async function confirmRemoveRound() {
   const label = `Round ${props.index + 1} (${FORMAT_NAMES[props.round.setup.format]})`;
-  if (props.round.prompts.length === 0 || confirm(`Remove ${label} and its Prompts?`)) {
-    emit("send", { type: "remove-round", roundId: props.round.id });
-  }
+  const yes =
+    props.round.prompts.length === 0 ||
+    (await ask({
+      title: `Remove ${label}?`,
+      description: "Its Prompts go with it.",
+      confirmLabel: "Remove the Round",
+    }));
+  if (yes) emit("send", { type: "remove-round", roundId: props.round.id });
 }
 
 const value = (event: Event) => (event.target as HTMLInputElement).value;
+
+const formatOptions = FORMATS.map((f) => ({ value: f, label: FORMAT_NAMES[f] }));
+/** Surrounded's Center: someone picked now, or whoever steps up when the Round starts. */
+const VOLUNTEER = "volunteer";
+const centerOptions = computed(() => [
+  { value: VOLUNTEER, label: "A volunteer steps up" },
+  ...props.people.map((person) => ({ value: person.id, label: person.nickname })),
+]);
+
+const isFormat = (value: string | null): value is Format =>
+  (FORMATS as readonly string[]).includes(value ?? "");
+
+function pickFormat(format: string | null) {
+  if (isFormat(format)) changeFormat(format);
+}
 </script>
 
 <template>
@@ -123,12 +145,12 @@ const value = (event: Event) => (event.target as HTMLInputElement).value;
       </span>
     </header>
 
-    <label class="field">
-      <span>Format</span>
-      <select :value="round.setup.format" @change="changeFormat(value($event) as Format)">
-        <option v-for="f in FORMATS" :key="f" :value="f">{{ FORMAT_NAMES[f] }}</option>
-      </select>
-    </label>
+    <SelectField
+      label="Format"
+      :options="formatOptions"
+      :model-value="round.setup.format"
+      @update:model-value="pickFormat"
+    />
 
     <div v-if="round.setup.format === 'middle-ground'" class="pair">
       <label class="field">
@@ -152,18 +174,14 @@ const value = (event: Event) => (event.target as HTMLInputElement).value;
     </div>
 
     <div v-else-if="round.setup.format === 'surrounded'" class="pair">
-      <label class="field">
-        <span>Center</span>
-        <select
-          :value="round.setup.centerId ?? ''"
-          @change="changeSurrounded({ centerId: value($event) || null })"
-        >
-          <option value="">A volunteer steps up</option>
-          <option v-for="person in people" :key="person.id" :value="person.id">
-            {{ person.nickname }}
-          </option>
-        </select>
-      </label>
+      <SelectField
+        label="Center"
+        :options="centerOptions"
+        :model-value="round.setup.centerId ?? VOLUNTEER"
+        @update:model-value="
+          (id) => changeSurrounded({ centerId: id === VOLUNTEER || id === null ? null : id })
+        "
+      />
       <label class="field">
         <span>Exchange timer (seconds)</span>
         <input

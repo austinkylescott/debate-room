@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { ask } from "../lib/ask";
 import { ref } from "vue";
-import { INTENSITY_NAMES, PACKS, packsByTopic } from "../content/packs";
+import { PACKS, packsByTopic } from "../content/packs";
+import { packOptions } from "../lib/selectOptions";
 import {
   defaultSetup,
   type Format,
@@ -12,6 +14,7 @@ import {
 } from "../room/lineup";
 import type { WaitingRoomPerson } from "../room/room";
 import RoundCard from "./RoundCard.vue";
+import SelectField from "./SelectField.vue";
 
 const props = defineProps<{ rounds: Round[]; people: WaitingRoomPerson[] }>();
 const emit = defineEmits<{ send: [intent: LineupIntent] }>();
@@ -19,19 +22,26 @@ const emit = defineEmits<{ send: [intent: LineupIntent] }>();
 const newFormat = ref<Format>("spectrum");
 const shortcutFormat = ref<Format>("middle-ground");
 const shortcutPack = ref(PACKS[0]?.id);
-const topics = packsByTopic(PACKS);
+const formatOptions = FORMATS.map((f) => ({ value: f, label: FORMAT_NAMES[f] }));
+const packChoices = packOptions(packsByTopic(PACKS));
+const isFormat = (value: string | null): value is Format =>
+  (FORMATS as readonly string[]).includes(value ?? "");
 
 function addRound() {
   emit("send", { type: "add-round", setup: defaultSetup(newFormat.value), prompts: [] });
 }
 
 /** "A whole night of one Format": one Round with every suitable Prompt from a Pack. */
-function planWholeNight() {
+async function planWholeNight() {
   const pack = PACKS.find((p) => p.id === shortcutPack.value);
   if (!pack) return;
   if (
     props.rounds.length > 0 &&
-    !confirm("Replace your whole Lineup with this one Round? Your current Rounds will be removed.")
+    !(await ask({
+      title: "Replace your whole Lineup?",
+      description: "This one Round takes the place of your current Rounds.",
+      confirmLabel: "Replace the Lineup",
+    }))
   ) {
     return;
   }
@@ -68,12 +78,12 @@ function planWholeNight() {
     />
 
     <form class="inline-form" @submit.prevent="addRound">
-      <label class="field">
-        <span>New Round</span>
-        <select v-model="newFormat">
-          <option v-for="f in FORMATS" :key="f" :value="f">{{ FORMAT_NAMES[f] }}</option>
-        </select>
-      </label>
+      <SelectField
+        label="New Round"
+        :options="formatOptions"
+        :model-value="newFormat"
+        @update:model-value="(f) => isFormat(f) && (newFormat = f)"
+      />
       <button type="submit" :disabled="rounds.length >= MAX_ROUNDS">Add Round</button>
     </form>
 
@@ -81,22 +91,18 @@ function planWholeNight() {
       <summary>Or plan a whole night of one Format</summary>
       <form class="stack" @submit.prevent="planWholeNight">
         <div class="pair">
-          <label class="field">
-            <span>Format</span>
-            <select v-model="shortcutFormat">
-              <option v-for="f in FORMATS" :key="f" :value="f">{{ FORMAT_NAMES[f] }}</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Pack</span>
-            <select v-model="shortcutPack">
-              <optgroup v-for="group in topics" :key="group.topic" :label="group.topic">
-                <option v-for="p in group.packs" :key="p.id" :value="p.id">
-                  {{ p.title }} · {{ INTENSITY_NAMES[p.intensity] }}
-                </option>
-              </optgroup>
-            </select>
-          </label>
+          <SelectField
+            label="Format"
+            :options="formatOptions"
+            :model-value="shortcutFormat"
+            @update:model-value="(f) => isFormat(f) && (shortcutFormat = f)"
+          />
+          <SelectField
+            label="Pack"
+            :options="packChoices"
+            :model-value="shortcutPack ?? null"
+            @update:model-value="(id) => id && (shortcutPack = id)"
+          />
         </div>
         <button type="submit">Plan the night</button>
       </form>

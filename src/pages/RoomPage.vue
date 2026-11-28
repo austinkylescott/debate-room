@@ -4,6 +4,7 @@ import { computed, ref, useId, watch } from "vue";
 import ChoiceCheckbox from "../components/ChoiceCheckbox.vue";
 import ChoiceRadio from "../components/ChoiceRadio.vue";
 import FloorPanel from "../components/FloorPanel.vue";
+import { ask } from "../lib/ask";
 import InviteCard from "../components/InviteCard.vue";
 import LineupEditor from "../components/LineupEditor.vue";
 import LineupPreview from "../components/LineupPreview.vue";
@@ -100,19 +101,27 @@ const expiresOn = computed(() =>
     : "",
 );
 
-function endRoom() {
-  if (confirm("End the Room for everyone? Nobody can join or play after this. The Recap stays.")) {
-    send({ type: "end-room" });
-  }
+async function endRoom() {
+  const yes = await ask({
+    title: "End the Room for everyone?",
+    description: "Nobody can join or play after this. The Recap stays.",
+    confirmLabel: "End the Room",
+  });
+  if (yes) send({ type: "end-room" });
 }
 
 /** Nothing has happened in Planning, so cancelling discards the Room and goes home. */
-function cancelRoom() {
-  if (confirm("Cancel this Room? It will be deleted, along with its Lineup.")) {
-    send({ type: "cancel-room" });
-    forgetHostSecret(props.roomId);
-    navigate("/");
-  }
+async function cancelRoom() {
+  const yes = await ask({
+    title: "Cancel this Room?",
+    description: "It will be deleted, along with its Lineup.",
+    confirmLabel: "Cancel the Room",
+    cancelLabel: "Keep it",
+  });
+  if (!yes) return;
+  send({ type: "cancel-room" });
+  forgetHostSecret(props.roomId);
+  navigate("/");
 }
 
 function claimHostWithPin(pin: string) {

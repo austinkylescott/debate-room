@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { watchEffect } from "vue";
 import ThemeToggle from "./components/ThemeToggle.vue";
+import ConfirmDialog from "./components/ConfirmDialog.vue";
 import ToastStack from "./components/ToastStack.vue";
 import { saveHostSecret } from "./lib/device";
 import { navigate, roomPath, route } from "./lib/route";
@@ -30,4 +31,5 @@ watchEffect(() => {
     </section>
   </main>
   <ToastStack />
+  <ConfirmDialog />
 </template>

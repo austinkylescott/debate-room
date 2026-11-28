@@ -247,6 +247,45 @@ export const SCREENS: Screen[] = [
     redesignedOnly: OLD_CONTROLS,
   },
   {
+    // Menu and Select (#59): a select open, as a popover or a bottom sheet.
+    name: "Planning (Host), a select open",
+    async open(page, baseURL) {
+      const room = await createRoom(baseURL, { hostNickname: "Robin", open: false });
+      await planRound(room, { format: "spectrum" }, ["Pineapple belongs on pizza"]);
+      await openRoom(page, room, "host");
+      await page.getByRole("combobox", { name: "Format" }).first().click();
+      await expect(page.getByRole("listbox")).toBeVisible();
+      return { room, names: ["Robin"] };
+    },
+    redesignedOnly: NOT_YET,
+  },
+  {
+    name: "Waiting Room (Host), a person's actions open",
+    async open(page, baseURL) {
+      const room = await waitingRoom(baseURL);
+      await openRoom(page, room, "host");
+      await page.getByRole("button", { name: "Actions for Ada" }).click();
+      await expect(page.getByRole("menu")).toBeVisible();
+      return { room, names: WAITING_ROOM_NAMES };
+    },
+    redesignedOnly: OLD_CONTROLS,
+  },
+  {
+    name: "Waiting Room (Host), asked before removing someone",
+    async open(page, baseURL) {
+      const room = await waitingRoom(baseURL);
+      await openRoom(page, room, "host");
+      await page.getByRole("button", { name: "Actions for Ada" }).click();
+      await expect(page.getByRole("menu")).toBeVisible();
+      // By keyboard: a click the instant a sheet appears lands before a person could tap.
+      await page.getByRole("menuitem", { name: "Remove from Room" }).focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("alertdialog")).toBeVisible();
+      return { room, names: WAITING_ROOM_NAMES };
+    },
+    redesignedOnly: OLD_CONTROLS,
+  },
+  {
     name: "Waiting Room (Participant)",
     async open(page, baseURL) {
       const room = await waitingRoom(baseURL);

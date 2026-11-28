@@ -128,9 +128,13 @@ export async function targets(page: Page, scope: Scope = null): Promise<Violatio
   return page.evaluate(
     ({ controls, scope, min }) => {
       const { describe, visible, inScope } = window.__gauntlet;
-      // UI SDK's hidden native input mirrors a role=radio for forms: nobody can press it.
+      // UI SDK's hidden native input mirrors a role=radio (an <input>) or a Select (a
+      // <textarea>) for forms: nobody can press it.
       const pressable = (el: Element) =>
-        !(el.matches("input[aria-hidden=true]") && getComputedStyle(el).pointerEvents === "none");
+        !(
+          el.matches(":is(input, textarea)[aria-hidden=true]") &&
+          getComputedStyle(el).pointerEvents === "none"
+        );
       return [...document.querySelectorAll(controls)]
         .filter((el) => visible(el) && inScope(el, scope) && pressable(el))
         .flatMap((el) => {
@@ -161,6 +165,10 @@ export async function focus(page: Page, scope: Scope = null, maxTabs = 300): Pro
       .forEach((el, i) => el.setAttribute("data-gauntlet-order", String(i)));
     (document.activeElement as HTMLElement | null)?.blur?.();
     window.getSelection()?.removeAllRanges();
+    // An open modal dialog is the top for whoever uses it: its focus trap is the whole
+    // tab order. Start from the dialog itself, so its wrap comes back to the first stop.
+    const modal = document.querySelector<HTMLElement>("[aria-modal=true][data-open]");
+    modal?.focus();
   });
   const violations: Violations = [];
   let first: number | null = null;
@@ -683,6 +691,43 @@ export async function orbits(page: Page, scope: Scope = null): Promise<Violation
       return found;
     },
     { scope, notches: SPECTRUM_NOTCH_LABELS },
+  );
+}
+
+/**
+ * Menu.md and hard rule 8: menus never clip. Every open menu, listbox and dialog sits
+ * wholly inside the viewport, and under 420px a menu or listbox opens as a bottom sheet.
+ */
+export async function menus(page: Page, scope: Scope = null): Promise<Violations> {
+  await withHelpers(page);
+  return page.evaluate(
+    ({ scope }) => {
+      const { describe, visible, inScope } = window.__gauntlet;
+      const found: string[] = [];
+      const width = document.documentElement.clientWidth;
+      const height = window.innerHeight;
+      const popups = document.querySelectorAll(
+        "[data-slot=select-content][data-open], [data-slot=menu-content][data-open], [data-slot=alert-dialog-content][data-open]",
+      );
+      for (const popup of popups) {
+        if (!visible(popup) || !inScope(popup, scope)) continue;
+        const where = describe(popup);
+        const box = popup.getBoundingClientRect();
+        if (box.left < -1 || box.top < -1 || box.right > width + 1 || box.bottom > height + 1) {
+          found.push(
+            `${where} clips at ${Math.round(box.left)},${Math.round(box.top)} to ${Math.round(box.right)},${Math.round(box.bottom)} in a ${width}×${height} viewport`,
+          );
+        }
+        const menu = !popup.matches("[data-slot=alert-dialog-content]");
+        if (menu && width < 420 && popup.getAttribute("data-presentation") !== "sheet") {
+          found.push(
+            `${where} opens as a ${popup.getAttribute("data-presentation")}, not a bottom sheet, under 420px`,
+          );
+        }
+      }
+      return found;
+    },
+    { scope },
   );
 }
 

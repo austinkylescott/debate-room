@@ -3,8 +3,10 @@ import { CheckboxGroup } from "@ui-sdk/vue/checkbox";
 import { computed, ref, useId, watch } from "vue";
 import { type Intensity, INTENSITY_NAMES, type Pack, PACKS, packsByTopic } from "../content/packs";
 import { customPrompts, forgetCustomPrompt, saveCustomPrompt } from "../lib/customPrompts";
+import { packOptions } from "../lib/selectOptions";
 import { type Format, FORMAT_NAMES, type NewPrompt, PROMPT_MAX_LENGTH } from "../room/lineup";
 import ChoiceCheckbox from "./ChoiceCheckbox.vue";
+import SelectField from "./SelectField.vue";
 
 const props = defineProps<{ format: Format }>();
 // The Pack is passed along so a Middle Ground Round can take its suggested Sides.
@@ -19,6 +21,28 @@ const draft = ref("");
 const draftSurprise = ref(false);
 
 const pack = computed(() => PACKS.find((p) => p.id === source.value));
+
+const sourceOptions = computed(() => [
+  ...packOptions(topics.value),
+  { value: WRITE, label: "Write your own" },
+]);
+const INTENSITIES = Object.keys(INTENSITY_NAMES) as Intensity[];
+const intensityOptions = [
+  { value: "any", label: "Chill or Spicy" },
+  ...INTENSITIES.map((key) => ({ value: key, label: `${INTENSITY_NAMES[key]} only` })),
+];
+
+function pickSource(id: string | null) {
+  if (id === null || id === source.value) return;
+  source.value = id;
+  picked.value = [];
+}
+
+function pickIntensity(value: string | null) {
+  if (value === "any" || INTENSITIES.includes(value as Intensity)) {
+    intensity.value = value as Intensity | "any";
+  }
+}
 const packLine = useId();
 
 // Filtering by Intensity can hide the chosen Pack: move to the first one left.
@@ -58,26 +82,18 @@ function addWritten() {
 <template>
   <div class="picker stack">
     <div class="pair">
-      <label class="field">
-        <span>Add Prompts from</span>
-        <select v-model="source" @change="picked = []">
-          <optgroup v-for="group in topics" :key="group.topic" :label="group.topic">
-            <option v-for="p in group.packs" :key="p.id" :value="p.id">
-              {{ p.title }} · {{ INTENSITY_NAMES[p.intensity] }}
-            </option>
-          </optgroup>
-          <option :value="WRITE">Write your own</option>
-        </select>
-      </label>
-      <label class="field">
-        <span>Intensity</span>
-        <select v-model="intensity">
-          <option value="any">Chill or Spicy</option>
-          <option v-for="(name, key) in INTENSITY_NAMES" :key="key" :value="key">
-            {{ name }} only
-          </option>
-        </select>
-      </label>
+      <SelectField
+        label="Add Prompts from"
+        :options="sourceOptions"
+        :model-value="source"
+        @update:model-value="pickSource"
+      />
+      <SelectField
+        label="Intensity"
+        :options="intensityOptions"
+        :model-value="intensity"
+        @update:model-value="pickIntensity"
+      />
     </div>
 
     <form v-if="pack" class="stack" @submit.prevent="addPicked">

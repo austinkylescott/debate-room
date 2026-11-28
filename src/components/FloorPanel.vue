@@ -4,6 +4,7 @@ import { initials } from "../lib/electron";
 import { MOODS, type Mood } from "../room/mood";
 import type { FloorView, Intent, WaitingRoomPerson } from "../room/room";
 import Electron from "./Electron.vue";
+import SelectField from "./SelectField.vue";
 import ShapeZone from "./ShapeZone.vue";
 import Timer from "./Timer.vue";
 
@@ -72,9 +73,15 @@ const canRaise = computed(
   () => !props.isHost && !props.isSpectator && !youHaveFloor.value && yourHand.value === null,
 );
 
-function setTimer(event: Event) {
-  const value = (event.target as HTMLSelectElement).value;
-  emit("send", { type: "set-floor-timer", seconds: value === "" ? null : Number(value) });
+const OFF = "off";
+const timerOptions = TIMER_CHOICES.map((choice) => ({
+  value: choice.seconds === null ? OFF : String(choice.seconds),
+  label: choice.label,
+}));
+
+function setTimer(value: string | null) {
+  if (value === null) return;
+  emit("send", { type: "set-floor-timer", seconds: value === OFF ? null : Number(value) });
 }
 </script>
 
@@ -187,18 +194,12 @@ function setTimer(event: Event) {
         </li>
       </ul>
       <div class="inline-form">
-        <label class="field">
-          <span>Speaking timer</span>
-          <select :value="floor.timerSeconds ?? ''" @change="setTimer">
-            <option
-              v-for="choice in TIMER_CHOICES"
-              :key="choice.label"
-              :value="choice.seconds ?? ''"
-            >
-              {{ choice.label }}
-            </option>
-          </select>
-        </label>
+        <SelectField
+          label="Speaking timer"
+          :options="timerOptions"
+          :model-value="floor.timerSeconds === null ? OFF : String(floor.timerSeconds)"
+          @update:model-value="setTimer"
+        />
         <button
           v-if="floor.holders.length > 1"
           type="button"
