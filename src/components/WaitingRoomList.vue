@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@ui-sdk/vue/menu";
+import { nextTick, ref } from "vue";
+import { ask } from "../lib/ask";
+import { useMenuPresentation } from "../lib/mediaQuery";
 import { NICKNAME_MAX_LENGTH, type WaitingRoomPerson } from "../room/room";
 import Electron from "./Electron.vue";
 
@@ -24,10 +27,15 @@ const emit = defineEmits<{
 
 const editingId = ref<string | null>(null);
 const draft = ref("");
+const renameInput = ref<HTMLInputElement[]>([]);
+const presentation = useMenuPresentation();
 
-function startRename(person: WaitingRoomPerson) {
+async function startRename(person: WaitingRoomPerson) {
   editingId.value = person.id;
   draft.value = person.nickname;
+  // The menu's trigger is gone once the row turns into the form: focus goes to the field.
+  await nextTick();
+  renameInput.value[0]?.focus();
 }
 
 function saveRename(personId: string) {
@@ -35,11 +43,36 @@ function saveRename(personId: string) {
   editingId.value = null;
 }
 
-function confirmRemove(person: WaitingRoomPerson) {
-  if (confirm(`Remove ${person.nickname} from the Room? They won't be able to join again.`)) {
-    emit("remove", person.id);
-  }
+async function confirmRemove(person: WaitingRoomPerson) {
+  const yes = await ask({
+    title: `Remove ${person.nickname}?`,
+    description: "They leave the Room and can't join it again.",
+    confirmLabel: "Remove from Room",
+  });
+  if (yes) emit("remove", person.id);
 }
+
+// Renaming and removing wait until the menu has closed and handed focus back, so the
+// rename field or the dialog takes focus after it rather than having it taken away.
+let afterClose: (() => void) | null = null;
+
+function act(person: WaitingRoomPerson, action: unknown) {
+  if (action === "rename") afterClose = () => void startRename(person);
+  else if (action === "remove") afterClose = () => void confirmRemove(person);
+  else if (action === "grant") emit("grant", person.id);
+  else if (action === "revoke") emit("revoke", person.id);
+}
+
+function onMenuSettled(open: boolean) {
+  if (open) return;
+  const next = afterClose;
+  afterClose = null;
+  next?.();
+}
+
+/** Make or revoke Co-Host: the Host only, and never for the Host or a Spectator. */
+const canCoHost = (person: WaitingRoomPerson) =>
+  Boolean(props.isHost && props.canBeCoHosts && !person.isHost);
 
 /** Only the Host removes a Co-Host; nobody removes the Host. */
 const canRemove = (person: WaitingRoomPerson) =>
@@ -55,6 +88,7 @@ const canRemove = (person: WaitingRoomPerson) =>
         @submit.prevent="saveRename(person.id)"
       >
         <input
+          ref="renameInput"
           v-model="draft"
           :aria-label="`New nickname for ${person.nickname}`"
           :maxlength="NICKNAME_MAX_LENGTH"
@@ -74,30 +108,31 @@ const canRemove = (person: WaitingRoomPerson) =>
         </span>
         <span v-if="person.isCoHost" class="dr-tag dr-tag--cohost">Co-Host</span>
         <span v-if="person.id === youId" class="dr-tag dr-tag--outline">You</span>
-        <span v-if="canManage" class="actions">
-          <button type="button" class="link" @click="startRename(person)">Rename</button>
-          <template v-if="isHost && canBeCoHosts && !person.isHost">
-            <button
-              v-if="person.isCoHost"
-              type="button"
-              class="link"
-              @click="emit('revoke', person.id)"
-            >
-              Revoke Co-Host
-            </button>
-            <button v-else type="button" class="link" @click="emit('grant', person.id)">
-              Make Co-Host
-            </button>
-          </template>
-          <button
-            v-if="canRemove(person)"
-            type="button"
-            class="link danger"
-            @click="confirmRemove(person)"
-          >
-            Remove
-          </button>
-        </span>
+        <Menu
+          v-if="canManage"
+          :presentation="presentation"
+          @action="(value: unknown) => act(person, value)"
+          @open-change-complete="onMenuSettled"
+        >
+          <MenuTrigger class="dr-menu-trigger" :aria-label="`Actions for ${person.nickname}`">
+            <span aria-hidden="true">⋯</span>
+          </MenuTrigger>
+          <MenuContent class="dr-menu">
+            <MenuItem class="dr-menu__item" value="rename">Rename…</MenuItem>
+            <template v-if="canCoHost(person)">
+              <MenuItem v-if="person.isCoHost" class="dr-menu__item" value="revoke">
+                Revoke Co-Host
+              </MenuItem>
+              <MenuItem v-else class="dr-menu__item" value="grant">Make Co-Host</MenuItem>
+            </template>
+            <template v-if="canRemove(person)">
+              <MenuSeparator class="dr-menu__sep" />
+              <MenuItem class="dr-menu__item dr-menu__item--danger" value="remove">
+                Remove from Room
+              </MenuItem>
+            </template>
+          </MenuContent>
+        </Menu>
       </template>
     </li>
   </ul>

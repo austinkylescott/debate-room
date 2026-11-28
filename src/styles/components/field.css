@@ -37,10 +37,19 @@ label.field > span:first-child {
   flex: none;
 }
 
-/* Every text input, select and textarea, not only TextField's: they share the look. */
-input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"]),
+/*
+ * Every text input, select and textarea, not only TextField's: they share the look.
+ * Not UI SDK's hidden form inputs (a Select's value for forms): they stay 1px and hidden.
+ */
+input:not(
+  [type="checkbox"],
+  [type="radio"],
+  [type="range"],
+  [type="hidden"],
+  [data-slot$="form-input"]
+),
 select,
-textarea {
+textarea:not([data-slot$="form-input"]) {
   font: 500 1rem/1.25 var(--font-body);
   width: 100%;
   min-width: 0;

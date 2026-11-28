@@ -1,0 +1,208 @@
+/*
+ * Menu and Select (SelectField.vue, the Waiting Room's action menu) and the confirm
+ * dialog (ConfirmDialog.vue). Spec: docs/design/components/Menu.md, reference rules in
+ * docs/design/components.css (.dr-select, .dr-menu).
+ *
+ *   .dr-select              the select's trigger: looks like the text inputs (on ground,
+ *                           muted outline, as approved for fields on #52)
+ *   .dr-menu                a listbox or action menu: surface card with the ink ring
+ *   .dr-menu__item          44px rows; [data-highlighted] raised, [data-selected] bold
+ *                           with the ink sparkle, .dr-menu__item--danger spicy,
+ *                           [data-disabled] muted with the reason in its label
+ *   .dr-menu__sep           a dashed separator
+ *   .dr-dialog              the confirm dialog: a card in the middle of the page
+ *
+ * Menus never clip: UI SDK flips them to stay in view and caps them at the space left
+ * (--available-height); under 420px they open as a bottom sheet instead.
+ */
+
+.dr-select {
+  --btn-bg: var(--ground);
+  --btn-bd: var(--muted);
+  --btn-hover-bg: var(--ground);
+
+  justify-content: space-between;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px 0 16px;
+  border-radius: var(--radius);
+  font: 500 1rem/1.25 var(--font-body);
+  text-align: left;
+  box-shadow: none;
+}
+
+.dr-select:hover:not(:disabled),
+.dr-select:active:not(:disabled) {
+  --btn-bd: var(--ink);
+
+  transform: none;
+  box-shadow: none;
+}
+
+.dr-select[data-open] {
+  --btn-bd: var(--ink);
+}
+
+.dr-select__value {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dr-select__value[data-placeholder] {
+  color: var(--muted);
+}
+
+.dr-select__chevron {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dr-menu {
+  box-sizing: border-box;
+  min-width: max(220px, var(--anchor-width, 0px));
+  max-width: calc(100vw - 32px);
+  max-height: min(var(--available-height, 60vh), 60vh);
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  border-radius: var(--radius-lg) 8px var(--radius-lg) 8px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow:
+    var(--lift),
+    0 0 0 2px var(--ink);
+  list-style: none;
+}
+
+/* The bottom sheet: full width along the bottom, its top corners rounded. */
+.dr-menu[data-presentation="sheet"] {
+  width: 100%;
+  max-width: none;
+  max-height: 70vh;
+  padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.dr-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: var(--ink);
+  font: 500 15px/1.25 var(--font-body);
+  cursor: pointer;
+  outline: none;
+}
+
+.dr-menu__item[data-highlighted] {
+  background: var(--raised);
+}
+
+/* The keyboard's place in the list, as the reference's focus row. */
+.dr-menu[data-modality="keyboard"] .dr-menu__item[data-highlighted],
+.dr-menu .dr-menu__item:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.dr-menu__item[data-selected] {
+  font-weight: 700;
+}
+
+.dr-menu__check {
+  display: grid;
+  margin-left: auto;
+}
+
+.dr-menu__check svg {
+  width: 16px;
+  height: 16px;
+  fill: var(--ink);
+}
+
+.dr-menu__item--danger {
+  color: var(--spicy);
+}
+
+.dr-menu__item[data-disabled] {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.dr-menu__group + .dr-menu__group {
+  margin-top: 4px;
+}
+
+.dr-menu__group-label {
+  padding: 8px 12px 4px;
+  color: var(--muted);
+  font: 600 12px/1.2 var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dr-menu__sep {
+  height: 0;
+  margin: 6px 8px;
+  border: 0;
+  border-top: 1.5px dashed var(--line);
+}
+
+/* The Waiting Room's "…" trigger for each person. */
+button.dr-menu-trigger {
+  padding-inline: 12px;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.dr-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 35%, transparent);
+}
+
+.dr-dialog {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  gap: 12px;
+  width: min(420px, calc(100vw - 32px));
+  height: fit-content;
+  margin: auto;
+  padding: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-lg) 8px var(--radius-lg) 8px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow:
+    var(--lift),
+    0 0 0 2px var(--ink);
+}
+
+.dr-dialog__title {
+  margin: 0;
+  font: 400 20px/1.2 var(--font-display);
+}
+
+.dr-dialog__description {
+  margin: 0;
+  color: var(--ink);
+}
+
+.dr-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}

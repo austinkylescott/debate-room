@@ -49,14 +49,20 @@ test("targets skips UI SDK's hidden form input, but not a small input that can b
 }) => {
   await plant(
     page,
-    `<input type="radio" aria-hidden="true" style="width: 10px; height: 10px; margin: 0">`,
+    `<input type="radio" aria-hidden="true" style="width: 10px; height: 10px; margin: 0">
+     <textarea aria-hidden="true" style="width: 10px; height: 10px; min-height: 0; margin: 0; padding: 0"></textarea>`,
   );
-  expect(await checks.targets(page, SCOPE)).toEqual([expect.stringContaining("10×10px")]);
+  expect(await checks.targets(page, SCOPE)).toEqual([
+    expect.stringContaining("input is 10×10px"),
+    expect.stringContaining("textarea is 10×10px"),
+  ]);
   await plant(
     page,
     `<button role="radio" aria-checked="true" style="width: 44px; height: 44px">On</button>
      <input type="radio" aria-hidden="true" tabindex="-1"
-       style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none">`,
+       style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none">
+     <textarea data-slot="select-form-input" aria-hidden="true" tabindex="-1"
+       style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none"></textarea>`,
   );
   expect(await checks.targets(page, SCOPE)).toEqual([]);
 });
@@ -226,6 +232,22 @@ test("orbits flags overlapping electrons and pills, a covered label, a stray pil
     ),
   );
   expect(await checks.orbits(page, SCOPE)).toEqual([]);
+});
+
+test("menus flags a menu that clips, or isn't a bottom sheet under 420px", async ({ page }) => {
+  const popup = (style: string, presentation = "popover") =>
+    `<div data-slot="menu-content" data-open data-presentation="${presentation}"
+       style="position: fixed; width: 200px; height: 100px; ${style}">Menu</div>`;
+  await plant(page, popup("left: -40px; top: 20px"));
+  expect(await checks.menus(page, SCOPE)).toEqual([expect.stringContaining("clips at -40,20")]);
+  await plant(page, popup("left: 20px; top: 20px"));
+  expect(await checks.menus(page, SCOPE)).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await checks.menus(page, SCOPE)).toEqual([
+    expect.stringContaining("not a bottom sheet, under 420px"),
+  ]);
+  await plant(page, popup("left: 0; bottom: 0; width: 390px", "sheet"));
+  expect(await checks.menus(page, SCOPE)).toEqual([]);
 });
 
 test("names flags names that wrap, break, lack a title or overlap", async ({ page }) => {
