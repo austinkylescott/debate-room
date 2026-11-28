@@ -228,6 +228,7 @@ function claimHostWithPin(pin: string) {
           :people="view.waitingRoom?.people ?? []"
           :you-id="personId"
           is-host
+          :moods="view.stage?.moods"
           @send="send"
         />
         <section class="card">
@@ -313,6 +314,7 @@ function claimHostWithPin(pin: string) {
         :you-id="personId"
         :is-host="view.runsRoom"
         :is-spectator="view.you.role === 'spectator'"
+        :moods="view.stage?.moods"
         @send="send"
       />
       <LineupEditor

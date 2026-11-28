@@ -73,3 +73,5 @@ Rooms are set up from the test process, not by clicking: `harness/room.ts` conne
 | `leak(page, secrets)`, `perceivable(page, roomId)` + `sameView(a, b)`                               | The leak test's two probes: hidden values anywhere in the DOM or accessibility tree, and two views that should match |
 
 Close the Room (`room.close()`) at the end of the test, in a `finally`.
+
+`leak()` skips anything inside an `svg[data-decoration]`: the breathing containers' fixed shape paths (ShapeZone.vue), whose coordinates would otherwise match any two-digit secret. Only put `data-decoration` on an SVG whose drawing never depends on Room data; the two-view comparison (`sameView`) still covers everything.

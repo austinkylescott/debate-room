@@ -16,6 +16,8 @@ import { notchesCrossed, SPECTRUM_MAX, SPECTRUM_MIN, SPECTRUM_NOTCHES } from "..
 import Electron from "./Electron.vue";
 import MoodPanel from "./MoodPanel.vue";
 import Notice from "./Notice.vue";
+import ShapeZone from "./ShapeZone.vue";
+import SpectrumOrbit from "./SpectrumOrbit.vue";
 import SpectrumSummary from "./SpectrumSummary.vue";
 
 const props = defineProps<{
@@ -71,10 +73,9 @@ function onSettle() {
   emit("send", { type: "move-position", position: draft.value, settled: true });
 }
 
-// After the reveal, a marker or notch label briefly lights up when a position
-// crosses a notch, so everyone can see people moving. See `.crossed` in style.css.
+// After the reveal, the notch your own move crosses briefly lights up (the "quantum
+// jump" in HANDOFF.md's motion spec), with a tap where the device can vibrate.
 const CROSSED_MS = 600;
-const crossedPeople = ref<string[]>([]);
 const crossedNotch = ref<number | null>(null);
 const flashTimers: ReturnType<typeof setTimeout>[] = [];
 
@@ -83,30 +84,11 @@ function flash(apply: () => void, clear: () => void) {
   flashTimers.push(setTimeout(clear, CROSSED_MS));
 }
 
-watch(
-  () =>
-    spectrum.value.step === "revealed"
-      ? spectrum.value.people.map((p) => [p.personId, p.position] as const)
-      : [],
-  (positions, before) => {
-    const was = new Map(before);
-    for (const [personId, position] of positions) {
-      const from = was.get(personId);
-      if (from == null || position === null || notchesCrossed(from, position).length === 0) {
-        continue;
-      }
-      flash(
-        () => (crossedPeople.value = [...crossedPeople.value, personId]),
-        () => (crossedPeople.value = crossedPeople.value.filter((id) => id !== personId)),
-      );
-    }
-  },
-);
-
 watch(draft, (to, from) => {
   if (spectrum.value.step !== "revealed") return;
   const notch = notchesCrossed(from, to).at(-1);
   if (notch === undefined) return;
+  navigator.vibrate?.(10);
   flash(
     () => (crossedNotch.value = notch),
     () => {
@@ -136,6 +118,13 @@ const marks = computed(() => floorMarks(props.floor ?? null));
  */
 const peeking = computed(
   () => spectrum.value.positionsVisible && spectrum.value.step === "positioning",
+);
+
+/** Everyone placed, for the orbit. Your own electron follows your slider there. */
+const orbitPeople = computed(() =>
+  spectrum.value.people.flatMap((person) =>
+    person.position === null ? [] : [{ ...person, position: person.position }],
+  ),
 );
 
 const checkInOpen = computed(() => props.stage.checkIn?.status === "open");
@@ -241,7 +230,28 @@ const rowCount = computed(() => Math.max(0, ...Object.values(rows.value).map((r)
 <template>
   <section class="card stage">
     <p class="eyebrow">Spectrum · Prompt {{ stage.promptNumber }} of {{ stage.promptCount }}</p>
-    <h1>{{ stage.prompt.text }}</h1>
+    <template v-if="spectrum.step === 'revealed'">
+      <ShapeZone variant="prompt">
+        <h1>{{ stage.prompt.text }}</h1>
+      </ShapeZone>
+      <p class="dr-stage-status">
+        <span class="dr-tag dr-tag--revealed">✦ Revealed</span>
+        <span>
+          {{ lockedCount }} of {{ spectrum.people.length }} locked in<template v-if="canMove">
+            · you can move now</template
+          >
+        </span>
+      </p>
+      <SpectrumOrbit
+        :people="orbitPeople"
+        :you-id="yours ? personId : null"
+        :your-position="yours ? draft : null"
+        :moods="stage.moods"
+        :marks="marks"
+        :crossed-notch="crossedNotch"
+      />
+    </template>
+    <h1 v-else>{{ stage.prompt.text }}</h1>
     <Notice
       v-if="spectrum.step === 'positioning' && spectrum.positionsVisible"
       tone="host"
@@ -250,11 +260,15 @@ const rowCount = computed(() => Math.max(0, ...Object.values(rows.value).map((r)
       <b>Only you can see this.</b> You aren't Playing, so positions show before the reveal.
     </Notice>
 
-    <component :is="yours ? Field : 'div'" v-if="spectrum.step !== 'summary'" class="spectrum">
+    <component
+      :is="yours ? Field : 'div'"
+      v-if="spectrum.step === 'positioning' || (spectrum.step === 'revealed' && yours)"
+      class="spectrum"
+    >
       <FieldLabel v-if="yours" class="spectrum-label">Your position</FieldLabel>
       <!-- Where everyone stands, once this viewer may see it: names stacked in rows, each with a stem down to its spot -->
       <div
-        v-if="markers.length"
+        v-if="markers.length && spectrum.step === 'positioning'"
         ref="labelsEl"
         class="track-labels"
         :style="{ '--rows': rowCount }"
@@ -267,7 +281,6 @@ const rowCount = computed(() => Math.max(0, ...Object.values(rows.value).map((r)
           :class="{
             you: person.personId === personId,
             apart: furthestIds.includes(person.personId),
-            crossed: crossedPeople.includes(person.personId),
           }"
           :style="{ '--at': percent(person.position), '--row': rows[person.personId] ?? 0 }"
         >

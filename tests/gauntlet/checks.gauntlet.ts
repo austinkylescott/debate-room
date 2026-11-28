@@ -170,6 +170,64 @@ test("moods flags a Mood row that wraps, spills or isn't seven 44px Moods", asyn
   expect(await checks.moods(page, SCOPE)).toEqual([]);
 });
 
+test("orbits flags overlapping electrons and pills, a covered label, a stray pill and an orbit that doesn't count", async ({
+  page,
+}) => {
+  // Pills are centred on their point, as the app places them (.dr-orbit__pill).
+  const orbit = (discs: [number, number][], pills: [number, number][], name: string) =>
+    `<div class="dr-orbit"><div class="dr-orbit__stage" style="position: relative; width: 358px; height: 284px">
+       <svg viewBox="0 0 358 284" style="position: absolute; inset: 0">${discs
+         .map(([x, y]) => `<circle class="dr-orbit__disc" cx="${x}" cy="${y}" r="14" />`)
+         .join("")}<text class="dr-orbit__label" x="250" y="250">Agree 4</text></svg>
+       ${pills
+         .map(
+           ([x, y]) =>
+             `<span class="dr-orbit__pill" style="position: absolute; left: ${x}px; top: ${y}px; width: 60px; height: 20px">Ada</span>`,
+         )
+         .join("")}
+       <div data-slot="toggle-group" aria-label="${name}"></div></div></div>`;
+  await plant(
+    page,
+    orbit(
+      [
+        [100, 100],
+        [110, 100],
+        [270, 245],
+      ],
+      [
+        [60, 30],
+        [80, 35],
+        [340, 200],
+      ],
+      "Spectrum",
+    ),
+  );
+  expect(await checks.orbits(page, SCOPE)).toEqual([
+    expect.stringContaining("two electrons overlap"),
+    expect.stringContaining('covers the "Agree 4" label'),
+    expect.stringContaining("overlaps"),
+    expect.stringContaining("sticks out of the orbit"),
+    expect.stringContaining(
+      "doesn't count Strongly Disagree, Disagree, Neutral, Agree, Strongly Agree",
+    ),
+  ]);
+  await plant(
+    page,
+    orbit(
+      [
+        [100, 100],
+        [140, 100],
+      ],
+      [
+        [60, 30],
+        [150, 80],
+      ],
+      "Spectrum: 2 Strongly Disagree, 0 Disagree, 1 Neutral, 4 Agree including you, 0 Strongly Agree",
+    ),
+  );
+  expect(await checks.orbits(page, SCOPE)).toEqual([]);
+});
+
 test("names flags names that wrap, break, lack a title or overlap", async ({ page }) => {
   const name = "Supercalifragilistic";
   await plant(

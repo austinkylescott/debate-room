@@ -1,4 +1,108 @@
-/* The Floor (FloorPanel). Becomes the kidney container and Timer (docs/design/components/Timer.md). */
+/*
+ * The Floor (FloorPanel.vue). Spec: docs/design/components/AtomicStage.md ("Floor") and
+ * HANDOFF.md "Spectrum Stage spec (revealed)", item 6: a teal kidney holding the atom
+ * timer, who has the Floor with their Mood, who's next, and Raise. Text on the kidney
+ * uses on-teal. The Host's controls stay below it.
+ */
+
+.floor .dr-zone--floor {
+  margin-block: 4px 12px;
+}
+
+/* On a phone the card's padding leaves the kidney too narrow for a name: it reaches into it. */
+@media (max-width: 480px) {
+  .floor .dr-zone--floor {
+    width: calc(100% + 2 * var(--space-4));
+    margin-inline: calc(-1 * var(--space-4));
+    padding-inline: 18px 22px;
+  }
+}
+
+.dr-floor {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.dr-floor__dial {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 86px;
+  height: 86px;
+}
+
+.dr-floor__atom {
+  width: 86px;
+  height: 86px;
+  overflow: visible;
+  fill: none;
+  stroke: var(--on-teal);
+  stroke-width: 1.25;
+}
+
+.dr-floor__atom circle {
+  fill: var(--on-teal);
+  stroke: none;
+}
+
+/* The raised-hand queue, riding the timer's outer orbit. Neutral, not a pole fill. */
+.dr-floor__queued {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  font: 700 9px/1 var(--font-body);
+  transform: translate(-50%, -50%);
+}
+
+.dr-floor__who {
+  display: grid;
+  min-width: 0;
+}
+
+.dr-floor__who small {
+  overflow: hidden;
+  font: 600 13px/1.3 var(--font-body);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dr-floor__speaker {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font: 400 21px/1.15 var(--font-display);
+}
+
+.dr-floor__name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+button.dr-floor__raise {
+  width: auto;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 12px;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+/* When the Stage waits on your move, Raise steps down (button.css): on the kidney, in on-teal. */
+.stage:has(button.primary, .is-your-move) ~ .floor .dr-zone button.primary {
+  --btn-fg: var(--on-teal);
+  --btn-bd: var(--on-teal);
+  --btn-hover-bg: transparent;
+}
 
 .floor h3 {
   margin: 16px 0 8px;

@@ -17,6 +17,7 @@ export const CHECKS = {
   cards: (page, scope) => checks.cards(page, scope),
   tags: (page, scope) => checks.tags(page, scope),
   moods: (page, scope) => checks.moods(page, scope),
+  orbits: (page, scope) => checks.orbits(page, scope),
 } satisfies Record<string, (page: Page, scope: Scope, names: string[]) => Promise<Violations>>;
 
 export type CheckName = keyof typeof CHECKS;

@@ -618,6 +618,74 @@ export async function moods(page: Page, scope: Scope = null): Promise<Violations
   );
 }
 
+/**
+ * AtomicStage.md and gauntlet 1: on the revealed Spectrum's orbit, no two electrons
+ * overlap, no electron covers a notch label, no two name pills overlap, every pill
+ * stays inside the orbit's box, and
+ * the group of orbit buttons is named with every notch's count.
+ */
+export async function orbits(page: Page, scope: Scope = null): Promise<Violations> {
+  await withHelpers(page);
+  return page.evaluate(
+    ({ scope, notches }) => {
+      const { describe, visible, inScope } = window.__gauntlet;
+      const found: string[] = [];
+      const overlaps = (a: DOMRect, b: DOMRect) =>
+        Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+        Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+      for (const orbit of document.querySelectorAll(".dr-orbit")) {
+        if (!visible(orbit) || !inScope(orbit, scope)) continue;
+        const where = describe(orbit);
+        const discs = [...orbit.querySelectorAll(".dr-orbit__disc")].map((disc) => {
+          const r = disc.getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2, radius: r.width / 2 };
+        });
+        for (let i = 0; i < discs.length; i++) {
+          for (let j = i + 1; j < discs.length; j++) {
+            const a = discs[i];
+            const b = discs[j];
+            if (Math.hypot(a.x - b.x, a.y - b.y) < a.radius + b.radius - 1) {
+              found.push(`two electrons overlap in ${where}`);
+            }
+          }
+        }
+        for (const label of orbit.querySelectorAll(".dr-orbit__label")) {
+          const box = label.getBoundingClientRect();
+          const covered = discs.some((d) => {
+            const nearestX = Math.min(Math.max(d.x, box.left), box.right);
+            const nearestY = Math.min(Math.max(d.y, box.top), box.bottom);
+            return Math.hypot(d.x - nearestX, d.y - nearestY) < d.radius - 1;
+          });
+          if (covered) found.push(`an electron covers the "${label.textContent?.trim()}" label`);
+        }
+        const stage = orbit.querySelector(".dr-orbit__stage")?.getBoundingClientRect();
+        const pills = [...orbit.querySelectorAll(".dr-orbit__pill")].filter(visible);
+        for (const [i, pill] of pills.entries()) {
+          const box = pill.getBoundingClientRect();
+          if (stage && (box.left < stage.left - 1 || box.right > stage.right + 1)) {
+            found.push(`${describe(pill)} sticks out of the orbit`);
+          }
+          for (const other of pills.slice(i + 1)) {
+            if (overlaps(box, other.getBoundingClientRect())) {
+              found.push(`${describe(pill)} overlaps ${describe(other)}`);
+            }
+          }
+        }
+        const name =
+          orbit.querySelector("[data-slot=toggle-group]")?.getAttribute("aria-label") ?? "";
+        const missing = notches.filter(
+          (notch) => !new RegExp(`(?:: |, )\\d+ ${notch}(?: including you)?(?:,|$)`).test(name),
+        );
+        if (missing.length) {
+          found.push(`${where}'s accessible name doesn't count ${missing.join(", ")}: "${name}"`);
+        }
+      }
+      return found;
+    },
+    { scope, notches: SPECTRUM_NOTCH_LABELS },
+  );
+}
+
 export interface Secret {
   /** The other person's nickname. */
   name: string;
@@ -626,6 +694,14 @@ export interface Secret {
 }
 
 /** Words that tie a name to a place on the Spectrum. */
+export const SPECTRUM_NOTCH_LABELS = [
+  "Strongly Disagree",
+  "Disagree",
+  "Neutral",
+  "Agree",
+  "Strongly Agree",
+];
+
 export const NOTCH_WORDS = ["Disagree", "Neutral", "Agree"];
 
 /**
@@ -644,6 +720,9 @@ export async function leak(
     const parts: string[] = [];
     for (const el of document.body.querySelectorAll("*")) {
       if (el.matches("script, style")) continue;
+      // Decorative shapes (ShapeZone.vue) are fixed path data from the design: their
+      // coordinates collide with any two-digit secret, and no one's position draws them.
+      if (el.closest("svg[data-decoration]")) continue;
       for (const attr of el.attributes) parts.push(`${attr.name}="${attr.value}"`);
       for (const child of el.childNodes) {
         if (child.nodeType === Node.TEXT_NODE) parts.push(child.textContent ?? "");

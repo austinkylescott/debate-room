@@ -1,0 +1,129 @@
+/*
+ * Breathing containers (ShapeZone.vue). Spec: docs/design/components/AtomicStage.md.
+ *
+ *   .dr-zone            three layers: drifting shapes, the container shape, the content
+ *   .dr-zone--prompt    the amoeba (primary), holding the Prompt
+ *   .dr-zone--floor     the kidney (teal), holding the Floor
+ *
+ * The shape stretches to the zone; the content sits in a fixed inner area, well inside
+ * the breathing edge, so text never sits on a moving edge (hard rule 6).
+ */
+.dr-zone {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  width: 100%;
+  max-width: 420px;
+  margin-inline: auto;
+}
+
+.dr-zone__drift {
+  position: absolute;
+  z-index: 0;
+  overflow: visible;
+  transform: translate(-50%, -50%) rotate(var(--turn));
+  animation: dr-drift var(--d) ease-in-out var(--delay) infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes dr-drift {
+  0% {
+    transform: translate(-50%, -50%) rotate(var(--turn));
+  }
+  50% {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)))
+      rotate(calc(var(--turn) + var(--dr)));
+  }
+  100% {
+    transform: translate(calc(-50% - var(--dx) * 0.6), calc(-50% - var(--dy) * 0.8))
+      rotate(calc(var(--turn) - var(--dr) * 0.5));
+  }
+}
+
+.dr-zone__shape {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.dr-zone__content {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+}
+
+.dr-zone--prompt {
+  aspect-ratio: 370 / 214;
+  align-items: center;
+  padding: 11% 15% 13%;
+}
+
+.dr-zone--prompt .dr-zone__shape {
+  fill: var(--primary);
+}
+
+.dr-zone--prompt .dr-zone__content {
+  margin: 0;
+  color: var(--on-primary);
+  font: 400 26px/1.1 var(--font-display);
+  text-align: center;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+.dr-zone--floor {
+  min-height: 132px;
+  align-items: center;
+  padding: 18px 26px 18px 22px;
+}
+
+.dr-zone--floor .dr-zone__shape {
+  fill: var(--teal);
+}
+
+.dr-zone--floor .dr-zone__content {
+  color: var(--on-teal);
+}
+
+.fill-mustard {
+  fill: var(--mustard);
+}
+.fill-pink {
+  fill: var(--pink);
+}
+.fill-teal {
+  fill: var(--teal);
+}
+.fill-sky {
+  fill: var(--sky);
+}
+.fill-ink {
+  fill: var(--ink);
+}
+
+.atom-shape__ink {
+  fill: var(--ink);
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.atom-shape__spine {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dr-zone__drift {
+    animation: none;
+  }
+}
+
+.dr-zone__content > :is(h1, h2, p) {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
