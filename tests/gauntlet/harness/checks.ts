@@ -720,6 +720,9 @@ export async function leak(
     const parts: string[] = [];
     for (const el of document.body.querySelectorAll("*")) {
       if (el.matches("script, style")) continue;
+      // Decorative shapes (ShapeZone.vue) are fixed path data from the design: their
+      // coordinates collide with any two-digit secret, and no one's position draws them.
+      if (el.closest("svg[data-decoration]")) continue;
       for (const attr of el.attributes) parts.push(`${attr.name}="${attr.value}"`);
       for (const child of el.childNodes) {
         if (child.nodeType === Node.TEXT_NODE) parts.push(child.textContent ?? "");

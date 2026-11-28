@@ -128,6 +128,7 @@ const breathe = computed(() => breatheValues(shape.value, 3.5));
       class="dr-zone__drift"
       viewBox="-50 -50 100 100"
       aria-hidden="true"
+      data-decoration
       :style="{
         left: `${drift.x}%`,
         top: `${drift.y}%`,
@@ -148,6 +149,7 @@ const breathe = computed(() => breatheValues(shape.value, 3.5));
       viewBox="-50 -50 100 100"
       preserveAspectRatio="none"
       aria-hidden="true"
+      data-decoration
     >
       <path :d="shape">
         <animate
